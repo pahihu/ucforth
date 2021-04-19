@@ -1,0 +1,698 @@
+<html>
+<head>
+<title>ghost_wordlist.html</title>
+<META NAME="Author" CONTENT="Charles Esson">
+<META NAME="keywords" CONTENT="forth">
+<META NAME="description" CONTENT=" file used to generate uCforth">
+<LINK REL=stylesheet HREF="forth.css" TYPE="text/css">
+</head>
+
+<body>
+<h1>ghost wordlists</h1>
+<a HREF="./license.html">license</a>
+<p>
+ANSI forth provides no way to move words around lists in a standard way. You either
+move away from ANSI wordlist to set a word context or you rebuild the wordlists from
+scratch using ANSI forth. All ANSI forth needed to avoid the problem
+was the addition of two standard words, one to unlink and return a link
+address of the last created word, another to link a word into the current vocabulary.
+Oh well, this version of the meta compiler has to run in a standard
+ANSI system, we simple redefine a new wordlist structure using ANSI forth.
+</p>
+<p>
+We need some rules to make the code easier to follow.
+The ghost vocabularies are looked at by the hosts target compiler, that
+is, if the code is for the target the action between : and ; is dependent on the ghost
+vocabularies. Outside the : words we are in interpreter mode. We interpret in the host.
+Special interpret actions that deal with the target are in the host vocabulary.
+</p>
+<p>Got to get ourselves into a known state.</p>
+<pre>
+<code>
+
+HEX
+only
+forth
+
+</code>
+</pre>
+<h3>Ghost support</h3>
+<p>
+Because ANSI forth doesn't provide enough support to use the standard wordlists for the
+vocabularies that describe the ghost we create a new set. To keep things clear in our
+mind we will use three words. host target and ghost. The host wordset is a standard ansi
+wordset, the ghost wordset is created using these words and describe the ghost words. The
+target words reside in the target.
+</p>
+<p>
+The xt address of a ghost word contains a host execution token, the next cell contains the
+targets execution token, or -1. The target execution token is used by words created with : ,
+POSTPONE and others. The target execution token may be followed by additional data, for an example
+see the definition of CONSTANT.
+The host execution token is provided with the address containing the execution token
+by <i>]T</i>.
+</p>
+<p>
+The count field of a ghost word only contains the count. To make a word immediate it is put in
+a different list. Code is changed to in-line by patching the host execution token.
+</p>
+<p>
+In summary, this describes a word created in the host that describes what is
+happening in the target. The word sits in non standard wordlists that we manipulate
+using words created with ANSI forth.
+</p>
+<pre>
+<code>
+\ The string is stored above the link count.
+\ all offsets are relative to the link.
+1 CHARS NEGATE CONSTANT _#ghost_head_count
+
+zero
+
+DUP CONSTANT _#ghost_head_link      CELL+
+DUP CONSTANT _#ghost_head_hash      CELL+
+\ this is the address given to the host compile word.
+DUP CONSTANT _#ghost_head_host_xt   CELL+
+DUP CONSTANT _#ghost_head_target_xt CELL+
+DUP CONSTANT _#ghost_head_pfa
+DROP
+
+\ used in the host compile words to get the ghosts word additional data items.
+: get_target_xt ( ghost_head_xt -- target_xt)
+	[ _#ghost_head_target_xt _#ghost_head_host_xt - ] LITERAL + @
+;
+
+: ghost_data ( ghost_head_xt -- ghost_data_addr )
+	[ _#ghost_head_pfa _#ghost_head_host_xt - ] LITERAL +
+;
+	</code> </pre>
+<a name="%ghost_current"></a>
+<h5>ghost_current ( -- addr )</h5>
+<p>
+How often do you want to set current for one word and then move back to the
+previous current. Well this supports that.
+</p>
+<p>
+The words are added to the ghost_wordlist pointed to by the top %ghost_current value.
+We make ghost_current a stack so that we can add words to a particular ghost_wordlist
+without saving off and restoring the old ghost_current value.
+<i>ghost_definitions</i> pushes a ghost_current value.
+<i>ghost_definition_previous</i> pops a ghost_current value.
+</p>
+<pre>
+<code>
+	4 CONSTANT #ghost_current_vocs
+	ram_create %ghost_current  #ghost_current_vocs CELLS ram_allot
+</code>
+</pre>
+<p>
+The ghost context. All ghost_wordlists in the search order are searched.
+</p>
+<pre>
+<code>
+	10 CONSTANT #ghost_context_max
+	ram_variable %ghost_context_count
+	ram_create %ghost_context #ghost_context_max CELLS ram_allot
+</code>
+</pre>
+<h3>Manipulating the ghost search order</h3>
+<p>
+We re-implement the ansi standard way of doing things. We are now manipulating
+the ghost search order. This is a collection of ghost_wordlist pointers. ghost_wordlists contain
+wordlists that represent the different contexts a ghost word can be used
+when xcompiling.
+</p>
+<a name="ghost_get_order"></a>
+<h5>ghost_get_order ( -- widn ... wid1 n )</h5>
+<p>
+Returns the number of word lists in the search order and the word
+list identifiers widn ... wid1 identifying these word lists. wid1
+identifies the word list that is searched first, and widn the word
+list that is searched last. The search order is unaffected.
+</p>
+<pre>
+<code>
+	: ghost_get_order
+		%ghost_context_count @ zero ?DO
+			\ have to fetch in reverse order
+			%ghost_context_count @  I - 1- CELLS %ghost_context + @
+		LOOP
+		%ghost_context_count @
+	;
+
+</code>
+</pre>
+<a name="ghost_set_order"></a>
+<h5>ghost_set_order( wid1 .. widn n -- ) </h5>
+<p>
+Set the search order to the word lists identified by widn ... wid1.
+Subsequently, word list wid1 will be searched first, and word list
+widn searched last. If n is zero, empty the search order. If n is
+minus one, set the search order null.
+</p>
+<pre>
+<code>
+	: ghost_set_order  ( wid1 .. widn n -- )
+		DUP [ #ghost_context_max 1- ] LITERAL > ABORT" ghost vocabulary overload"
+		0 MAX
+		DUP %ghost_context_count  !
+		zero ?DO
+			I CELLS %ghost_context + !
+		LOOP
+	;
+</code>
+</pre>
+<a name="ghost_also"></a>
+<h5>ghost_also ( -- )</h5>
+<p>
+Transform the search order consisting of widn, ... wid2, wid1
+(where wid1 is searched first) into widn, ... wid2, wid1, wid1.
+An ambiguous condition exists if there are too many word lists in
+the search order.
+</p>
+<pre>
+<code>
+	: ghost_also  ( -- )
+		ghost_get_order DUP IF
+			\ last last 1+(--
+			OVER SWAP 1+
+		ELSE
+			\ make it 0 1(-- hoping that a vocabulary will fix things up
+			1
+		THEN
+		ghost_set_order
+	;
+</code>
+</pre>
+<a name="ghost_only"></a>
+<h5>ghost_only ( -- )</h5>
+<p>( -- )</p>
+<p>
+Set the search order to the implementation-defined minimum search order.
+</p>
+<pre>
+<code>
+	: ghost_only  ( -- )
+		0 ghost_set_order
+	;
+</code>
+</pre>
+<a name="ghost_previous"></a>
+<h5>ghost_previous ( -- )</h5>
+<p>
+Transform the search order consisting of widn, ... wid2, wid1
+(where wid1 is searched first) into widn, ... wid2. If the search
+order is empty it remain empty.
+</p>
+<pre>
+<code>
+	: ghost_previous  ( --  )
+		ghost_get_order
+		SWAP DROP 1-
+		ghost_set_order
+	;
+</code>
+</pre>
+<a name="ghost_definitions"></a>
+<h5>ghost_definitions( --)</h5>
+<p>( -- )</p>
+<p>
+Make the compilation word list the same as the first word list in the
+search order. Specifies that the names of subsequent definitions
+will be placed in the compilation word list. Subsequent changes in
+the search order will not affect the compilation word list.
+</p>
+<pre>
+<code>
+	: ghost_push_definitions ( --)
+		%ghost_current %ghost_current CELL+
+		[ #ghost_current_vocs 1- CELLS ] LITERAL MOVE
+	;
+
+	: ghost_definitions
+		ghost_push_definitions
+		%ghost_context @ %ghost_current !
+	;
+</code>
+</pre>
+<h5>ghost_previous_definitions(--)</h5>
+<p>
+So you can set a new definition vocabulary and then return to what was.
+I think a stack with two entries is really enough, we will know when
+all is finished.
+As ghost_definitions is often used without previous_definition it is expected
+the stack will overflow and stay that way. But it is old entries that
+are lost. The stack always contains the most recent additions.
+</p>
+<pre>
+<code>
+	: ghost_previous_definitions  ( --)
+		%ghost_current CELL+ %ghost_current
+		[ #ghost_current_vocs 1- CELLS ] LITERAL MOVE
+	;
+</code>
+</pre>
+<h5>ghost vocabulary structure</h5>
+<p>
+Describe the ghost vocabulary structure. Note that it is a collection
+of pointers to the actual wordlists. As we need to be able to move words
+around these lists we use wordlist structures created in this file.
+</p>
+<pre>
+<code>
+	zero
+	DUP CONSTANT _#vocg_body
+	DUP CONSTANT _#vocg_colon        CELL+           \ vocabulary used for : definitions
+	DUP CONSTANT _#vocg_immediate    CELL+           \ word moved to list list if immediate
+	DUP CONSTANT _#vocg_forward      CELL+           \ We can handle forward references.
+	DUP CONSTANT _#vocg_target_image CELL+           \ address in target
+
+	DROP
+
+	\ describe the ghost wordlists heads
+	\ these are created in host memory before the ghost vocabulary
+	zero
+	DUP CONSTANT _#gthread_count CELL+
+	DUP CONSTANT _#gthread_data
+	DROP
+</code>
+</pre>
+<p>
+Host head for all ghost vocabularies. We trace down this link to copy the
+target_image to the area pointed to by the target_wid. This occurs at the end
+of the cross compile.
+</p>
+<pre>
+<code>
+	ram_variable %ghost_vocabularies
+</code>
+</pre>
+<p>
+Words that provide the wid of the various thread groups found under a ghost vocabulary.
+Remember these cannot be searched by the system search words.
+</p>
+<pre>
+<code>
+	\ contains target addresses
+	: current_target_wordlist ( --twid)
+		%ghost_current @ _#vocg_target_image + @ ;
+	\ points to words that are used to manipulate the target.
+	: current_colon_wordlist ( --addr)
+		%ghost_current @ _#vocg_colon + @ ;
+	: current_forward_wordlist ( -- addr)
+		%ghost_current @ _#vocg_forward + @ ;
+	: current_immediate_wordlist ( --addr)
+		%ghost_current @ _#vocg_immediate + @
+	;
+</code>
+</pre>
+<p>
+Create a ghost word.
+</p>
+<pre>
+<code>
+
+\ the list the last ghost word was placed into
+ram_variable %ghost_last
+
+\ you see it used in RECURSE
+: last_definition ( - target_xt)
+	%ghost_last @ @
+	_#ghost_head_target_xt + @
+;
+
+: ghost_hash ( c-addr u wid -- list)
+	-rot checksum OVER
+	_#gthread_count + @                     \ wid hash count(--
+	1- AND                                 \ wid list (--
+	CELLS  _#gthread_data + +               \ list(--
+;
+
+: link_single ( add head --)
+	2DUP @ SWAP ! !
+;
+
+: link_ghost_wordlist ( addr n wid link_addr )
+	>R
+	ghost_hash
+	DUP %ghost_last !
+	\ head(--
+	R> SWAP
+	link_single
+;
+</code>
+</pre>
+<p>
+This adds a word to colon ghost vocabulary,
+we are making something in the host.
+It does nothing to the target.
+</p>
+<pre>
+<code>
+: _Sghost_word ( xt_target xt_host addr count -- )
+	2DUP
+
+	\ the string is to end on an aligned boundary
+	\ ALLOT does this if required so we ALLOT first and build the
+	\ string back from HERE.
+
+	\ xt_target xt_host addr n addr n (--
+	DUP 1+ CHARS ALLOT
+	DUP HERE 1 CHARS - C!
+	\ xt xh addr n(--
+	HERE OVER 1+ CHARS -
+	\ xt xh addr n addr_from n addr_to
+	SWAP
+	CMOVE
+	\ xt addr n(--
+	\ link back to head
+	2DUP
+	current_colon_wordlist
+	HERE
+	0 ,
+	link_ghost_wordlist
+	\ xt_target xt_host addr n(--
+	checksum ,
+	, \ xt_host
+	, \ xt_target
+
+;
+
+: $ghost_word ( target_xt host_xt $ -- )
+	COUNT _Sghost_word
+;
+
+: ghost_word ( target_xt host_xt --)
+	20 WORD $ghost_word
+;
+
+</code>
+</pre>
+<p>
+We have our ghost word head we now need code to place words in the lists,
+words to find them. We may compile on a ANSI system but that does not
+stop us using uCforth tricks to speed up the search of our own structure.
+</p>
+<pre>
+<code>
+
+: ghost_head_string ( link --c-addr n)
+	_#ghost_head_count + \ the offset is negative
+	DUP C@ TUCK         \ count count_addr count(--
+	CHARS - SWAP
+;
+
+\ #### seems to be a bug if you get to end of list without finding you get a memory error
+: search_ghost_thread ( $ checksum thread -- false | host_xt_addr true  )
+	>R                             \ $ checksum(--
+	\ c-addr u checksum
+	BEGIN
+		R> @ >R
+		R@
+	WHILE                          \ $ checksum(--
+		DUP R@  _#ghost_head_hash + @ = IF
+			\ the checksums are the same
+			\ We abort if the strings are different, it is considered an error
+			\ I have had system pulling this trick running for 5 years and
+			\ I am yet to see this happen, but there is a 1 in billion or there
+			\ about chance.
+			DROP
+			\ $(--
+			COUNT
+			R@ ghost_head_string
+			COMPARE not IF         \ we have a match
+				R> _#ghost_head_host_xt +
+				TRUE
+				EXIT
+			ELSE
+				TRUE ABORT" checksums match, strings differ."
+			THEN
+		THEN
+	REPEAT
+	\ $ checksum(--
+	R> DROP
+	2DROP
+	FALSE
+;
+
+: search_ghost_wordlist ( $ checksum wid -- false | xt true )
+	2DUP _#gthread_count + @                \ $ checksum wid checksum count(--
+	1- AND                                 \ $ checksum wid offset (--
+	CELLS  _#gthread_data + +               \ $ checksum head(--
+	search_ghost_thread
+;
+
+: ghost_colon_wordlist ( vocg --wid )
+	_#vocg_colon + @
+;
+
+: ghost_immediate_wordlist ( vocg --wid )
+	_#vocg_immediate + @
+;
+</code>
+ 0 not found
+ 1 in colon list
+-1 in immediate list
+</pre>
+<p>
+Doesn't matter which list we find the word in.
+The host_xt is followed by the target xt, which can be followed by additional data.
+If the word has not yet been defined in target the target_xt will be set to -1.
+</p>
+<pre>
+<code>
+-1 CONSTANT #non_immediate
+1  CONSTANT #immediate
+
+: ghost_find_colon  ( $ -- $ 0 | host_xt_addr 1 )
+        \ c-addr(--
+	DUP COUNT checksum
+	\ $ checksum
+	%ghost_context_count @ zero ?DO
+		2DUP
+		I CELLS %ghost_context + @      \ $ checksum $ checksum vocg(--
+		ghost_colon_wordlist             \ $ checksum $ checksum wid(--
+		search_ghost_wordlist           \ $ checksum 0|$ checksum xt_addr true (--
+		IF
+			>R 2DROP R>
+			UNLOOP
+			#non_immediate
+			EXIT
+		THEN
+		\ $ checksum
+	LOOP
+	DROP
+	zero
+	\ $ 0(--
+;
+
+</code>
+</pre>
+<p>
+Doesn't matter which list we find the word in.
+The host_xt is followed by the target xt, which can be followed by additional data.
+If the word has not yet been defined in target the target_xt will be set to -1.
+</p>
+<pre>
+<code>
+: ghost_find_immediate  ( $ -- $ 0 | host_xt_addr -1)
+        \ c-addr(--
+	DUP COUNT checksum
+	\ $ checksum
+	%ghost_context_count @ zero ?DO
+		\ $ checksum(--
+		2DUP
+		I CELLS %ghost_context + @      \ $ checksum $ checksum vocg(--
+		ghost_immediate_wordlist         \ $ checksum $ checksum wid(--
+		search_ghost_wordlist           \ $ checksum 0|$ checksum xt_addr true (--
+		IF
+			>R 2DROP R>
+			UNLOOP
+			#immediate
+			EXIT
+		THEN
+		\ $ checksum
+	LOOP
+	DROP
+	zero
+	\ $ 0(--
+;
+
+: ghost_find ( -- $ 0 | xt 1 | xt -1 )
+	ghost_find_colon DUP IF EXIT THEN
+	ghost_find_immediate
+;
+
+: defined_ghost ( -- $ 0 | xt 1 | xt -1 )
+	BL WORD
+	ghost_find
+;
+</code>
+</pre>
+<p>
+Often a word is defined in the ghost vocabulary
+before is is defined in the target.
+If the ghost word is defined the action of the word can be performed
+on the target, when the target word is defined the action can be added
+to new target words.
+</p>
+<pre>
+<code>
+: set_ghost_target_xt ( target_xt --)
+	defined_ghost not ABORT" ghost word not defined"
+	[ _#ghost_head_target_xt _#ghost_head_host_xt - ] LITERAL + !
+;
+</code>
+</pre>
+<p>
+The word will be in the ghost colon wordlist, we place it in the
+immediate wordlist.
+<i>POSTPONE</i> searches only the immediate list.
+</p>
+<pre>
+<code>
+: ghost_immediate ( --)
+	\ unlink from list were is
+	%ghost_last @  \ last list
+	@              \ last word
+	DUP >R
+	@              \ last_-1 _word
+	%ghost_last @ !
+
+	R@ ghost_head_string current_immediate_wordlist R> link_ghost_wordlist
+;
+</code>
+</pre>
+<p>
+Local variables add to a ghost vocabulary. When done the vocabulary is cleaned out
+for the next set of locals.
+</p>
+<pre>
+<code>
+
+: clean_ghost_vhead ( head --)
+	DUP _#gthread_count + @ zero DO
+		zero OVER _#gthread_data + !
+		CELL+
+	LOOP
+	DROP
+;
+</code>
+</pre>
+<p>
+There should be no data added to the target heads when locals are defined.
+In fact there should be no target wordlist.
+</p>
+<pre>
+<code>
+: ?clean_ghost_vhead ( head --)
+	?DUP IF
+		DUP _#gthread_count + target@ zero DO
+			DUP _#gthread_data + target@ ABORT" cleaning ghost wordlist with target entries"
+			CELL+
+		LOOP
+		DROP
+	THEN
+;
+
+
+\ clean out or test the ghost wordlists, used when finishing off locals.
+: clean_ghost_current ( --)
+	\ there should be no words added to target
+	current_target_wordlist ?clean_ghost_vhead
+	current_colon_wordlist clean_ghost_vhead
+	current_immediate_wordlist clean_ghost_vhead
+	current_forward_wordlist clean_ghost_vhead
+;
+</code>
+</pre>
+<p>
+Create a ghost wordlist
+</p>
+<pre>
+<code>
+
+	\ number of threads to be added to vocabulary.
+	\ This should be set to 256 for forth
+	ram_variable %ghost_wordlist_threads
+	$10 CONSTANT #min_wordlists
+	#min_wordlists %ghost_wordlist_threads !
+
+
+	: (ghost_wordlist)   ( target_wid --vocg)
+		\ there are 4 word lists. We structure all the
+		\ same so we can create a common search word
+
+		%ghost_wordlist_threads @ #min_wordlists MAX
+
+		HERE SWAP
+		DUP ,
+		DUP zero DO
+			0 ,
+		LOOP
+		HERE SWAP
+		DUP ,
+		DUP zero DO
+			0 ,
+		LOOP
+		HERE SWAP
+		DUP ,
+		zero DO
+			0 ,
+		LOOP
+		\ twid a b c (--
+		HERE >R
+		\ _#vocg_colon
+		,        \ ghost
+		\  _#vocg_immediate
+		\ these words can only be found by the host version of POSTPONE
+		,        \ immediate
+		\ _#vocg_forward
+		,        \ forward
+		\ _#vocg_target_image
+		\ note we are linking directly into the target
+		,
+	R>
+
+	;
+
+</code>
+</pre>
+<p>
+<i>ghost_words</i> behaves the same as <i>words</i>
+</p>
+<pre>
+<code>
+\ not terrible fancy but is terrible portable
+: .ghost_head ( addr --)
+	ghost_head_string TYPE SPACE SPACE
+;
+: .ghost_wordlist ( wordlist --)
+	DUP _#gthread_count + @ SWAP _#gthread_data + SWAP
+	zero DO
+		\ thread_head(--
+		DUP
+		BEGIN
+			@ DUP
+		WHILE
+			DUP
+			.ghost_head
+		REPEAT
+		DROP
+		CELL+
+	LOOP
+	DROP
+;
+
+: ghost_words ( --)
+	CR ." colon words" CR
+	%ghost_context @ ghost_colon_wordlist .ghost_wordlist
+	CR ." immediate words" CR
+	%ghost_context @ ghost_immediate_wordlist .ghost_wordlist
+;
+
+
+</code>
+</pre>
+</body>
+</html>

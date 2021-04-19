@@ -1,0 +1,58 @@
+<html>
+<head>
+<title>application.html</title>
+<META NAME="Author" CONTENT="Charles Esson">
+<META NAME="keywords" CONTENT="forth">
+<META NAME="description" CONTENT=" uCforth uses this file to generate uCforth">
+<LINK REL=stylesheet HREF="forth.css" TYPE="text/css">
+</head>
+<body>
+<h3>Application startup</h3>
+<p>
+We are adding code to the application forth vocabulary.
+If we add a forth word in the library after this the new lib
+forth word will be linked back to the application.
+This is not allowed. So this sits in it's own file a file that
+is loaded last, a file that is called <i>application.html</i>.
+</p>
+
+<p>
+This is the data stack, if you need to replace with fast memeory at run time
+set _%data_stack_end and abort, or set data_stack_end and using code set S.
+</p>
+<pre>
+<code>
+host&forth
+ram_create %data_stack #min_data_stack ram_allot
+</code>
+</pre>
+<p>
+This is the code called by the Bflt loader, this happens because the
+address of this code is patched into the Bflt header.
+</p>
+<p>
+We can't go to the end of the %data_stack area because the xcompile Bflt
+code assumes you want to write after the address.
+If the stack is the last defined data item and you
+point to the end the xcompile Bflt code will complain your address is out of range.
+</p>
+<pre>
+<code>
+CODE app_startup ( --)
+	%data_stack #min_data_stack 4 - + AB A0 LEA
+	A0 S MOV
+	A0 _%data_stack_end AB MOV
+	R _%return_stack_end AB MOV
+	\ D5 is set to the base address of the data segment in
+	\ include/asm-m68knommu/processor.h we must copy the value
+	\ to DP ( A5). The C startup code does this in
+	\ lib/libc/m69k/crt0.S.
+	\ The signal code makes sure DP ( A5) is set to the same value
+	\ before calling a signal routine. It is all a bit inconsistant.
+	D5 DP MOV
+	' forth_startup AB JMP
+NEXT
+</code>
+</pre>
+</body>
+</html>

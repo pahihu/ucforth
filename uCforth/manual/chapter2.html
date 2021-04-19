@@ -1,0 +1,1784 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+<HEAD>
+<TITLE>uCforth chapter 2 Maths</TITLE>
+        <META NAME="AUTHOR" CONTENT="Charles Esson">
+        <META NAME="keywords" CONTENT="uCforth">
+        <LINK REL=stylesheet HREF="forth.css" TYPE="text/css">
+
+</HEAD>
+<BODY bgcolor=#ffffff>
+<h1>CHAPTER 2 Maths and other basics</h1>
+
+<h4>Index</h4>
+<ul>
+<li><a HREF="#introduction"><b>introduction</b></a></li>
+        <ul>
+        <li><a href="#the_stacks">Stacks</a></li>
+        <li><a href="#interpreting_compiling">Interpreting and compiling</a></li>
+        <li><a href="#forth_tokens">Tokens</a></li>
+        <li><a href="#child_words">Parent words, Child words</a></li>
+        </ul>
+<li><a HREF="#learn_by_doing"><b>learn by doing</b></a></li>
+        <ul>
+         <li><a HREF="#some_basic_maths">basic maths</a></li>
+        </ul>
+<li><a HREF="#number_input"><b>number input</b></a></li>
+<li><a HREF="#integer_numbers"><b>integer numbers</b></a></li>
+        <ul>
+        <li><a HREF="#integer_data_conversion">data conversion</a></li>
+        <li><a HREF="#integer_print">printing</a></li>
+        <li><a HREF="#integer_input">input</a></li>
+        <li><a HREF="#integer_constants">constants, literal</a></li>
+        <li><a HREF="#integer_memory">memory access</a></li>
+        <li><a HREF="#integer_stack">stack words</a></li>
+        <li><a HREF="#integer_management">data areas</a></li>
+                  <ul>
+                <li><a href="#allocation_word_set">word sets</a></li>
+                <li><a href="#integer_management_dict">dictionary</a></li>
+                <li><a href="#integer_management_data">static</a></li>
+                <li><a href="#integer_management_ram">ram</a></li>
+                <li><a href="#integer_management_fast">fast</a></li>
+                </ul>
+        <li><a href="#integer_maths">maths</a></li>
+        <li><a href="#integer_compare">compares</a></li>
+        <li><a href="#integer_logic">logic</a></li>
+
+        </ul>
+<li><a HREF="#flags"><b>flags</b></a></li>
+        <ul>
+        <li><a HREF="#flag_data_conversion">data conversion</a></li>
+        <li><a HREF="#flag_print">printing</a></li>
+        <li><a HREF="#flag_input">input</a></li>
+        <li><a HREF="#flag_constants">constants, literal</a></li>
+        <li><a HREF="#flag_memory">memory access</a></li>
+        <li><a HREF="#flag_stack">stack words</a></li>
+        <li><a HREF="#flag_management">data areas</a></li>
+        <li><a href="#flag_maths">maths</a></li>
+        <li><a href="#flag_compare">compares</a></li>
+        </ul>
+<li><a HREF="#double_numbers"><b>double numbers</b></a></li>
+        <ul>
+        <li><a HREF="#double_data_conversion">data conversion</a></li>
+        <li><a HREF="#double_print">printing</a></li>
+        <li><a HREF="#double_input">input</a></li>
+        <li><a HREF="#double_constants">constants, literal</a></li>
+        <li><a HREF="#double_memory">memory access</a></li>
+        <li><a HREF="#double_stack">stack words</a></li>
+        <li><a HREF="#double_management">data areas</a></li>
+        <li><a href="#double_maths">maths</a></li>
+        <li><a href="#double_compare">compares</a></li>
+        <li><a href="#double_logic">logic</a></li>
+
+        </ul>
+<li><a href="#q_numbers"><b>Q numbers</b></a></li>
+<ul>
+        <li><a HREF="#Q_data_conversion">data conversion</a></li>
+        <li><a HREF="#Q_print">printing</a></li>
+        <li><a HREF="#Q_input">input</a></li>
+        <li><a HREF="#Q_constants">constants, literal</a></li>
+        <li><a HREF="#Q_memory">Accessing memory</a></li>
+        <li><a HREF="#Q_stack">stack words</a></li>
+        <li><a HREF="#Q_management">data areas</a></li>
+        <li><a href="#Q_maths">maths</a></li>
+        <li><a href="#Q_compare">compares</a></li>
+        <li><a href="#Q_logic_operations">logic operations</a></li>
+</ul>
+<li><a HREF="#float_data"><b>Floating point numbers</b></a></li>
+        <ul>
+        <li><a HREF="#float_data_conversion">data conversion</a></li>
+        <li><a HREF="#float_print">printing</a></li>
+        <li><a HREF="#float_input">input</a></li>
+        <li><a HREF="#float_constants">constants, literal</a></li>
+        <li><a HREF="#float_memory">memory access</a></li>
+        <li><a HREF="#float_stack">stack words</a></li>
+        <li><a HREF="#float_management">data areas</a></li>
+        <li><a HREF="#float_maths">maths</a></li>
+        <li><a HREF="#float_compare">compare</a></li>
+        </ul>
+<li><a HREF="#vector_data"><b>Floating point vectors</b></a></li>
+        <ul>
+        <li><a HREF="#vector_data_conversion">data conversion</a></li>
+        <li><a HREF="#vector_print">printing</a></li>
+        <li><a HREF="#vector_management">data areas</a></li>
+        <li><a HREF="#vector_maths">maths</a></li>
+        </ul>
+</ul>
+
+<a name="introduction"><h2>FORTH an introduction</h2></a>
+<p>
+FORTH is particularly suitable for writing real time control programs.
+FORTH is very interactive, allowing the immediate testing of ideas.
+The forth compiler/interpreter is simple and simple to
+understand.
+</p>
+<a name="forth_tokens"><h3>Tokens</h3></a>
+<p>
+Tokens are separated by spaces or a new lines. If the token can be found in the dictionary
+the compiler/interpreter uses the token as a word. If it can't find the token in the
+dictionary it attempts to convert the token to a number.
+</p>
+<p>
+When doing a dictionary search <b>uCforth</b> converts the token to lower case and does the search.
+For example; <samp>HEX</samp> is a ansi standard word, this will be converted to <samp>hex</samp>
+and a search done.
+</p>
+
+<h4>Token examples</h4>
+<samp><pre>
+1243
+DUP
+*
+/
+This_is_a_long_token
+</pre></samp>
+<a name="the_stacks"><h3>The stacks</h3></a>
+<p>
+FORTH has two stacks, a data stack and a return stack. Most of the time we deal with the data
+stack and it is often referred to as the stack. The return stack is used by the system to
+keep track of what's happening and seldom concerns us. Under some circumstances we can use
+the return stack for temporary storage.
+</p>
+<p>
+We often refer to "cells", different forth systems have different cell sizes, a COLDFIRE system
+has a cell size of 4 bytes. A byte is 8 bits. The cell size is therefore 32 bits. A double
+cell is 64 bits ( 32 * 2).
+</p>
+<p>
+The basic return and data stack item is a cell. Both stacks are last in first out stacks.
+That is if you put a value onto the stack and then ask for a value back,
+you will get the value you put on. Values put on previously will still
+be there.
+</p>
+<a name="interpreting_compiling"><h3>Interpreting compiling</h3></a>
+<p>
+A <b>uCforth</b> system has two states, interpreting and compiling.
+</p>
+<p>
+When interpreting, the system executes words found, or pushes numbers onto the stack, given a token
+that can be converted to a number. If the interpreter can't find the token in the dictionary, or
+can't convert the token to a number the interpretor will <samp>ABORT</samp>
+</p>
+<p>
+The interpreter has two things to consider.
+</p>
+<ul>
+        <li>Is it a word found in the search order, if so execute the word.</li>
+        <li><a HREF="#number_input">Is it a number</a> if so put the number on the data stack</li>
+</ul>
+
+<p>
+The interpreter is introduced further in the section called
+<a HREF="#learn_by_doing">learn by doing</a>.
+</p>
+<p>
+When compiling new words, the compiler has three things to consider.
+</p>
+<ul>
+<li>Is it a word that can be found in the search order.</li>
+        <ul>
+        <li>Should I execute the word now or just lay down code to call the word at runtime.
+        Words that are to be executed by the compiler are referred to as immediate words.
+        The structure words such as
+        <samp>DO LOOP THEN etc.</samp> are examples of immediate words.</li>
+        </ul>
+<li>Is it a number, if it is lay down code to have the number put on the stack at runtime.</li>
+</ul>
+<p>
+If the input token isn't a word found in the search order, and it isn't a number then we have an error.
+</p>
+<p>
+You invoke the compiler with <samp>:</samp> and return to the interpreter with <samp>;</samp> . The compiler
+is used to create a new FORTH word. As example:
+</p>
+<pre><samp>
+\ word to print 0
+: 0print 0 . ;
+</samp></pre>
+<p>
+In the above code each token performs as follows.
+</p>
+<table>
+<tr><th>token</th><th>action</th><tr>
+<tr><td><samp>:</samp></td><td>Invoke the compiler; use the next token as the new word's name.</td></tr>
+<tr><td><samp>0print</samp></td><td>The token taken by : as the name of the new word</td><tr>
+<tr><td><samp>0</samp></td><td>The compiler didn't find 0 in the dictionary, but 0 converts to a number nicely. The compiler lays down
+            code to place the number on the stack when the word is run ( runtime).</td></tr>
+<tr><td><samp>.</samp></td><td>A word found in the dictionary. The compiler adds code to call it at runtime.</td></tr>
+<tr><td><samp>;</samp></td><td>Finishes the new word off and puts us back into interpretive mode</td></tr>
+</table>
+
+<p>
+Chapter 2 covers the compiler in detail.
+</p>
+To create a constant in FORTH you use the code:
+</p>
+<pre><samp>
+value CONSTANT name
+</samp></pre>
+<h5>EXAMPLE</h5>
+<pre><samp>
+123 CONSTANT #my_constant
+</samp></pre>
+<p>
+If you use the word <samp>#my_constant</samp> later it will place 123 on the stack if you are using the interpreter,
+and will compile code to put 123 on the stack at runtime if you are using the compiler.
+</p>
+<p>
+In the above example, CONSTANT is the parent word, <samp>#my_constant</samp> is a child word.
+</p>
+
+
+<a name="learn_by_doing"><h2>Learn by doing</h2></a>
+<p>
+As FORTH is an interactive language it is best learnt by experimentation.
+Sit down at your <b>uCforth</b> system and work through the following examples.
+</p>
+<p>
+To do the examples you need to telnet to the <b>uCforth</b> system. This brings up <b>bash</b>. If the system
+has been set up as described in section one you then type <samp><b>forth</b></samp>.
+<p>
+Most FORTH systems great you with <samp><i>ok</i></samp>,
+by default <b>uCforth</b> is a lot more verbose. The general form of the prompt is:
+</p>
+<samp><i>search_list base&gt;</i></samp>.
+<p>
+From now on we will use the sample prompt:
+</p>
+<samp><i>forth 10&gt;</i></samp>
+<p>
+If <samp><i>ok</i></samp> is what you really want to see, type <samp>ok</samp>.
+
+<a name="some_basic_maths"><h3>Some basic maths</h3></a>
+<p>
+On your terminal, type:
+</p>
+<P>
+<samp><i>forth 10&gt;</i><b>55 111 +</b><img src="./enter.gif" height="9" width="20"></samp>
+</p>
+<samp><i>forth 10&gt;</i><b>.</b><img src="./enter.gif" height="9" width="20"></samp>
+<p>
+The terminal should now respond with <samp><i>166</i></samp>.
+</p>
+<p>
+What happened? The FORTH interpreter understands two main types of entries: Numbers and Words.
+Whenever the interpreter encounters a Number, it places it on the "stack". The stack is
+simply a place where numbers may be stored. When a number is placed on the stack
+(usually referred to as "pushed"), it is added to the top of the stack. When a number is
+removed from the stack (referred to as "popped"), the top stack item is removed.
+</p>
+<p>
+Whenever the interpreter encounters a Word (anything that isn't a number), the code for that
+word is executed. Words already exist in the system (called kernel words) and you may define new
+ones yourself.
+</p>
+<p>
+In the previous example, the following actually happened:
+</p>
+<table>
+<tr>
+<th>entered data</th>           <th width="50%" >action<th>                            <th>data stack</th>
+</tr><tr>
+<td>55</td>                     <td>55 was pushed on the stack </td>      <td>55(--</th>
+</tr><tr>
+<td>111</td>                    <td>111 was also placed on the stack</td> <td>55 111(--</td>
+</tr><tr>
+<td>+</td>                      <td>The code for the word + was executed.
+                                    This code adds the top two items on
+                                    the stack (i.e. 111 & 55), then
+                                    replaces them with the sum.     </td> <td>166(--</td>
+</tr><tr>
+<td>.</td>                      <td>The code for the word . was executed.
+                                    This code removes and displays the top
+                                    stack item on the terminal.     </td> <td>(--</td>
+</tr>
+</table>
+<p>
+Now type:
+</p>
+<p>
+<samp><i>forth 10&gt;</i><b>5 6 * .</b><img src="./enter.gif" height="9" width="20"></samp>
+</p>
+<p>
+The computer should respond with:
+</p>
+<p>
+
+<samp><i>30</i></samp>
+</p>
+<p>
+Note that * is the symbol for multiply. Now try:
+</p>
+<p>
+<samp><i>forth 10&gt;</i><b> 55 111 + 2 * .</b><img src="./enter.gif" height="9" width="20"></samp>
+</p>
+<p>
+You should have displayed:
+</p>
+<p>
+<samp><i>332</i></samp>
+</p>
+<p>
+The above string was processed as follows
+</p>
+
+
+<table>
+<tr><th>entered data</th>           <th>action<th>                            <th>data stack</th></tr>
+<tr><td>55</td>                     <td>55 was pushed on the stack </td>      <td>55(--</th></tr>
+<tr><td>111</td>                    <td>111 was also placed on the stack</td> <td>55 111(--</td></tr>
+<tr><td>+</td>                      <td>The code for the word + was executed.</td><td>166(--</td></tr>
+<tr><td>2</td>                      <td>2 is pushed onto the stack</td><td>166 2(--</td></tr>
+<tr><td>*</td>                      <td>The code for the word * was executed</td><td>332(--</td></tr>
+<tr><td>.</td>                      <td>The code for . was executed.</td><td>(--</td></tr>
+</table>
+
+<p>
+These examples show that equations are written in a strange manner. This is called postfix
+(or Reverse Polish Notation). Rather than using traditional infix notation:
+</p>
+<h4>Infix</h4>
+<pre><samp>
+        x = 4 + 2 ;
+        print ( x );
+</samp></pre>
+<h4>postfix</h4>
+<pre><samp>
+        4 2 + .
+</samp></pre>
+<p>
+Words such as + and * need numbers on the stack before they will work.
+With postfix notation the numbers come first and then the operators, there is nothing needed
+to rearrange things before the computation can be done.
+Postfix does not need parenthesis to arrange execution order. If you have used a HP calculator
+you have seen postfix notation before.
+</p>
+<h5>For example</h5>
+<p>
+Instead of typing:
+</p>
+
+<pre><samp>
+        4 * (5 + (3 - 2) * 11)
+</samp></pre>
+<p>
+we type:
+</p>
+<pre>
+        4 5 3 2 - 11 * + *
+</pre>
+<p>
+Now try the divide command, <samp>/</samp>:
+</p>
+<samp><i>forth 10&gt;</i><b>60 5 / .</b><img src="./enter.gif" height="9" width="20"></samp>
+<p>
+You should see:
+</p>
+<samp><b>12</b></samp>
+<p>
+And subtract, :
+</p>
+<samp><i>forth 10&gt;</i><b>60 5 - .</b><img src="./enter.gif" height="9" width="20"></samp>
+<p>
+should give:
+</P>
+<samp><i>55</i></samp>
+<p>
+Now try:
+</p>
+<samp><i>forth 10&gt;</i><b>5 60 - .</b><img src="./enter.gif" height="9" width="20"></samp>
+<p>
+You should get:
+</p>
+<samp><i>-55</i></samp>
+<p>
+Obviously the order in which the numbers are typed is important.
+</p>
+<p>
+If you have trouble remembering the order, think of it as:
+</p>
+<samp>
+5 - 60  -->  5 60 -
+</samp>
+<p>
+Now try:
+</p>
+<samp><i>forth 10&gt;</i><b>5 60 / .</b><img src="./enter.gif" height="9" width="20"></samp>
+<p>
+and you get
+</p>
+<samp><i>0</i></samp>
+<p>
+If you are using your first computer you are probably thinking "stupid machine". There is a reason.
+We are using integer maths. 5/60 is a fraction which is rounded down to zero. The system always rounds down,
+never up. To demonstrate this try:
+</p>
+<samp><i>forth 10&gt;</i><b>5 6 / .</b><img src="./enter.gif" height="9" width="20"></samp>
+<a name="number_input"><h2>Number input</h2></a>
+<p>
+It has been mentioned that FORTH tries to convert tokens it can't find in it's dictionary to numbers.
+<b>uCforth</b> supports four type of numbers, integers, Q numbers, Doubles and Floats. Only three types
+can be entered, integers, doubles and floats. Q numbers are entered as floats and converted to
+Q numbers. The interpreter/compiler uses one subsystem to input all numbers. By forth system
+system standards the <b>uCforth</b> number input subsystem is quite complex and offers many input methods.
+</p>
+<p>
+With a conventional programming language you have to consider compile time number input and
+runtime number input. Compile time number input adds numbers to your program,
+runtime number input receives data from the program user.
+As the <b>uCforth</b> system has an interpreter, and as the interpreter can be used to scan
+user input data the separation merges. See <a HREF="#integer_input">Integer input</a>
+for further discussion on run time input.
+<P>
+Traditionally FORTH has supported the concept of a current <samp>BASE</samp>,
+you set the base and input the numbers in that base. <b>uCforth</b> supports
+<samp>BASE</samp> and base modifiers embedded in the input string.
+These make the code clearer. The following table details the number input options.
+</p>
+<table>
+<tr><th>Description</th><th>Format</th><th>Example</th><th>Comment</th></tr>
+<tr><td>Number dependent on BASE</td><td>nnnnnn</td><td>123456</td></tr>
+<tr><td>Binary</td><td>%nnnnnn</td><td>%01101</td><td></td><tr>
+<tr><td>Decimal</td><td>#nnnnnn</td><td>#1234</td><td></td></tr>
+<tr><td>Hex</td><td>$nnnnnn</td><td>$12f</td><td></td></tr>
+<tr><td>Hex</td><td>0xnnnnnn</td><td>0X1234</td><td></td></tr>
+<tr><td>IP address</td><td>nnn.nnn.nnn.nnn</td><td>123.02.14.16</td><td>The decimal points separates the byte values.</td></tr>
+<tr><td>Single character</td><td>'c'</td><td>'x'</td><td>character value is the result</td></tr>
+<tr><td>Control character</td><td>'^c'</td><td>'^C'</td><td>Control character</td><tr>
+<tr><td>Double number dependent on base</td><td>nnnnnnL</td><td>12345L</td><td>Doubles create two stack items. See <a HREF="#double_numbers">double numbers</a>.</td><tr>
+<tr><td>Binary double number</td><td>%nnnnnnL</td><td>%1010L</td><td>See <a HREF="#double_numbers">double numbers</a>.</td></tr>
+<tr><td>Decimal double number</td><td>#nnnnnnL</td><td>#1234L</td><td>See <a HREF="#double_numbers">double numbers</a>.</td></tr>
+<tr><td>Hex double number</tr><td>$nnnnnnL</td><td>$123faL</td><td>See <a HREF="#double_numbers">double numbers</a>.</td></tr>
+<tr><td>Hex double number</tr><td>0xnnnnnL</td><td>0x123faL</td><td>See <a HREF="#double_numbers">double numbers</a>.</td></tr>
+<tr><td>Floating number</tr><td>nnn.nnn</td><td>123.12</td><td>Puts a floating point number on the stack. See <a HREF="#float_data">Floating point numbers</a></td></tr>
+<tr><td>Floating number</tr><td>nnn.nnnEnnn</td><td>0.12E2</td><td>See <a HREF="#float_data">Floating point numbers</a></td></tr>
+<tr><td>Floating number</tr><td>nnnEnnn</td><td>12E2</td><td>See <a HREF="#float_data">Floating point numbers</a></td></tr>
+<tr>
+</table>
+<p>
+The number input system is well structured, users can add there own input words if desired.
+This is considered an advanced topic.
+</p>
+<a name="integer_numbers"><h2>Integer numbers</h2></a>
+<ul>
+        <li><a HREF="#integer_data_conversion">data conversion</a></li>
+        <li><a HREF="#integer_print">printing</a></li>
+        <li><a HREF="#integer_input">input</a></li>
+        <li><a HREF="#integer_constants">constants, literal</a></li>
+        <li><a HREF="#integer_memory">Accessing memory</a></li>
+        <li><a HREF="#integer_stack">stack words</a></li>
+        <li><a HREF="#integer_management">data areas</a></li>
+                <ul>
+                <li><a href="#allocation_word_set">word sets</a></li>
+                <li><a href="#integer_management_dict">dictionary</a></li>
+                <li><a href="#integer_management_data">static</a></li>
+                <li><a href="#integer_management_ram">ram</a></li>
+                <li><a href="#integer_management_fast">fast</a></li>
+                </ul>
+        <li><a href="#integer_maths">maths</a></li>
+        <li><a href="#integer_compare">compares</a></li>
+        <li><a href="#integer_logic">logic</a></li>
+
+</ul>
+<p>
+Integer numbers can be divided into two sub sets, signed and unsigned numbers.
+Q numbers are dealt with in a separate section.
+</p>
+<p>
+To understand signed and unsigned numbers it is best to look at the HEX representation of the
+numbers. HEX is a good base to use when looking at computer numbers. All computers store
+numbers as binary values. A binary number has two states on and off,
+four binary bits can be used to represent all the HEX values.
+</p>
+<table>
+<tr><th>binary value</th><th>hex value</th></tr>
+<tr><td>0000</td><td>0</t></tr>
+<tr><td>0001</td><td>1</t></tr>
+<tr><td>0010</td><td>2</t></tr>
+<tr><td>0011</td><td>3</t></tr>
+<tr><td>0100</td><td>4</t></tr>
+<tr><td>0101</td><td>5</t></tr>
+<tr><td>0110</td><td>6</t></tr>
+<tr><td>0111</td><td>7</t></tr>
+<tr><td>1000</td><td>8</t></tr>
+<tr><td>1001</td><td>9</t></tr>
+<tr><td>1010</td><td>A</t></tr>
+<tr><td>1011</td><td>B</t></tr>
+<tr><td>1100</td><td>C</t></tr>
+<tr><td>1101</td><td>D</t></tr>
+<tr><td>1110</td><td>E</t></tr>
+<tr><td>1111</td><td>F</t></tr>
+</table>
+
+<p>
+<b>uCforth</b> uses a 32 bit cell, 32/4 = 8. The CELL value can be represented as 8 HEX digits.
+</p>
+<h4>Signed numbers</h4>
+<table>
+<tr><th>Hex value</th><th>Description</th></tr>
+<tr><td>7FFFFFFF</td><td>Maximum positive signed number</td></tr>
+<tr><td>00000001</td><td>One</td></tr>
+<tr><td>00000000</td><td>Zero</td></tr>
+<tr><td>FFFFFFFF</td><td>-1</td></tr>
+<tr><td>FFFFFFFE</td><td>-2</td></tr>
+<tr><td>80000000</td><td>Maximum negative signed number</td></tr>
+</table>
+<p>
+This method of representing signed numbers is referred to as two's compliment. There are other methods
+such as signed magnitude and one's complement, the relative merits of each method is a good study topic.
+Some analog to digital converters return signed magnitude. The TCP and UDP checksum is created using
+one's complement maths.
+</p>
+<p>
+<h4>Unsigned numbers</h4>
+<table>
+<tr><td>00000000</td><td>Zero, minimum unsigned number</td></tr>
+<tr><td>7FFFFFFF</td><td>A bigger unsigned number</td></tr>
+<tr><td>80000000</td><td>A bigger unsigned number</td></tr>
+<tr><td>FFFFFFFF</td><td>The biggest unsigned number</td></tr>
+</table>
+<p>
+Some operations don't care if the number is signed or unsigned, for example add and subtract. The result
+of others depend on how the value is being interpreted. For example 0&lt; and 0&gt;.
+</p>
+
+<a name="integer_data_conversion"><h3>Integer data conversion</h3></a>
+<table>
+<tr><th>word</th><th>stack</th><th>Description</th></tr>
+<tr><td><samp><a HREF="../ansi_colon_words.html#D&gt;S">D&gt;S</a></samp></td><td>double--n</td><td>Convert double to signed integer</td></tr>
+<tr><td><samp><a HREF="../5272/ansi_code_words.html#S&gt;D">S&gt;D</a></samp></td><td>n--double</td><td>Convert signed integer to double.</td></tr>
+<tr><td><samp><a HREF="../5272/float.html#f&gt;s">f&gt;s</a></samp></td><td>float--n</td><td>Convert float to signed integer</td></tr>
+<tr><td><samp><a HREF="../5272/float.html#s&gt;f">s&gt;f</a></samp></td><td>n--float</td><td>Convert signed integer to floating point.</td></tr>
+</table>
+
+<a name="integer_print"><h3>Integer printing</h3></a>
+
+<table>
+<tr><th>word</th><th>stack</th><th>Description</th></tr>
+<tr><td><samp><a HREF="../number_output.html#.">.</a></samp></td><td>n--</td><td>Display a signed integer in free form, follow the result with a space.</td></tr>
+<tr><td><samp><a HREF="../number_output.html#.h">.h</a></samp></td><td>x1--</td><td>Display the top stack item as a 8 character unsigned hex number.</td></tr>
+<tr><td><samp><a HREF="../number_output.html#.d">.d</a></samp></td><td>n1--</td><td>Display the top stack item as a signed decimal number</td></tr>
+<tr><td><samp><a HREF="../number_output.html#.R">.R</a></samp></td><td>n u--</td><td>Display a signed integer right justified in a field u characters wide.</td></tr>
+<tr><td><samp><a HREF="../number_output.html#.l">.l</a></samp></td><td>n u--</td><td>Display a signed integer left justified in a field u characters wide.</td></tr>
+<tr><td><samp><a HREF="../number_output.html#U.">U.</a></samp></td><td>u--</td><td>Display a unsigned integer in free form, follow the result with a space.</td></tr>
+<tr><td><samp><a HREF="../number_output.html#U.R">U.R</a></samp></td><td>u1 u2--</td><td>Display the unsigned integer u1 right justified in a field u2 characters wide</td></tr>
+</table>
+<a name="integer_input"><h3>Integer Input</h3></a>
+<h5><a href="../number.html#toNUMBER">&gt;NUMBER</a> ( ulow uhigh c-addr1 u1 -- ulow uhigh c-addr2 u2 )</h5>
+<p>
+The standard number conversion word <samp>&gt;NUMBER</samp>, is a little lame.
+It can convert a string of numeric characters into
+an integer. The following Example shows it use.
+</p>
+<h5>Example</h5>
+<pre><samp>
+CREATE fred ," 12345"
+0 S>D                 \ 0 0 (--
+fred COUNT            \ 0 0 addr n(--
+>NUMBER               \ 12345 0 addr 0(--
+2DROP                 \ 12345 0(--
+D.                    \ (--
+</samp></pre>
+<p>
+The above code should print out 12345. Note that <samp>&gt;NUMBER</samp> actually generated a double number.
+</p>
+<h5><a href="../number.html#CONVERT">CONVERT</a> ( nd1  $ -- nd2 addr2)</h5>
+<p>
+From a ANSI standard point of view <samp>CONVERT</samp> is a bit of a mess.
+It requires a zero terminated string, and an address one character before
+the data to be converted; yuck. <b>uCforth</b> has not followed the standard,
+it insists that you provide <samp>CONVERT</samp> with a counted string; and it uses the count.
+You gain very little using <samp>CONVERT</samp> instead of <samp>NUMBER</samp>. <samp>CONVERT</samp>
+can handle a signed numbers <samp>NUMBER</samp> can't.
+</p>
+<h5>Example</h5>
+<pre><samp>
+CREATE fred ," -12345"
+0 S>D fred CONVERT DROP D.
+</samp></pre>
+<p>
+From here we move into non standard words. These words use the same number
+conversion sub system as the interpreter.
+The first two to look at are <samp>Snumber</samp> and <samp>$number</samp>. <samp>Snumber</samp> takes
+an address and character count, <samp>$number</samp> takes
+a counted string. <samp>Snumber</samp> can return a integer, double or float so you need to know
+what you want and check the stack depth.
+Both words abort on failure. Exception handling ( <samp>CATCH</samp> and <samp>THROW</samp>)
+can be used to deal with this if some other
+action is required.
+</p>
+<p>
+The number sub system will place the result of the conversion on the stack if interpreting,
+or compile code to put the number on the stack at runtime if compiling.
+</p>
+<h5>Example</h5>
+<pre><samp>
+\ a floating point number
+CREATE fred ," 0.1234"
+\ A number with a decimal point will be converted to float.
+: convert_float ( addr --)
+        DEPTH             \ returns the number of items on the stack
+        1-                \ allow for input addr
+        >R                \ save DEPTH on return stack
+        $number           \ do the conversion
+        DEPTH             \ one item consumed two generated.
+        R> -              \ get saved value and subtract from new
+        2 = IF            \ if 2 we may have a float number
+                F.        \ print the float
+        ELSE
+                ABORT" Floating point number please"
+        THEN
+;
+
+\ print out the number
+fred convert_float
+</samp></pre>
+<p>
+The number sub system uses a linked list of words to deal with the various options for number entry. You
+can use these words in your application if you are looking for a specific number type. This word set all use the
+same stack description, that is  ( addr num -- num true| false).
+</p>
+<p>
+These words will place the result of the conversion on the stack if interpreting, If compiling they will
+compile code to put the numbers on the stack at runtime.
+</p>
+<p>
+The flag is used to indicate failure, they do not abort on failure.
+</p>
+<p>
+This word set may not be standard, but unlike the other options they provide a clean way to get numbers into
+your application.
+</p>
+
+<h5>Example</h5>
+<pre><samp>
+CREATE fred ," 0.12345"
+fred COUNT float_number
+\ print flag indicating result.
+.
+\ print float number
+F.
+</samp></pre>
+
+<p>
+The following table gives a summary of the available WORDS.
+</p>
+
+
+<table>
+<tr><th>word</th><th>stack</th><th>Description</th></tr>
+
+<tr><td><a HREF="../number.html#CONVERT"><samp>CONVERT</samp></a></td><td>du1 $ --ud2 addr</td><td>Convert $ into a signed number</td></tr>
+<tr><td><a HREF="../number.html#toNUMBER"><samp>&gt;NUMBER</samp></a></td><td>ulow uhigh c-addr1 u1 -- ulow uhigh c-addr2 u2</td><td></td></tr>
+<tr><td><a HREF="../number.html#$number"><samp>$number</samp></a></td><td>$ --??</td><td>Use the number subsystem to convert the counted string</td></tr>
+<tr><td><a HREF="../number.html#Snumber"><samp>Snumber</samp></a></td><td>c-addr1 u1 --??</td><td>Use the number subsystem to convert the string described by c-addr1 and u1</td></tr>
+
+<tr><td><a HREF="../number.html#binary_double_number"><samp>binary_double_number</samp></a></td><td>addr num -- num true| false</td><td>%01010L</td></tr>
+<tr><td><a HREF="../number.html#binary_number"><samp>binary_number</samp></a></td><td>addr num -- num true| false</td><td>%101001</td></tr>
+<tr><td><a HREF="../number.html#byte_double_number"><samp>byte_double_number</samp></a></td><td>addr num -- num true| false</td><td>nnn.nnn.nnn.nnn.nnn.nnn.nnn.nnn</td></tr>
+<tr><td><a HREF="../number.html#byte_number"><samp>byte_number</samp></a></td><td>addr num -- num true| false</td><td>nnn.nnn.nnn.nnn</td></tr>
+<tr><td><a HREF="../number.html#control_character"><samp>control_character</samp></a></td><td>addr num -- num true| false</td><td>'^C'</td></tr>
+<tr><td><a HREF="../number.html#decimal_double_number"><samp>decimal_double_number</samp></a></td><td>addr num -- num true| false</td><td>#1234L</td></tr>
+<tr><td><a HREF="../number.html#decimal_number"><samp>decimal_number</samp></a></td><td>addr num -- num true| false</td><td>#12234</td></tr>
+<tr><td><a HREF="../5272/float.html#float_number"><samp>float_number</samp></a></td><td>addr num -- num true| false</td><td>0.12324 0.123E2</td></tr>
+<tr><td><a HREF="../number.html#hex$_double_number"><samp>hex$_double_number</samp></a></td><td>addr num -- num true| false</td><td>$123243L</td></tr>
+<tr><td><a HREF="../number.html#hex$_number"><samp>hex$_number</samp></a></td><td>addr num -- num true| false</td><td>$123F0</td></tr>
+<tr><td><a HREF="../number.html#hex_double_number"><samp>hex_double_number</samp></a></td><td>addr num -- num true| false</td><td>0X122345L</td></tr>
+<tr><td><a HREF="../number.html#hex_number"><samp>hex_number</samp></a></td><td>addr num -- num true| false</td><td>0X1223FA</td></tr>
+<tr><td><a HREF="../number.html#simple_double_number"><samp>simple_double_number</samp></a></td><td>addr num -- num true| false</td><td>12345L</td></tr>
+<tr><td><a HREF="../number.html#simple_number"><samp>simple_number</samp></a></td><td>addr num -- num true| false</td><td>12234</td></tr>
+<tr><td><a HREF="../number.html#single_character"><samp>single_character</samp></a></td><td>addr num -- num true| false</td><td>'C'</td></tr>
+
+</table>
+
+
+<a name="integer_constants"><h3>constants, literal</h3></a>
+<p>
+These two words are put in a section on their own because they belong nowhere else.
+<samp>CONSTANT</samp> is a common concept, a name for a numeric value is created.
+A FORTH constant is available at compile time and from the interpreter after
+compiling.
+</p>
+<p>
+<samp>LITERAL</samp> will be discussed more when we start talking about the compiler.
+</p>
+<table>
+<tr><th>word</th><th>stack</th><th>Description</th></tr>
+<tr><td><a HREF="../5272/compile.html#CONSTANT">CONSTANT</a></td><td><u>parent</u> x-- <u>child</u>  --x </td><td>Create a child word that returns the constant value</td></tr>
+<tr><td><a HREF="../5272/compile.html#LITERAL">LITERAL</a></td><td><u>compile time</u> x-- <u>runtime</u> --x </td><td>At compile time take the
+                value off the stack, at runtime put it back.</td><tr>
+</table>
+<h4>Examples</h4>
+<samp><pre>
+\ a large constant
+0x2FFFFFF CONSTANT #fred
+
+\ doing some calculations at compile time.
+\ We will discuss : ; [ and ] later.
+: anumber [ #fred 2* ] LITERAL ;
+</pre></samp>
+
+<a name="integer_memory"><h3>Accessing memory</h3></a>
+<p>
+This group of words allow you to fetch and store data to and from memory. The data is moved via the
+stack.
+</p>
+<p>
+There are words to fetch and store from a byte, character, 1/2 cells, cells and double cells.
+The COLDFIRE works best if you don't use 1/2 cells so try and avoid the <samp>w@ s@</samp>
+and <samp>w!</samp> word set.
+</p>
+<p>
+<samp>C@</samp> and <samp>C!</samp> are in a bit of a mess.
+The ANSI FORTH standard does not understand bytes. <samp>C@</samp> and <samp>C!</samp> save and
+fetch characters. You should use the non standard words <samp>byte@</samp> and <samp>byte!</samp>
+if you want to deal in bytes. The ANSI C standard is in just as big a mess, a <samp>char</samp>
+is not 8 bits, a <samp>short int</samp> is not 16 bits and a <samp>int</samp> is not 32 bits.
+If you think they are go and read the ANSI C standard.
+</p>
+<table>
+<tr><th>word</th><th>stack</th><th>Description</th></tr>
+<tr><td><samp><a HREF="../5272/ansi_code_words.html#!">!</a></samp></td><td>x1 addr--</td><td>Store the cell value x1 at addr as a cell value</td></tr>
+<tr><td><samp> <a HREF="../5272/ansi_code_words.html#+!">+!</a></samp></td><td>n1 addr-- or<br> u1 addr</td><td>The next from top stack value is added to the cell value at addr</td></tr>
+<tr><td><samp><a HREF="../ansi_colon_words.html#2!">2!</a></samp></td><td>x1 x2 addr--</td><td>Store x2 at addr, store x1 in the next cell.</td></tr>
+<tr><td><samp><a HREF="../ansi_colon_words.html#2@">2@</a></samp></td><td>addr--x1 x2</td><td>Fetch two cells from addr. x2 is fetch from address, x1 is from the cell following</td></tr>
+<tr><td><samp><a HREF="../5272/ansi_code_words.html#@">@</a></samp></td><td>addr--x1</td><td>
+        The value in the cell pointed to by addr, replaces addr on the stack.</td></tr>
+<tr><td><samp><a HREF="../5272/ansi_code_words.html#C!">C!</a></samp></td><td>character c-addr--</td><td>Standard word to store a character.</td></tr>
+<tr><td><samp><a HREF="../5272/ansi_code_words.html#C@">C@</a></samp></td><td>c-addr--character</td><td>Standard word to fetch a character.</td></tr>
+<tr><td><samp><a HREF="../colon_words_used_by_ansi.html#byte!">byte!</a></samp></td><td>byte c-addr--</td><td>Non standard word to store an 8 bit byte.</td></tr>
+<tr><td><samp><a HREF="../colon_words_used_by_ansi.html#byte@">byte@</a></samp></td><td>c-addr--byte</td><td>Non standard word to fetch an 8 bit byte.</td></tr>
+<tr><td><samp><a href="../5272/code_words.html#w!">w!</a></samp></td><td>x1 addr--</td><td>Non standard word to store a 1/2 cell</td></tr>
+<tr><td><samp><a href="../5272/code_words.html#w@">w@</a></samp></td><td>addr--x1</td><td>Non standard word to be used to fetch 1/2 cell numbers.</td></tr>
+<tr><td><samp><a href="../5272/code_words.html#s@">s@</a></samp></td><td>addr--n1</td><td>fetch a signed number from a 1/2 cell. Negative numbers are signed extended</td></tr>
+</table>
+<a name="integer_stack"><h3>Stack words</h3></a>
+<p>
+A stack cell that can contain anything is described as x in the stack descriptions.
+</p>
+<table>
+<tr><th>word</th><th>stack</th><th>Description</th></tr>
+<tr><td><samp><a HREF="../5272/code_words.html#-rot">-rot</a></samp></td><td>x1 x2 x3 -- x3 x1 x2</td><td>Rotate top down to third spot</td></tr>
+<tr><td><samp><a HREF="../5272/ansi_code_words.html#2DROP">2DROP</a></samp></td><td>x1 x2--</td><td>Drop 2 stack cells.</td></tr>
+<tr><td><samp><a HREF="../5272/ansi_code_words.html#2DUP">2DUP</a></samp></td><td>x1 x2--x1 x2 x1 x2</td><td>Duplicate top 2 stack cells.</td></tr>
+<tr><td><samp><a HREF="../5272/ansi_code_words.html#2OVER">2OVER</a></samp></td><td>x1 x2 x3 x4--x1 x2 x3 x4 x1 x2</td><td>Duplicate 2 cells that are two cells down</td></tr>
+<tr><td><samp><a HREF="../5272/ansi_code_words.html#2ROT">2ROT</a></samp></td><td>x1 x2 x3 x4 x5 x6--x3 x4 x5 x6 x1 x2</td>
+                      <td>Rotate the 2 cells that start 6 cells down to the top of the stack.</td></tr>
+<tr><td><samp><a HREF="../5272/ansi_code_words.html#2SWAP">2SWAP</a></samp></td><td>x1 x2 x3 x4--x3 x4 x1 x2</td><td>Swap the top two, two cell groups.</td></tr>
+<tr><td><samp><a HREF="../5272/code_words.html#3drop">3drop</a></samp></td><td>x1 x2 x3 --</td><td>Drop top three stack items.</td></tr>
+<tr><td><samp><a HREF="../colon_words.html#3dup">3dup</a></samp></td><td>x1 x2 x3  -- x1 x2 x3 x1 x2 x3</td><td>Duplicate top three stack items.</td></tr>
+<tr><td><samp><a HREF="../5272/code_words.html#4drop">4drop</a></samp></td><td>x1 x2 x3 x4 --</td><td>Drop top four stack items.</td></tr>
+<tr><td><samp><a HREF="../colon_words_used_by_ansi.html#4dup">4dup</a></samp></td><td>x1 x2 x3 x4 -- x1 x2 x3 x4 x1 x2 x3 x4</td><td>Duplicate top four stack items.<td></td></tr>
+<tr><td><samp><a HREF="../5272/ansi_code_words.html#_DUP">?DUP</a></samp></td><td>n1--n1 n1|zero-- or u1--u1 u1|zero--</td><td>If the top cell is not zero duplicate it.</td></tr>
+<tr><td><samp><a HREF="../user_using_words.html#DEPTH">DEPTH</a></samp></td><td>--u1</td><td>Number of stack cells used before execution.</td></tr>
+<tr><td><samp><a HREF="../5272/ansi_code_words.html#DROP">DROP</a></samp></td><td>x1--</td><td>Drop to stack cell.</td></tr>
+<tr><td><samp><a HREF="../5272/ansi_code_words.html#DUP">DUP</a></samp></td><td>x1--x1 x1</td><td>Duplicate top stack cell</td></tr>
+<tr><td><samp><a HREF="../colon_words_used_by_ansi.html#jump">jump</a></samp></td><td>x1 x2 x3  -- x1 x2 x3 x1</td><td>Item three down is duplicated onto top of stack</td></tr>
+<tr><td><samp><a HREF="../5272/ansi_code_words.html#NIP">NIP</a></samp></td><td>x1 x2--x2</td><td>Drop the item one down from the top.</td></tr>
+<tr><td><samp><a HREF="../5272/ansi_code_words.html#OVER">OVER</a></samp></td><td>x1 x2--x1 x2 x1</td><td>Duplicate the stack cell one down from top</td></tr>
+<tr><td><samp><a HREF="../5272/ansi_code_words.html#PICK">PICK</a></samp></td><td>u1--x1</td><td>Pick a stack value.
+                       <table>
+                       <tr><td>0 PICK</td><td>&lt;=&gt;</td><td>DUP</td><tr>
+                       <tr><td>1 PICK</td><td>&lt;=&gt;</td><td>OVER</td><tr>
+                       </table>
+                       </td></tr>
+<tr><td><samp><a HREF="../5272/ansi_code_words.html#ROLL">ROLL</a></samp></td><td>ul--reordered_stack</td><td>Roll out a stack item,
+                        <table>
+                       <tr><td>1 ROLL</td><td>&lt;=&gt;</td><td>SWAP</td><tr>
+                       <tr><td>2 ROLL</td><td>&lt;=&gt;</td><td>ROT</td><tr>
+                       </table>
+                       </td></tr>
+<tr><td><samp><a HREF="../5272/ansi_code_words.html#ROT">ROT</a></samp></td><td>x1 x2 x3--x2 x3 x1</td><td>Rotate out data 2 cells down from stack top.</td>
+<tr><td><samp><a HREF="../5272/ansi_code_words.html#SWAP">SWAP</a></samp></td><td>x1 x2--x2 x1</td><td>Swap top two stack items.</td>
+<tr><td><samp><a HREF="../5272/ansi_code_words.html#TUCK">TUCK</a></samp></td><td>x1 x2--x2 x1 x2</td><td>Tuck a copy of the top stack item under the second from top stack item.</td>
+</table>
+<a name="integer_management"><h3>Data Areas</h3></a>
+<h4>Process data</h4>
+<p>
+Each process has it's own memory areas, there are three memory areas in the UNIX world
+they are referred to as text, data
+and bss. In the <b>uCforth</b> world we refer to them as dictionary, data and ram. The size of each area
+is determined
+before initial use. This can be done when forth is invoked with the switches
+<samp><a href="../linux_env.html#-dictionary">-dictionary</a> nnn</samp>,
+<samp><a href="../linux_env.html#-data">-data</a> nnn</samp> and
+<samp><a href="../linux_env.html#-ram">-ram</a> nnn</samp>,
+in the forth startup script with the words
+<samp><a href="../linux_env.html#dictionary">dictionary</a> nnn</samp>,
+<samp><a href="../linux_env.html#data">data</a> nnn</samp> and
+<samp><a href="../linux_env.html#ram">ram</a> nnn</samp>,
+or user the same set of words after the prompt.
+The memory spaces only needs to be allocated if used.
+The values set when forth is invoked are overridden
+by the values set in the script, values set from the prompt override values set in the script.
+</p>
+
+<p>
+The data space referred to in the ANSI standard is contained within the dictionary space.
+It is done this way so that <samp>CREATE</samp> returns a data space pointer as specified in the standard,
+and at the same time <samp>CREATE</samp> returns an address that is
+contained within the dictionary as expected by long term users.
+The decision to put the data space in the dictionary
+effects other words. <samp>VARIABLE</samp> for instance creates a child that returns an address in the data space,
+therefore a VARIABLE child  returns a dictionary address. As the code space should not be altered
+<samp>VARIABLE</samp> is not very usefull.
+</p>
+<p>
+When you align the dictionary space you align to 1/2 a cell.
+<samp>ALIGN</samp> and <samp>ALIGNED</samp> are both words that deal with the dictionary
+space so they are 1/2 cell alignment words.
+</p>
+<samp><pre>
+\ this is an acceptable definition of CONSTANT, however the constant
+\ is stored in a cell that is 1/2 cell aligned.
+: CONSTANT ( parent f1--  child --f1)
+        CREATE HERE 1 CELLS ALLOT ! DOES> @ ;
+</pre></samp>
+<a name="allocation_word_set"></a>
+<h4>The allocation word sets</h4>
+<p>
+With the exception of the code area each memory area supported has a set of words
+that has the form as shown in the table below. Where xx is the area name.
+</p>
+<table>
+<tr><th>Word</th><th>stack</th><th>Comment</th></tr>
+<tr><td>xx_create</td><td>parent --  <br>child -- addr</td><td>Align the pointer as indicated in the above table; create a child, the child returns the current address within the area.</td></tr>
+<tr><td>xx_allot</td><td>n --</td><td>Allocate n bytes of the area.</td></tr>
+<tr><td>xx_variable</td><td>parent -- <br>child -- addr</td><td>Create a child that returns the address and allocates a cell for the storage of data in the area.</td></tr>
+<tr><td>xx_here</td><td>--addr</td><td>return the current pointer value.</td></tr>
+</table>
+<p>
+Each area has a default alignment as detailed in the table below.
+The xx_allot word will align the data area pointer to the
+data area alignment before allocating a data area or creating
+a word that returns a data area address.
+</p>
+<table>
+<tr><th>Area</th><th>Alignment</th><th>Comment</th></tr>
+<tr><td>code</td><td>1/2 cell</td><td>Can not be altered at run time.</td></tr>
+<tr><td>data</td><td>cell</td><td>Can be altered at run time, value is set when application is loaded</td></tr>
+<tr><td>ram</td><td>cell</td><td>Dynamic memory, most used area, set to zero on startup</td></tr>
+<tr><td>fast</td><td>cell</td><td>CPU memory, fastest area, small.</td></tr>
+</table>
+<a name="integer_management_dict"></a>
+<h4>dictionary area</h4>
+<p>
+In a saved application the dictionary area is the UNIX code area. <b>uCforth</b> will be ported to the 5407e. Taking
+care not to write to the dictionary will allow us to store the dictionary in a read only area
+thus increasing the stability of the system. So follow the rules, don't write to the dictionary
+after the compile has finished. Don't use <samp>VARIABLE</samp>
+</p>
+<p>
+The dictionary word set is:</p>
+</p>
+<table>
+<tr><th>Word</th><th>stack</th><th>Comment</th></tr>
+<tr><td><a HREF="../memory_allocation.html#ALLOT">ALLOT</a></td><td>n --</td><td>Allocate n bytes of data area.</td></tr>
+<tr><td><a HREF="../user_using_words.html#CREATE">CREATE</a></td><td>parent --  child -- addr</td><td>Align the pointer to 1/2 a cell boundary; create a child, the child returns the current address within the data area.</td></tr>
+<tr><td><a HREF="../memory_allocation.html#HERE">HERE</a></td><td>--addr</td><td>return the current data area address.</td></tr>
+<tr><td><a HREF="../compile.html#VARIABLE">VARIABLE</a></td><td>parent -- child -- addr</td><td>Create a child that returns a data area address and allocates a cell for the storage of data in the area.</td></tr>
+</table>
+<a name="integer_management_data"></a>
+
+<h4>data area</h4>
+<p>
+In a saved application this area ends up in the the Unix data area,
+this area is set on application load and is read and writable. You use this
+area if you want the application to start with something other than zero on application start, and
+you want to be able to alter the initial value at run time.
+</p>
+<p>
+The UNIX data area should not be confused with the data area mentioned in the forth ansi standard.
+In this system CREATE and VARIABLE return addresses in the dictionary,
+and the forth ansi standard data area and code area are one.
+</p>
+<table>
+<tr><th>Word</th><th>stack</th><th>Comment</th></tr>
+<tr><td><a HREF="../memory_allocation.html#data_allot">data_allot</a></td><td>n --</td><td>Allocate n bytes of the area.</td></tr>
+<tr><td><a HREF="../compile.html#data_create">data_create</a></td><td>parent --  child -- addr</td><td>Align the pointer as indicated in the above table; create a child, the child returns the current address within the area.</td></tr>
+<tr><td><a HREF="../memory_allocation.html#data_here">data_here</a></td><td>--addr</td><td>return the current pointer value.</td></tr>
+<tr><td><a HREF="../compile.html#data_variable">data_variable</a></td><td>parent -- child -- addr</td><td>Create a child that returns the address and allocates a cell for the storage of data in the area.</td></tr>
+</table>
+
+<a name="integer_management_ram"></a>
+<h4>ram area</h4>
+<p>
+In a saved application this area  wends up in the bss area. On application startup it is set to zero.
+</p>
+</p>
+<table>
+<tr><th>Word</th><th>stack</th><th>Comment</th></tr>
+<tr><td><a HREF="../memory_allocation.html#ram_allot">ram_allot</a></td><td>n --</td><td>Allocate n bytes of the area.</td></tr>
+<tr><td><a HREF="../compile.html#ram_create">ram_create</a></td><td>parent --  <br>child -- addr</td><td>Align the pointer as indicated in the above table; create a child, the child returns the current address within the area.</td></tr>
+<tr><td><a HREF="../memory_allocation.html#ram_here">ram_here</a></td><td>--addr</td><td>return the current pointer value.</td></tr>
+<tr><td><a HREF="../compile.html#ram_variable">ram_variable</a></td><td>parent -- <br>child -- addr</td><td>Create a child that returns the address and allocates a cell for the storage of data in the area.</td></tr>
+</table>
+
+<p>
+<samp>line_aligned</samp> is discussed <a href="#vector_management">later</a>.
+If the dynamic memory is cached, line_alignment is important if you want speed
+as the dynamic memory is read into the cache a line at a time.
+</p>
+<p>
+The following code shows how one can line align before creating a data area.
+</p>
+<pre><samp>
+ram_here                 \ last allocated address
+line_aligned             \ round up to line boundary
+ram_here                 \ last allocated address
+SWAP -                   \ bytes that need allocation
+ram_allot                \ allocate to a line boundary
+</samp></pre>
+<p>
+Working out how the code works is left as an exercise.
+</p>
+<h5>Example</h5>
+<pre><samp>
+\ create a $100 byte data area in dynamic memory
+ram_create %fred      $100 ram_allot
+\ create 4 cell variable in dynamic memory
+ram_variable %a_variable
+</samp></pre>
+
+<a name="integer_management_fast"></a>
+<h4>fast ram area</h4>
+<p>
+Many if the processors in the COLDFIRE family have a fast memory area. These areas have one cycle
+access times and more than compensate for the lack of registers. Using a the fast area for a forth
+processes data stack is a very wise move.Forth assumes that the fast memory area is it's to allocate
+( after all C knows nothing about it). The amount allocated is kept track of in the library so
+a process can allocate an area that is independent of areas allocated by another process.
+</p>
+
+<p>
+If the processor has fast ram the word set is.
+</p>
+<table>
+<tr><th>Word</th><th>stack</th><th>Comment</th></tr>
+<tr><td><a HREF="../5272/memory_allocation.html#fast_allot">fast_allot</a></td><td>n --</td><td>Allocate n bytes of the area.</td></tr>
+<tr><td><a HREF="../5272/compile.html#fast_create">fast_create</a></td><td>parent --  <br>child -- addr</td><td>Align the pointer as indicated in the above table; create a child, the child returns the current address within the area.</td></tr>
+<tr><td><a HREF="../5272/memory_allocation.html#fast_here">fast_here</a></td><td>--addr</td><td>return the current pointer value.</td></tr>
+<tr><td><a HREF="../5272/compile.html#fast_variable">fast_variable</a></td><td>parent -- <br>child -- addr</td><td>Create a child that returns the address and allocates a cell for the storage of data in the area.</td></tr>
+</table>
+<p>
+Example:
+</p>
+<pre><samp>
+\ create a $100 byte data area in fast memory
+fast_create %fred      $100 fast_allot
+\ create 4 cell variable in fast memory
+fast_variable %a_variable
+</samp></pre>
+
+
+<h4>General</h4>
+<p>
+These words can be used to manipulate addresses, and determine the size of data areas required.
+The addresses can be in any of the memory areas described above.
+</p>
+<table>
+<tr><th>word</th><th>stack</th><th>Description</th></tr>
+<tr><td><a HREF="../ansi_colon_words.html#ALIGNED">ALIGNED</a></td><td>addr1--addr2</td><td>Align address to a 1/2 cell boundary</td></tr>
+<tr><td><a HREF="../ansi_colon_words.html#CELL+">CELL+</a></td><td>addr1--addr2</td><td>Move address along so a CELL can be stored before.</td><tr>
+<tr><td><a HREF="../ansi_colon_words.html#CELLS">CELLS</a></td><td> n1--n2</td><td>Convert n1 from a count of CELLS to a count of address units ( bytes n a COLDFIRE system).</td><tr>
+<tr><td><a HREF="../colon_words.html#cell_aligned">cell_aligned</a></td><td>addr1--addr2</td><td>Align address to a cell boundary</td></tr>
+<tr><td><a HREF="../colon_words.html#line_aligned">line_aligned</a></td><td>addr1--addr2</td><td>Align address to a line boundary</td></tr>
+</table>
+<tr><th>word</th><th>stack</th><th>Description</th></tr>
+<tr><td><samp><a HREF="../5272/code_words.html#&gt;&gt;a">&gt;&gt;a</a></samp></td><td>32b1 u -- 32b2</td><td>arithmetically shift right 32b1 u places</td></tr>
+<tr><td><samp><a HREF="../colon_words.html#&gt;asl"> &gt;asl</a></samp></td><td>value -- asl-value</td><td>Convert number to closest power of 2 e.g. 4 becomes 2 8 becomes 3.</td></tr>
+
+<tr><td><samp><a HREF="../5272/ansi_code_words.html#*">*</a></samp></td><td>n1 n2--n3 or <br>u1 u2--u3</td><td>Multiple the top two stack items and replace with the result</td></tr>
+<tr><td><samp><a HREF="../ansi_colon_words.html#*/">*/</a></samp></td><td>n1 n2 n3--n4</td><td>Multiply n1 by n2 giving a double cell result. Divide the result by n3 to give n4</td></tr>
+<tr><td><samp><a HREF="../ansi_colon_words.html#*/MOD">*/MOD</a></samp></td><td>n1 n2 n3--rem quotient</td><td>Multiply n1 by n2 to give a double cell result, divide the result by n3 to give a single
+                        cell remainder and quotient.</td></tr>
+<tr><td><samp><a HREF="../5272/ansi_code_words.html#+">+</a></samp></td><td>n1 n2--n3 or <br>u1 u2--u3</td><td>Sum the top two stack items. Replace them with the result</td></tr>
+<tr><td><samp><a HREF="../5272/ansi_code_words.html#-">-</a></samp></td><td>n1 n2--n3 or <br>u1 u2--u3</td><td>Subtract item 2 from item 1. Replace top two items with the result.</td></tr>
+<tr><td><samp><a HREF="../5272/ansi_code_words.html#/">/</a></samp></td><td>n1 n2--n3</td><td> divide n2 into n1 and return the quotient.</td></tr>
+<tr><td><samp><a HREF="../5272/ansi_code_words.html#/MOD">/MOD</a></samp></td><td>n1 n2--rem quotient</td><td>Divide n2 into n1 and return the single cell remainder and quotient</td></tr>
+
+<tr><td><samp><a HREF="../ansi_colon_words.html#1+">1+</a></samp></td><td>n1--n2 or <br>u1--u2</td><td>Add one to the top stack item.</td></tr>
+<tr><td><samp><a HREF="../ansi_colon_words.html#1-">1-</a></samp></td><td>n1--n2 or <br>u1--u2</td><td>Subtract one from the top stack item</td></tr>
+
+
+<tr><td><samp><a HREF="../colon_words.html#16*">16*</a></samp></td><td>n1--n2 or <br>u1--u2</td><td>Multiply the top stack item by 16</td></tr>
+<tr><td><samp><a HREF="../colon_words.html#16/">16/</a></samp></td><td>n1--n2 or <br>u1--u2</td><td>Divide the top stack item by 16</td></tr>
+<tr><td><samp><a HREF="../colon_words.html#2+">2+</a></samp></td><td>n1--n2 or <br>u1--u2</td><td>Add 2 to the top stack item.</td></tr>
+<tr><td><samp><a HREF="../colon_words.html#2-">2-</a></samp></td><td>n1--n2 or <br>u1--u2</td><td>Subtract 2 from the top stack item</td></tr>
+<tr><td><samp><a HREF="../ansi_colon_words.html#2*">2*</a></samp></td><td>n1--n2 or <br>u1--u2</td><td>Multiply top stack item by 2</td></tr>
+<tr><td><samp><a HREF="../colon_words.html#2**">2**</a></samp></td><td>n -- u1</td><td>Raise two to power n</td></tr>
+<tr><td><samp><a HREF="../5272/ansi_code_words.html#2/">2/</a></samp></td><td>n1--n2</td><td>Divide the top stack item by 2</td></tr>
+<tr><td><samp><a HREF="../colon_words.html#3*">3*</a></samp></td><td>n1--n2 or <br>u1--u2</td><td>Multiply the top stack item by 3</td></tr>
+<tr><td><samp><a HREF="../colon_words.html#3+">3+</a></samp></td><td>n1--n2 or <br>u1--u2</td><td>Add 3 to the top stack item</td></tr>
+<tr><td><samp><a HREF="../colon_words.html#4*">4*</a></samp></td><td>n1--n2 or <br>u1--u2</td><td>Multiply the top stack item by 4</td></tr>
+<tr><td><samp><a HREF="../colon_words.html#4+">4+</a></samp></td><td>n1--n2 or <br>u1--u2</td><td>Add 4 to the top stack item</td></tr>
+<tr><td><samp><a HREF="../colon_words.html#4-">4-</a></samp></td><td>n1--n2 or <br>u1--u2</td><td>Subtract 4 from the top stack item.</td></tr>
+<tr><td><samp><a HREF="../5272/code_words.html#4/">4/</a></samp></td><td>n1--n2 or <br>u1--u2</td><td>Divide top stack item by 4</td></tr>
+
+<tr><td><samp><a HREF="../colon_words.html#8*">8*</a></samp></td><td>n1--n2 or <br>u1--u2</td><td>Multiply top stack item by 8</td></tr>
+<tr><td><samp><a HREF="../colon_words.html#8+">8+</a></samp></td><td>n1--n2 or <br>u1--u2</td><td>Add 8 to the top stack item</td></tr>
+<tr><td><samp><a HREF="../colon_words.html#8-">8-</a></samp></td><td>n1--n2 or <br>u1--u2</td><td>Subtract 8 from the top stack item</td></tr>
+<tr><td><samp><a HREF="../colon_words.html#8/">8/</a></samp></td><td>n1--n2 or <br>u1--u2</td><td>Divide the top stack item by 8</td></tr>
+
+
+
+
+<tr><td><samp><a HREF="../5272/ansi_code_words.html#LSHIFT">LSHIFT</a></samp></td><td>x1 u--x2</td><td>Logical shift left of x1 by u places. When doing a logical
+                      shift left zero is shifted into the low bit</td></tr>
+<tr><td><samp><a HREF="../5272/ansi_code_words.html#MAX">MAX</a></samp></td><td>n1 n2-- n3</td><td>n3 is the max of n1 and n2</td></tr>
+<tr><td><samp><a HREF="../5272/ansi_code_words.html#MIN">MIN</a></samp></td><td>n1 n2 -- n3</td><td>n3 is the min of n1 and n2</td></tr>
+
+<tr><td><samp><a HREF="../ansi_colon_words.html#MOD">MOD</a></samp></td><td>n1 n2--n3</td><td>Divide n2 into n1 giving the remainder n3</td></tr>
+<tr><td><samp><a HREF="../5272/random.html#random">random</a></samp></td><td>--x1</td><td>Returns a 32 bit random value.</td></tr>
+<tr><td><samp><a HREF="../5272/ansi_code_words.html#RSHIFT">RSHIFT</a></samp></td><td>x1 u--x2</td><td>Logical shift right of x1 by u places. When doing a logical
+                      shift right zero is shifted into the high bit.</td></tr>
+<tr><td><samp><a HREF="../5272/code_words.html#sqrt">sqrt</a></td><td>u1--u2</td><td>The integer square root of u1 is found, the result u2 replaces u1.</td><tr>
+
+</table>
+<a name="integer_compare"><h3>Integer compare</h3></a>
+<table>
+<tr><th>word</th><th>stack</th><th>Description</th></tr>
+<tr><td><samp><a HREF="../5272/ansi_code_words.html#0&lt;">0&lt;</a></samp></td><td>n1--flag</td><td>Flag is true if n1 is less than zero</td></tr>
+<tr><td><samp><a HREF="../5272/ansi_code_words.html#0&lt;&gt;">0&lt;&gt;</a></samp></td><td>n1--flag or u1--flag</td><td>Flag is true if top stack value is not equal to zero</td></tr>
+<tr><td><samp><a HREF="../5272/ansi_code_words.html#0=">0=</a></samp></td><td>n1--flag or u1--flag</td><td>Flag is true if top stack value equals zero</td></tr>
+<tr><td><samp><a HREF="../5272/ansi_code_words.html#0&gt;">0&gt;</a></samp></td><td>n1--flag</td><td>Flag is true if n1 is greater than zero</td></tr>
+<tr><td><samp><a HREF="../5272/ansi_code_words.html#&lt;">&lt;</a></samp></td><td>n1 n2--flag</td><td>Flag is true if n1 is less than n2</td></tr>
+<tr><td><samp><a HREF="../5272/ansi_code_words.html#&lt;&gt;">&lt;&gt;</a></samp></td><td>n1 n2--flag</td><td>Flag is true if n1 and 2 are not equal</td></tr>
+<tr><td><samp><a HREF="../5272/ansi_code_words.html#=">=</td><td>x1 x2 -- flag</td><td>flag is true if x2 is equal to x1</td></tr>
+<tr><td><samp><a HREF="../5272/ansi_code_words.html#&gt;">&gt;</td><td>n1 n2 -- flag</td><td>flag is true in n2 is greater than </td></tr>
+<tr><td><samp><a HREF="../5272/ansi_code_words.html#U&lt;">U&lt;</a></samp></td><td>u1 u2--flag</td><td>Unsigned compare, flag is true if u2 is less than u1</td></tr>
+<tr><td><samp><a HREF="../5272/ansi_code_words.html#U&gt;">U&gt;</a></samp></td><td>u1 u2--flag</td><td>Unsigned compare, flag is true if u2 is greater than u1</td></tr>
+</table>
+
+<a name="integer_logic"><h3>Integer logic</h3></a>
+<p>
+Boolean values have two faces, <a href="#flags">flags</a> that have only two values ( TRUE or FALSE), 
+and cells that are treated
+as 32 bits. Remember a bit can have the value true or false.
+When dealing with 32 bits we will call the value "32b"  when describing the stack. If the flag values are
+normalized, that is false is zero and true is -1, the words that perform bit by bit operations can be
+used on flag values.
+</p>
+<table>
+<tr><th>word</th><th>stack</th><th>Description</th></tr>
+
+<tr><td><samp><a HREF="../5272/ansi_code_words.html#AND">AND</a></samp></td><td>32b1 32b2--32b3</td><td>And the two bit values together.</td></tr>
+<tr><td><samp><a HREF="../5272/ansi_code_words.html#INVERT">INVERT</a></samp></td><td>32b1--32b2</td><td>Invert all bits in the top stack item.</td></tr>
+<tr><td><samp><a HREF="../5272/ansi_code_words.html#OR">OR</a></samp></td><td>32b1 32b2--32b3</td><td>A bit by bit OR</td></tr>
+<tr><td><samp><a HREF="../5272/ansi_code_words.html#XOR">XOR</a></samp></td><td>32b1 32b2--32b3</td><td>A bit by bit exclusive or</td></tr>
+</table>
+
+
+
+<a name="flags"><h2>Flags</h2></a>
+<ul>
+        <li><a HREF="#flag_data_conversion">data conversion</a></li>
+        <li><a HREF="#flag_print">printing</a></li>
+        <li><a HREF="#flag_input">input</a></li>
+        <li><a HREF="#flag_constants">constants, literal, variable</a></li>
+        <li><a HREF="#flag_memory">Accessing memory</a></li>
+        <li><a HREF="#flag_stack">stack words</a></li>
+        <li><a HREF="#flag_management">data areas</a></li>
+        <li><a href="#flag_maths">maths</a></li>
+        <li><a href="#flag_compare">compares</a></li>
+</ul>
+<p>
+Flags are stored on the stack as single cell values. Zero is used as FALSE, non zero is treated as TRUE
+by words that test flags.
+</p>
+<p>
+Normalized flags have the value zero for false, and all bits set ( the signed value -1) for true.
+The words <samp>TRUE</samp> puts -1 on the stack. The word <samp>FALSE</samp> puts 0 on the stack.
+</p>
+<a name="flag_data_conversion"><h3>Flag data conversion</h3></a>
+<p>
+If an integer is non zero it is treated as true by words that test flags.
+</p>
+
+You use the compare words to generate an appropriate flag, see <a href="#integer_compare">integer compare</a>,
+<a href="#double_compare">double compare</a> and <a href="#float_compare">float compare</a>.
+</p>
+<p>
+If you are dealing with integer values the logic operations should not be used until the flags
+have been normalized, this is best done with <samp>0=</samp> or <samp>0&lt;&gt;</samp>.
+</p>
+<a name="flag_print"><h3>Flag print</h3></a>
+<p>
+Define your own word to suit the application. For example:
+</p>
+<samp><pre>
+: .flag ( flag --)
+        IF
+                ." TRUE"
+        ELSE
+                ." FALSE"
+        THEN
+;
+</pre></samp>
+<a name="flag_input"><h3>Flag input</h3></a>
+<p>
+<samp>TRUE</samp> and <samp>FALSE</samp> are words that put true and false on the stack. The <samp>TRUE</samp> and
+<samp>FALSE</samp> words act as flag input words.
+</p>
+
+<a name="flag_constants"><h3>Flag constants, literals</h3></a>
+<p>
+Use the <a href="#integer_constants">integer</a> words, for example:
+</p>
+<samp><pre>
+TRUE CONSTANT auto
+: something [ #xyz #abc AND ] LITERAL ;
+</pre></samp>
+
+<a name="flag_memory"><h3>Flag accessing memory</h3></a>
+<p>
+You can store a flag value in a cell, 1/2 cell or a byte. A COLDFIRE processor works faster if you stick to cells.
+To access the data use the <a href="#integer_memory">integer memory access words</a>.
+</p>
+<a name="flag_stack"><h3>Flag stack</h3></a>
+<p>
+Flags are stored in a stack cell just as integer values are,
+use the <a href="#integer_stack">Integer stacks words</a>
+</p>
+<a name="flag_management"><h3>Flag data areas</h3></a>
+<p>
+Best to store flags in cells, use the same words as used for
+<a href="#integer_management">integers</a>.
+</p>
+<a name="flag_maths"><h3>Flag maths</h3></a>
+<p>
+Under each data type there is a set of words that test relationships between the types. These
+words generate flags.  See <a href="#integer_compare">integer compare</a>,
+<a href="#double_compare">double compare</a> and <a href="#float_compare">float compare</a>.
+<p>
+Boolean values have two faces, flags that have only two values ( TRUE or FALSE), and cells that are treated
+as 32 flags. Here we are talking about flags, that is values that can be true or false.
+</p>
+<table>
+<tr><th>word</th><th>stack</th><th>Description</th></tr>
+<tr><td><samp><a HREF="../5272/ansi_code_words.html#AND">AND</a></samp></td><td>flag1 flag2--flag3</td><td>And the two
+                bit values together, this will only work with flags if they are normalized (TRUE=-1)</td></tr>
+<tr><td><samp><a HREF="../5272/ansi_code_words.html#INVERT">INVERT</a></samp></td><td>flag1--flag3</td><td>
+        Invert all bits in the top stack item, this will work with flags if the top stack item
+        is a normalized flag (TRUE = -1)</td></tr>
+<tr><td><samp><a HREF="../colon_words.html#not">not</a></samp<</td><td>flag1--flag2</td><td>Same code as "0=" used for program clarity. Use <samp>0=</samp>
+        when testing an integer, <samp>not</samp> when performing a logic operation.</td></tr>
+<tr><td><samp><a HREF="../5272/ansi_code_words.html#OR">OR</a></samp></td><td>flag1 flag2--flag3</td><td>A bit by bit OR, will work
+        with flags that have not been normalized (TRUE = -1)</td></tr>
+<tr><td><samp><a HREF="../5272/ansi_code_words.html#XOR">XOR</a></samp></td><td>flag1 flag2--flag3</td><td>A bit by bit exclusive or, will work with
+        flags if they are normalized.</td></tr>
+</table>
+<h4>The logic operations</h4>
+<table>
+<tr><th>operation</th><th>logic</th></tr>
+<tr><td>AND</td><td><table>
+                        <tr><td>TRUE</td><td>TRUE</td><td>AND</td><td>=&gt;</td><td>TRUE</td></tr>
+                        <tr><td>TRUE</td><td>FALSE</td><td>AND</td><td>=&gt;</td><td>FALSE</td></tr>
+                        <tr><td>FALSE</td><td>TRUE</td><td>AND</td><td>=&gt;</td><td>FALSE</td></tr>
+                        <tr><td>FALSE</td><td>FALSE</td><td>AND</td><td>=&gt;</td><td>FALSE</td></tr>
+                    </table></td></tr>
+<tr><td>OR</td><td><table>
+                        <tr><td>TRUE</td><td>TRUE</td><td>OR</td><td>=&gt;</td><td>TRUE</td></tr>
+                        <tr><td>TRUE</td><td>FALSE</td><td>OR</td><td>=&gt;</td><td>TRUE</td></tr>
+                        <tr><td>FALSE</td><td>TRUE</td><td>OR</td><td>=&gt;</td><td>TRUE</td></tr>
+                        <tr><td>FALSE</td><td>FALSE</td><td>OR</td><td>=&gt;</td><td>FALSE</td></tr>
+                    </table></td></tr>
+<tr><td>XOR</td><td><table>
+                        <tr><td>TRUE</td><td>TRUE</td><td>XOR</td><td>=&gt;</td><td>FALSE</td></tr>
+                        <tr><td>TRUE</td><td>FALSE</td><td>XOR</td><td>=&gt;</td><td>TRUE</td></tr>
+                        <tr><td>FALSE</td><td>TRUE</td><td>XOR</td><td>=&gt;</td><td>TRUE</td></tr>
+                        <tr><td>FALSE</td><td>FALSE</td><td>XOR</td><td>=&gt;</td><td>FALSE</td></tr>
+                    </table></td></tr>
+</table>
+
+<a name="flag_compare"><h3>Flag compares</h3></a>
+<p>
+This is an interesting topic. <samp>AND</samp> is looking for two flags that are equal. If the flags are
+normalized, <samp>AND</samp> and <samp>=</samp> give the same result. <samp>XOR</samp> and <samp>&lt;&gt;</samp>
+also give the same answer for normalized flags.
+The differences arise when the true value is not normalized. Considering the differences is left as an
+exercise.
+</p>
+<a name="double_numbers"><h2>Double numbers</h2></a>
+<ul>
+        <li><a HREF="#double_data_conversion">data conversion</a></li>
+        <li><a HREF="#double_print">printing</a></li>
+        <li><a HREF="#double_input">input</a></li>
+        <li><a HREF="#double_constants">constants, literal, variable</a></li>
+        <li><a HREF="#double_memory">Accessing memory</a></li>
+        <li><a HREF="#double_stack">stack words</a></li>
+        <li><a HREF="#double_management">double data areas</a></li>
+        <li><a href="#double_maths">maths</a></li>
+        <li><a href="#double_compare">compares</a></li>
+        <li><a href="#double_logic">logic operations</a></li>
+</ul>
+<p>
+A double number is two cells long, it is stored on the stack:
+<table>
+<tr><td>low_cell high_cell</td></tr>
+</table>
+<p>
+A double number is called "d" in a stack description. "du" is an unsigned double number, "dn" is a signed double number.
+"d" = "dn" or "du"</p>
+<a name="double_data_conversion"><h3>Double data conversion</h3></a>
+<table>
+<tr><th>word</th><th>stack</th><th>Description</th></tr>
+<tr><td><samp><a HREF="../5272/float.html#D&gt;F">D&gt;F</a></samp></td><td>double--float</td><td>Convert double integer ( 64 bit) to floating number.</td></tr>
+<tr><td><samp><a HREF="../5272/float.html#F&gt;D">F&gt;D</a></samp></td><td>float--double</td><td>Convert float to double</td></tr>
+<tr><td><samp><a HREF="../ansi_colon_words.html#D&gt;S">D&gt;S</a></samp></td><td>double--n1</td><td>Convert double integer ( 64 bit) to a signed integer</td></tr>
+<tr><td><samp><a HREF="../5272/ansi_code_words.html#S&gt;D">S&gt;D</a></samp></td><td>n1--double</td><td>Convert a signed integer to double</td></tr>
+<tr><td><samp><a HREF="../colon_words.html#d&gt;u">d&gt;u</a></samp></td><td>double--u1</td><td>Convert double integer ( 64 bit) to a unsigned integer</td></tr>
+<tr><td><samp><a HREF="../colon_words.html#u&gt;d">u&gt;d</a></samp></td><td>u1--double</td><td>Convert a unsigned integer to double</td></tr>
+</table>
+
+<a name="double_print"><h3>Double printing</h3></a>
+<table>
+<tr><th>word</th><th>stack</th><th>Description</th></tr>
+<tr><td><samp><a HREF="../number_output.html#D.">D.</a></samp></td><td>double--</td><td>Display the double number in a free form field, followed by a space.</td></tr>
+<tr><td><samp><a HREF="../number_output.html#D.R">D.R</a></samp></td><td>double u--</td><td>Display the double number, right justified in a field u characters wide.</td></tr>
+<tr><td><samp><a HREF="../number_output.html#d.l">d.l</a></samp></td><td>double u--</td><td>Display the double number, left justified in a field u characters wide.</td></tr>
+</table>
+<a name="double_input"><h3>Double input</h3></a>
+<p>
+The basic <a href="#integer_input">Integer input</a> words are all relevant as the base words create double numbers
+that have to be converted to integers.
+</p>
+<p>
+If you are using the interpreter you append L to the number to create a double.
+</p>
+<h5>Example</h5>
+<samp>
+0X123456789ABCDEFL 2CONSTANT #fred
+</samp>
+<p>
+You can input a float and convert to a double.
+</p>
+<h5>Example</h5>
+<samp>
+12345E8 F>D 2CONSTANT #fred2
+</samp>
+<p>
+And if you have no real reason for using doubles you can input as an integer and convert to a double.
+</p>
+<h5>Example</h5>
+<samp>
+-12345678 S>D 2CONSTANT #fred3
+</samp>
+
+<a name="double_constants"><h3>2constants, 2literal</h3></a>
+<table>
+<tr><th>word</th><th>stack</th><th>Description</th></tr>
+<tr><td><a HREF="../5272/compile.html#2CONSTANT">2CONSTANT</a></td><td><u>parent</u> d-- <u>child</u> --d </td><td>Create a child word that returns the constant value</td></tr>
+<tr><td><a HREF="../5272/compile.html#2LITERAL">2LITERAL</a></td><td><u>compile</u> time ( d--) <u>runtime</u> --d </td><td>At compile time take the
+                double value off the stack, at runtime put it back.</td><tr>
+</table>
+<h4>Examples</h4>
+<samp><pre>
+\ a large constant
+0x2FFFFFFF6L 2CONSTANT #large_number
+
+\ doing some calculations at compile time.
+\ We will discuss : ; [ and ] later.
+: 2large_number [ #large_number D2* ] 2LITERAL ;
+</pre></samp>
+<a name="double_memory"><h3>Double accessing memory</h3></a>
+<p>
+Double numbers are stored in memory; high_cell low_cell.
+</p>
+<table>
+<tr><th>word</th><th>stack</th><th>Description</th></tr>
+<tr><td><samp><a HREF="../ansi_colon_words.html#2!">2!</a></samp></td><td>d addr--</td><td>Store the double number at address</td></tr>
+<tr><td><samp><a HREF="../ansi_colon_words.html#2@">2@</a></samp></td><td>addr--d</td><td>Fetch the double number from address</td></tr>
+</table>
+
+<a name="double_stack"><h3>Double stack words</h3></a>
+<p>
+The integer stack words that manipulate 2 stack cells can be used to manipulate double numbers. The standard
+assumes double numbers are always two cells long. Do not use the double word set to manipulate floating point
+numbers.
+</p>
+<table>
+<tr><th>word</th><th>stack</th><th>Description</th></tr>
+<tr><td><samp><a HREF="../5272/ansi_code_words.html#2DROP">2DROP</a></samp></td><td>d--</td><td>Drop a double.</td>
+<tr><td><samp><a HREF="../5272/ansi_code_words.html#2DUP">2DUP</a></samp></td><td>d1--d1 d1</td><td>Duplicate a double</td>
+<tr><td><samp><a HREF="../5272/ansi_code_words.html#2OVER">2OVER</a></samp></td><td>d1 d2--d1 d2 d1</td><td>Duplicate the double one double down.</td>
+<tr><td><samp><a HREF="../5272/ansi_code_words.html#2ROT">2ROT</a></samp></td><td>d1 d2 d3--d2 d3 d1</td>
+                      <td>Roll the double three down to the top.</td>
+<tr><td><samp><a HREF="../5272/ansi_code_words.html#2SWAP">2SWAP</a></samp></td><td>d1 d2--d2 d1</td><td>Swap the top two doubles.</td>
+</table>
+
+<a name="double_management"><h3>Double data areas</h3></a>
+<p>
+When creating data areas for double numbers the default alignment for all the data areas is all that is required.
+The base for creating double number data areas is the <a href="#integer_management">integer data area word set</a> set.
+Just remember that a double requires 2 cells. In the code below we create a ram data area that can be used to store
+up to 4 double numbers.
+</p>
+<pre><samp>
+\ this data area is used to store double
+4 CONSTANT #my_data_max
+ram_create %my_data  #my_data_max 2* CELLS ram_allot
+</samp></pre>
+<p>
+Note that we used a constant to give the maximum number of doubles that can be stored.
+We can use the same constant when accessing the area.
+</p>
+<h5>Example</h5>
+<pre><samp>
+: @my_data ( n --d )
+        #my_data_max 1- MIN 2* CELLS %my_data + 2@
+;
+</samp></pre>
+<p>
+Some of the above calculation can be moved to compile time with the code.
+</p>
+<pre><samp>
+: @my_data ( n -- d)
+        [ #my_data_max 1 - ] LITERAL MIN 2* %my_data + 2@ ;
+</samp></pre>
+<p>
+This topic is discussed further in chapter 2.
+</p>
+
+<a name="double_maths"><h3>Double maths</h3></a>
+<table>
+<tr><th>word</th><th>stack</th><th>Description</th></tr>
+<tr><td><samp><a HREF="../5272/code_words.html#d&gt;&gt;">d&gt;&gt;</a></samp></samp></td><td>64b1 u--64b3</td><td>Rotate right u bits</td></tr>
+<tr><td><samp><a HREF="../5272/code_words.html#d&lt;&lt;">d&lt;&lt;</a></samp></samp></td><td>64b1 u--64b3</td><td>Rotate left u bits</td></tr>
+<tr><td><samp><a HREF="../5272/code_words.html#d&gt;&gt;a">d&gt;&gt;a</a></samp></samp></td><td>64b1 u--64b3</td><td>Arithmetically shift right u bits</td></tr>
+<tr><td><samp><a HREF="../5272/ansi_code_words.html#D+">D+</a></samp></td><td>d1 d2--d3</td><td>The two double numbers are added and replaces with the result.</td></tr>
+<tr><td><samp><a HREF="../5272/ansi_code_words.html#D-">D-</a></samp></td><td>d1 d2--d3</td><td>d2 is taken away from d1. d1 and d2 are replaced with the result.</td></tr>
+<tr><td><samp><a HREF="../5272/ansi_code_words.html#D2*">D2*</a></samp></td><td>d1--d2</td><td>The double number is multiplied by 2. d1 is replaced by the result.</td></tr>
+<tr><td><samp><a HREF="../5272/ansi_code_words.html#D2/">D2/</a></samp></td><td>d1--d2</td><td>d1 is divided by 2. d1 is replaced by the result.
+<tr><td><samp><a HREF="../5272/ansi_code_words.html#DABS">DABS</a></samp></td><td>dn--du</td><td>The absolute value is determined, the result replaces the input.</td></tr>
+<tr><td><samp><a HREF="../ansi_colon_words.html#DMAX">DMAX</a></samp></td><td>d1 d2 -- d3</td><td>d3 is the larger signed value.</td></tr>
+<tr><td><samp><a HREF="../ansi_colon_words.html#DMIN">DMIN</a></samp></td><td>d1 d2 -- d3</td><td>d3 is the smaller signed value.</td></tr>
+<tr><td><samp><a HREF="../5272/ansi_code_words.html#DNEGATE">DNEGATE</a></samp></td><td>dn1--dn2</td><td>The double value is negated.</td></tr>
+</table>
+
+<a name="double_compare"><h3>Double compare</h3></a>
+<table>
+<tr><th>word</th><th>stack</th><th>Description</th></tr>
+<tr><td><samp><a HREF="../ansi_colon_words.html#D0&lt;">D0&lt;</a></samp></td><td>dn--flag</td><td>flag is true if number is less than zero</td></tr>
+<tr><td><samp><a HREF="../ansi_colon_words.html#D0=">D0=</a></samp></td><td>d--flag</td><td>Flag is true if number is equal to zero</td></tr>
+<tr><td><samp><a HREF="../ansi_colon_words.html#D&lt;">D&lt;</a></samp></td><td>dn1 dn2--flag</td><td>Flag is true if dn1 is less than dn2</td></tr>
+<tr><td><samp><a HREF="../ansi_colon_words.html#D=">D=</a></samp></td><td>d1 d2--flag</td><td>Flag is true if d1 equals d2</td></tr>
+<tr><td><samp><a HREF="../5272/ansi_code_words.html#DU&lt;">DU&lt;</a></samp></td><td>du1 du2--flag</td><td>Unsigned compare, flag is true if du1 is less than du2.</td></tr>
+</table>
+
+
+<a name="double_logic"><h3>Double logic</h3></a>
+<p>
+64 bit logic operations. The operations are bit by bit operations.
+<table>
+<tr><th>word</th><th>stack</th><th>Description</th></tr>
+<tr><td><samp><a HREF="../5272/code_words.html#dand">dand</a></samp></td><td>64b1 64b2--64b3</td><td>And the bit values together.</td></tr>
+<tr><td><samp><a HREF="../5272/code_words.html#dor">dor</a></samp></td><td>64b1 64b2--64b3</td><td>A bit by bit or</td></tr>
+<tr><td><samp><a HREF="../5272/code_words.html#dxor">dxor</a></samp></td><td>64b1 64b2--364b3</td><td>A bit by bit exclusive or</td></tr>
+</table>
+
+<a name="q_numbers"><h2>Q numbers</h2></a>
+<ul>
+        <li><a HREF="#Q_data_conversion">data conversion</a></li>
+        <li><a HREF="#Q_print">printing</a></li>
+        <li><a HREF="#Q_input">input</a></li>
+        <li><a HREF="#Q_constants">constants, literal</a></li>
+        <li><a HREF="#Q_memory">Accessing memory</a></li>
+        <li><a HREF="#Q_stack">stack words</a></li>
+        <li><a HREF="#Q_management">data areas</a></li>
+        <li><a href="#Q_maths">maths</a></li>
+        <li><a href="#Q_compare">compares</a></li>
+        <li><a href="#Q_logic_operations">logic operations</a></li>
+</ul>
+<p>
+Real time control is an interesting subject, Q numbers belong in that arena. You will come across them if
+you are an Engineer writing DSP programmers. You will not see them mentioned in any programming course.
+<p>
+<p>
+Before we move to Q number we will talk about integer base numbers.
+</P>
+<p>
+Floating point processors take a lot of power. Floating point maths done on a an integer processor is slow. To
+overcome this engineers need a method to do fractional arithmetic using integers. The solution is to use fractions.
+A fraction is the ratio of two integers. If you arrange things nicely all your calculations can be done using integers.
+</p>
+<p>
+First lets look at fractions.
+</p>
+<p>
+As we all know .0011 is really 11/10000. And 1.5001 is really 15001/10000.
+</p>
+<p>
+If you add these two numbers together:
+<p>
+<pre>
+   11   15001   15012
+----- + ----- = -----
+10000   10000   10000
+</pre>
+<p>
+If we just remember that the base is 10000 we can add the two numbers together by just adding the top.
+<p>
+<p>
+If you do the calculations using the top of the fraction and just remember that the number has a base you are
+using integer based numbers.
+</p>
+<p>
+You can represent two integer base numbers as
+</p>
+<pre>
+ a/base and b/base
+</pre>
+<p>
+And using the fraction maths we learnt at school we can give some general rules.
+</p>
+<pre>
+a/base + b/base = (a+b)/base
+
+a/base - b/base = (a-b)/base
+
+a/base * b/base = a*b/base*base to get back to the same base (a*b/base*base)/base = a*b/base
+
+a/base / b/base = a/b           to get back to the same base (a/b)/base = (a/b)/base
+</pre>
+<p>
+The last two rules show that integer base numbers have to have there base manipulated if they are multiplied or divided.
+If we consider our original numbers 0.0011 and 1.5001. If we multiply them using a calculator we get 0.00165 . If we
+do the same thing using the rules above we get.
+</p>
+<p>
+11 * 15000 = 165000. We have to divide that by the base to get 16.5. We can only use integers, so the result is 16/10000.
+Our integer based result as a decimal number is 0.0016. The difference between .0016 and .00165 is called rounding error.
+When designing your real time calculations you have to consider the possible range of numbers you will be using
+and the effect of rounding errors. The same considerations are important when using floats, it is just floats are used
+by less experienced people, they just complain when the answer is wrong.
+</p>
+<p>
+An integer base number can use anything as the base. FORTH has the word <samp>*/</samp> to deal with the calculations.
+For instance<br> 0.0011 * 1.5000 using integers and a base of 10000 would be done with the code.
+</p>
+<pre><samp>
+11 15000 10000 */
+</samp></pre>
+<p>
+Things can be made faster. Most processors multiply quickly, rotate quickly and divide slowly.
+If you limit the base to a power of two then you can do your divide with a rotate.
+Such numbers are referred to as Q numbers.
+</p>
+<p>
+Lets consider two different numbers, 0.5 and 0.25.
+</p>
+<pre>
+0.5 = 8/16
+0.25 = 4/16
+
+0.5*0.25 = 0.125
+
+8/16 * 4/16 = 32/256 = 2/16 = 0.125
+</pre>
+<p>
+To convert 32/256 to 2/16 requires 32 to be divided by 16 or in other words shift the number right 4 places.
+The Q base is 4. That is the number 2 has to be raised to get the integer base.
+</p>
+<p>
+When designing applications that are time critical you try very hard to use integers; part of that effort is the use
+of Q numbers to deal with fractional calculations.
+</p>
+<p>
+In the discussion below you will see that there are few addition words aimed at q numbers. In most cases
+the integer words will work.
+</p>
+<a name="Q_data_conversion"><h3>data conversion</h3></a>
+<p>
+To convert from an integer to a Q number rotate by the Q base.
+</p>
+<samp>
+: s>q ( n base --q )
+        LSHIFT
+;
+</samp>
+<p>
+To convert from a Q number to an integer arithmetically shift right.
+</p>
+<samp>
+: q>s ( q base -- n)
+        >>a
+;
+</samp>
+<p>
+There are kernel words to convert q number to and from floating point, as well as words to
+convert vectors.
+</p>
+
+<table>
+<tr><th>word</th><th>stack</th><th>Description</th></tr>
+<tr><td><samp><a HREF="../5272/float.html#f&gt;q">f&gt;q</a></samp></td><td>float qbase--q</td><td>Convert float to q number.</td></tr>
+<tr><td><a HREF="../5272/float.html#fv&gt;qv">fv&gt;qv</a></td><td>addr1 addr2 n qbase--</td><td>float to q values. addr1 points to a vector of floats, addr2 to the
+        result,a q value vector. n gives the number of entries. q gives the base.</td></tr>
+<tr><td><samp><a HREF="../5272/float.html#q&gt;f">q&gt;f</a></samp></td><td>q qbase--float</td><td>Convert q number to floating point.</td></tr>
+<tr><td><a HREF="../5272/float.html#qv&gt;fv">qv&gt;fv</a></td><td>addr1 addr2 n qbase--</td><td>q values to float. addr1 points to a vector of q values, addr2 to the
+        result,
+        a float vector. n gives the number of entries. q gives the base.</td></tr>
+</table>
+
+<a name="Q_print"><h3>printing</h3></a>
+<p>
+You convert to a float and use the <a HREF="#float_print">float print</a> words.
+</p>
+<a name="Q_input"><h3>input</h3></a>
+<p>
+Input as a float and convert to a q.
+</p>
+<a name="Q_constants"><h3>constants, literal </h3></a>
+Use the <a HREF="#integer_constants">integer</a> words.
+<a name="Q_memory"><h3>Accessing memory</h3></a>
+Use the <a HREF="#integer_memory">integer</a> words.
+<a name="Q_stack"><h3>stack words</h3></a>
+Use the <a HREF="#integer_stack">integer</a> words.
+<a name="Q_management"><h3>data areas</h3></a>
+Use the <a HREF="#integer_management">integer</a> words.
+<a name="Q_maths"><h3>maths</h3></a>
+<p>
++ and - can be used without considering the base ( the base does have to be the same). * and / have to have
+the result manipulated as discussed above.
+</p>
+<a name="Q_compare"><h3>compares</h3></a>
+<p>
+The integer compare words work with Q numbers.
+</p>
+<a name="Q_logic_operations"><h3>logic operations</h3></a>
+<p>
+A Q number is a set of bits, if a bit by bit logic operation makes sense it is certainly allowed.
+</p>
+
+<a name="float_data"><h2>Floating point numbers</h2></a>
+<ul>
+<li><a HREF="#float_data_conversion">data conversion</a></li>
+<li><a HREF="#float_print">printing</a></li>
+<li><a HREF="#float_input">input</a></li>
+<li><a HREF="#float_constants">constants, literal</a></li>
+<li><a HREF="#float_memory">F@ F!</a></li>
+<li><a HREF="#float_stack">stack words</a></li>
+<li><a HREF="#float_management">data areas</a></li>
+<li><a HREF="#float_maths">maths</a></li>
+<li><a HREF="#float_compare">compare</a></li>
+</ul>
+<p>
+<b>uCforth</b> provides support for four types of numbers, integers, doubles, q numbers and floats.
+Floats are only supported if the MAC supports fractional multiplies. After trying to convert
+a number using the integer conversion rules the system will try and convert the input token
+into a float using the floating
+point input rules.
+</p>
+<p>
+<b>uCforth</b> stores floating point values on the DATA stack as two stack items. The first is the mantissa, the second the
+exponent. As the exponent is 32 bits the range is quite large. The words used to solve simultaneous equations
+make use of this fact to solve the equations without pre conditioning and with limited divides.
+</p>
+<p>
+A 5407 can perform about 4 million float multiplies a second and about 0.4 million float divides. That is the divide is slower
+by a factor of 10. Remember this when designing your algorithms. Also remember a 5407 can do about 100 million MAC
+operations a second. In other words don't use floats if you don't have to. There are cases where you have to.
+</p>
+<table>
+<tr><td> man1 exp1 </td><td>=</td><td> f1</td></tr>
+</table>
+<p>
+Try :
+</p>
+
+
+<samp><i>forth 10&gt;</i><b>4.0 5.0 F* F.</b></samp>
+<p>
+Followed by a return, if you get <samp><i>20.000</i></samp> you have working floating point support.
+<p>
+
+<a name="float_data_conversion"><h3>Float data conversion</h3></a>
+<table>
+<tr><th>word</th><th>stack</th><th>Description</th></tr>
+<tr><td><samp><a HREF="../5272/float.html#D&gt;F">D&gt;F</a></samp></td><td>double--float</td><td>Convert double integer ( 64 bit) to floating number.</td></tr>
+<tr><td><samp><a HREF="../5272/float.html#F&gt;D">F&gt;D</a></samp></td><td>float--double</td><td>Convert float to double</td></tr>
+<tr><td><samp><a HREF="../5272/float.html#f&gt;s">f&gt;s</a></samp></td><td>float--n</td><td>Convert float to signed number</td></tr>
+<tr><td><samp><a HREF="../5272/float.html#f&gt;q">f&gt;q</a></samp></td><td>float qbase--q</td><td>Convert float to q number.</td></tr>
+<tr><td><samp><a HREF="../5272/float.html#s&gt;f">s&gt;f</a></samp></td><td>n--float</td><td>Convert signed integer to floating point.</td></tr>
+<tr><td><samp><a HREF="../5272/float.html#q&gt;f">q&gt;f</a></samp></td><td>q qbase--float</td><td>Convert q number to floating point.</td></tr>
+</table>
+
+<a name="float_print"><h3>Floating printing</h3></a>
+<p>Only two floating point print words are supported; they are both listed in the table below.
+<table>
+<tr><th>word</th><th>stack</th><th>Description</th></tr>
+<tr><td><a HREF="../5272/float.html#Fdot">F.</a></td><td>f--</td><td>display the top two stack items as a floating point number.</td></tr>
+<tr><td><a HREF="../5272/float.html#FSdot">FS.</a></td><td>f--</td><td>displays the top stack items as a floating point number. The
+                                       field width is fixed and the output is in scientific notation.</td></tr>
+<tr><td><a HREF="../5272/float.html#PRECISION">PRECISION</a></td><td>--u</td><td>Return the number of significant digits displayed by F. and FS.</td></tr>
+<tr><td><a HREF="../5272/float.html#REPRESENT">REPRESENT</a></td><td>f add u--n flag1 flag2</td><td>The number part of the floating point value is represented
+       at addr, the decimal exponent is n. flag1 is true if f was negative, flag2 is true if the conversion was successful.</td></tr>
+<tr><td><a HREF="../5272/float.html#SET-PRECISION">SET-PRECISION</a></td><td>u--</td><td>Set the number of significant digits displayed with F. and FS.</td></tr>
+</table>
+<a name="float_input"><h3>Floating input</h3></a>
+<p>
+As has been explained the system will try and convert any number it can't convert into an integer into a float before
+giving up. You can convert the contents of an arbitrary string into a float with &gt;FLOAT.
+</p>
+<table>
+ <tr><th>word</th><th>stack</th><th>Description</th></tr>
+ <tr><td><a HREF="../5272/float.html#&gt;FLOAT">&gt;FLOAT</a></td><td>addr u--float true|false</td><td>Have a go at converting the string
+                pointed to by the input into a floating point number.</td></tr>
+ </table>
+
+<a name="float_constants"><h3>Floating constants variables and literals</h3></a>
+<table>
+<tr><th>word</th><th>stack</th><th>Description</th></tr>
+<tr><td><a HREF="../5272/float.html#FCONSTANT">FCONSTANT</a></td><td><u>parent</u> f-- <u>child</u> --f </td><td>Create a child word that returns the constant value</td></tr>
+<tr><td><a HREF="../5272/float.html#FLITERAL">FLITERAL</a></td><td><u>compile time</u> f-- <u>runtime</u>  --f </td><td>At compile time take the
+                floating point value off the stack, at runtime put it back</td><tr>
+</table>
+<h4>Examples</h4>
+<samp><pre>
+\ giving a value often used a name.
+3.14159 FCONSTANT PI
+
+\ doing some calculations at compile time.
+\ We will discuss : ; [ and ] latter.
+: 2PI [ PI 2.0 F* ] FLITERAL ;
+</pre></samp>
+<a name="float_memory"><h3>Float memory access</h3></a>
+<table>
+<tr><th>word</th><th>stack</th><th>Description</th></tr>
+<tr><td><a HREF="../5272/float.html#Fstore">F!</a></td><td>f addr--</td><td>Store the floating point value at addr</td></tr>
+<tr><td><a HREF="../5272/float.html#F@">F@</a></td><td>addr --f</td><td>Fetch the floating point value from addr</td></tr>
+</table>
+
+<a name="float_stack"><h3>Floating point stack operators</h3>
+<p>
+Good floating point code makes no assumptions as to what other items are on the data stack. In
+other words when manipulating floating point numbers make sure you only have floating point numbers
+in the data set being worked on.
+</p>
+<table>
+<tr><th>word</th><th>stack</th><th>Description</th></tr>
+<tr><td><a HREF="../5272/float.html#FDEPTH">FDEPTH</a></tr><td>--+n</td><td>Number of possible floating point values that could be on the data Stack.</td></tr>
+<tr><td><a HREF="../5272/float.html#FDROP">FDROP</a></td><td>f--</td><td>Drop a floating point number.</td></tr>
+<tr><td><a HREF="../5272/float.html#FDUP">FDUP</a></td><td>f--f f</td><td>Duplicate the top stack float</td></tr>
+<tr><td><a HREF="../5272/float.html#FOVER">FOVER</a></td><td>f1 f2--f1 f2 f1</td><td>Take a copy of the second from top float.</T></tr>
+<tr><td><a HREF="../5272/float.html#FROT">FROT</a></td><td>f1 f2 f3 -- f2 f1 f3</td><td>See the stack description</td></tr>
+<tr><td><a HREF="../5272/float.html#FSWAP">FSWAP</a></td><td>f1 f2 -- f2 f1</td><td>Exchange the top two stack items.</t></tr>
+</table>
+<h4>Example</h4>
+<samp><pre>
+: fsqu ( f1 -- f2)
+        FDUP F*
+;
+</pre></samp>
+
+<a name="float_maths"><h3>Float math operators</h3></a>
+<table>
+<tr><th>word</th><th>stack</th><th>Description</th></tr>
+<tr><td><a HREF="../5272/float.html#F*">F*</a></td><td>f1 f2--f3</td><td>Multiply f1 and f2 to give f3</td><tr>
+<tr><td><a HREF="../5272/float.html#F+">F+</a></td><td>f1 f2--f3</td><td>Add f1 and F2 to give f3</td><tr>
+<tr><td><a HREF="../5272/float.html#F-">F-</a></td><td>f1 f2--f3</td><td>Subtract f2 from f1 to give f3</td><tr>
+<tr><td><a HREF="../5272/float.html#F/">F/</a></td><td>f1 f2--f3</td><td>Divide f2 into f1 to give f3</td></tr>
+<tr><td><a HREF="../5272/float.html#FABS">FABS</a></td><td>f1--f2</td><td>Return the absolute value of F1</td></tr>
+<tr><td><a HREF="../cordic_trig.html#FACOS">FACOS</a></td><td>f1--f2</td><td>f2 is the principal radian angle whose cosine is f1.</td></tr>
+<tr><td><a HREF="../cordic_trig.html#FASIN">FASIN</a></td><td>f1--f2</td><td>f2 is the principal radian angle whose sine is f1.</td></tr>
+<tr><td><a HREF="../cordic_trig.html#FATAN">FATAN</a></td><td>f1--f2</td><td>f2 is the principal radian angle whose tangent is f1</td></tr>
+<tr><td><a HREF="../cordic_trig.html#FATAN2">FATAN2</a></td><td>f1 f2--f3</td><td>f3 is the radian angle whose tangent is f1/f2.</td></tr>
+<tr><td><a HREF="../cordic_trig.html#FATANH">FATANH</a></td><td>f1--f2</td><td>f2 is the floating-point value whose hyperbolic tangent is f1.</td></tr>
+<tr><td><a HREF="../cordic_trig.html#FCOS">FCOS</a></td><td>f1--f2</td><td>f2 is the cosine of the radian angle f1</td></tr>
+<tr><td><a HREF="../5272/float.html#FLOOR">FLOOR</a></td><td>f1--f2</td><td>Round toward negative infinity</td></tr>
+<tr><td><a HREF="../5272/float.html#FMAX">FMAX</a></td><td>f1 f2--f3</td><td>The maximum value is retained.</td></tr>
+<tr><td><a HREF="../5272/float.html#FMIN">FMIN</a></td><td>f1 f2--f3</td><td>The minimum value is retained</td></tr>
+<tr><td><a HREF="../5272/float.html#FNEGATE">FNEGATE</a></td><td>f1--f2</td><td>Change the sign of f1</td></tr>
+<tr><td><a HREF="../5272/float.html#FROUND">FROUND</a></td><td>f1--f2</td><td>Round toward zero. Note this is not ANSI standard.</td></tr>
+<tr><td><a HREF="../cordic_trig.html#FSIN">FSIN</a></td><td>f1--f2</td><td>f2 is the sine of the radian angle f1.</td></tr>
+<tr><td><a HREF="../cordic_trig.html#FSINCOS">FSINCOS</a></td><td>f1--f2 f3</td><td>f2 is the sine of the radian angle f1, f3 is the cosine.</td></tr>
+<tr><td><a HREF="../cordic_trig.html#FSQRT">FSQRT</a></td><td>f1--f2</td><td>f2 is the square root of f1.</td></tr>
+<tr><td><a HREF="../cordic_trig.html#FTAN">FTAN</a></td><td>f1--f2</td><td>f2 is the tangent of the radian angle f1</td></tr>
+</table>
+<a name="float_compare"><h3>Float compares</h3></a>
+<table>
+<tr><th>word</th><th>stack</th><th>Description</th></tr>
+<tr><td><a HREF="../5272/float.html#F0&lt;">F0&lt;</a></td><td>f1--flag</td><td>Return true if f1 is less than zero.</td></tr>
+<tr><td><a HREF="../5272/float.html#F0equal">F0=</a></td><td>f1--flag</td><td>Return true if f1 is equal to zero.</td></tr>
+<tr><td><a HREF="../5272/float.html#F&lt;">F&lt;</a></td><td>f1 f2--flag</td><td>Return true if f1 is less than f2</td></tr>
+</table>
+<a name="float_management"><h3>Float data area</h3></a>
+
+<p>
+The standard data area alignment is ok for float data. Use the <a href="#integer_management">integer</a>
+words to create the data areas you require. The data area length is
+best calculated with <samp>FLOATS</samp>. Use <samp>FLOAT+</samp> to move an address along one float cell.
+</p>
+<p>
+The following shows code that allocates a data area for a few floats.
+<samp><pre>
+4 CONSTANT #my_floats_max
+ram_create %my_floats #my_floats_max FLOATS ram_allot
+</pre></samp>
+
+<table>
+<tr><th>word</th><th>stack</th><th>Description</th></tr>
+<tr><td><a HREF="../5272/float.html#FALIGNED">FALIGNED</a></td><td>addr--faddr</td><td>Align address to a floating point boundary</td></tr>
+<tr><td><a HREF="../5272/float.html#FLOATplus">FLOAT+</a></td><td>addr1--addr2</td><td>Move address along so a float can be stored before.</td></tr>
+<tr><td><a HREF="../5272/float.html#FLOATS">FLOATS</a></td><td> n1--n2</td><td>Convert n1 from a count of floats to a count of bytes.</td><tr>
+</table>
+<a name="vector_data"><h2>Floating point vectors</h2></a>
+<p>
+A float is 2 cells long. A float vector is a vector of floats stored one after another. You are forced to use
+floats for serious mathematical problems such as dealing with simultaneous equations. Such problems are often presented
+as vectors of numbers. Things can be sped up by using vector operators to deal with the calculations.
+</p>
+<a name="vector_data_conversion"><h3>Vector data conversion</h3></a>
+<table>
+<tr><th>word</th><th>stack</th><th>Description</th></tr>
+<tr><td><a HREF="../5272/float.html#sv&gt;fv">sv&gt;fv</a></td><td>addr1 addr2 n--</td><td>signed integer to float. addr1 points to a vector of signed integers, addr2 to the
+        result, a float vector. n gives the number of entries.</td></tr>
+<tr><td><a HREF="../5272/float.html#qv&gt;fv">qv&gt;fv</a></td><td>addr1 addr2 n qbase--</td><td>q values to float. addr1 points to a vector of q values, addr2 to the
+        result,
+        a float vector. n gives the number of entries. q gives the base.</td></tr>
+<tr><td><a HREF="../5272/float.html#fv&gt;qv">fv&gt;qv</a></td><td>addr1 addr2 n qbase--</td><td>float to q values. addr1 points to a vector of floats, addr2 to the
+        result,a q value vector. n gives the number of entries. q gives the base.</td></tr>
+
+</table>
+<a name="vector_print"><h3>Vector printing</h3></a>
+<table>
+<p>
+One word, it is used for debugging.
+</p>
+<tr><th>word</th><th>stack</th><th>Description</th></tr>
+<tr><td><a HREF="../5272/float.html#fv.">fv.</a></td><td> addr n--</td><td>Print a float vector.</td><tr>
+</table>
+<a name="vector_management"><h3>Vector address management</h3></a>
+<p>
+This is a good place to mention line alignment. The COLDFIRE fetches 16 bytes of data when it does a cache
+line update. It really helps your cause if the 16 bytes are relevant to the problem you are solving.
+If you are pushing things to the limit, and arranging you data accordingly, you need to know that the
+table starts on a line. To this end the following words are provided.
+</p>
+<p>
+A line alignment word is provided for in the ram memory space. If you want a dictionary line aligned area,
+or a data space line aligned area you must use <samp>line_aligned</samp>.
+</p>
+<table>
+<tr><th>word</th><th>stack</th><th>Description</th></tr>
+<tr><td><a HREF="../memory_allocation.html#ram_line_align">ram_line_align</a></td><td>--</td><td>Align the ram space pointer to a line boundary.</td></tr>
+<tr><td><a HREF="../colon_words.html#line_aligned">line_aligned</a></td> <td>addr--addr_aligned</td><td>Align an address to a line boundary.</td></tr>
+</table>
+<a name="vector_maths"><h3>Vector maths</h3></a>
+<table>
+<tr><th>word</th><th>stack</th><th>Description</th></tr>
+<tr><td><a HREF="../5272/float.html#fv*fv">fv*fv</a></td><td>addr1 addr2 addr3 n--</td><td>Multiple float vector pointed to by addr1 by the vector pointed
+        to by addr2 and put the resultant vector at addr3. n gives the vector length in floats. addr1 or addr2 can equal addr3</td></tr>
+<tr><td><a HREF="../5272/float.html#fv*f">fv*f</a></td><td>addr1 float addr2 n</td><td>Multiply every vector entry in the vector pointed to by addr1
+by a float value put the resultant vector at addr2. The vector is n floats long. addr1 and addr2 can be the same value.</td></tr>
+<tr><td><a HREF="../5272/float.html#fv+fv">fv+fv</a></td><td>addr1 addr2 addr3 n--</td><td>Add float vector pointed to by addr1 by the vector pointed
+        to by addr2 and put the resultant vector at addr3. n gives the vector length in floats. addr1 or addr2 can equal addr3</td></tr>
+<tr><td><a HREF="../5272/float.html#fv-fv">fv-fv</a></td><td>addr1 addr2 addr3 n--</td><td>Subtract float vector pointed to by addr2 from the vector pointed
+        to by addr1 and put the resultant vector at addr3. n gives the vector length in floats. addr1 or addr2 can equal addr3</td></tr>
+<tr><td><a HREF="../5272/float.html#fv+f">fv+f</a></td><td>addr1 float addr2 n</td><td>Add to every vector entry in the vector pointed to by addr1
+a float value. Put the resultant vector at addr2. The vector is n floats long. addr1 and addr2 can be the same value.</td></tr>
+<tr><td><a HREF="../5272/float.html#fvsum">fvsum</a></td><td>addr n--float</td><td>Sum all the values in a vector.</td><tr>
+</table>
+</body>
+</html>

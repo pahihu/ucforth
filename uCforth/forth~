@@ -1,0 +1,12 @@
+#!./ucf
+\ system will not exit
+.S .( About to set 'restart from startup script) send
+' QUIT 'restart !
+
+\ If you like "ok" uncomment following line.
+\ ok
+\ Describe desired environment here
+.S .( About to set dictionary from startup script) send
+$8000 dictionary
+$1000 ram
+$1000 data

@@ -1,0 +1,1526 @@
+<html>
+<head>
+<title>xcompiler.html</title>
+<META NAME="Author" CONTENT="Charles Esson">
+<META NAME="keywords" CONTENT="forth">
+<META NAME="description" CONTENT=" used to generate uCforth">
+<LINK REL=stylesheet HREF="forth.css" TYPE="text/css">
+</head>
+
+<body>
+<h1>xcompiler</h1>
+<a HREF="./license.html">license</a>
+<p>
+<h2>Target compiler</h2>
+<p>
+We use the ghost vocabularies to build up the
+target image.
+</p>
+<pre>
+<code>
+\ value we need to know to decide if we are going to in-line a CONSTANT. See the
+\  runtime action of in-line to see why.
+
+
+$4EB9 CONSTANT #jsr
+\ if set to false by a ghost word we exit the tcompiler
+VARIABLE %tstate
+: ]T  ( --)
+	 TRUE %tstate !
+	BEGIN
+		\ Go around until line finished.
+		BEGIN
+			BL WORD DUP COUNT NIP
+		WHILE
+			%xdebug @ 1 > IF
+				DUP COUNT TYPE ."  " send 
+			THEN
+			\ don't use words in immediate list
+			ghost_find_colon IF
+				\ We promised that the ghost words would receive
+				\ the host_xt_add, this can be used to extract the
+				\ target_xt, and if added the additional info.
+				DUP @EXECUTE  DEPTH 0&lt; ABORT" Stack empty"
+			ELSE
+				\ not a standard ansi word, but then no number input word
+				\   worth a pinch of it, is.
+				DEPTH >R
+				$number
+				DEPTH R> -
+				\ went in with an address came out with number
+				0 = IF
+					\ .S ." single number" CR
+					assembler&host&forth
+					# S -) MOV
+					host&forth
+				ELSE
+					\ .S ." double number" CR
+					SWAP
+					assembler&host&forth
+					# S -) MOV
+					# S -) MOV
+					host&forth
+				THEN
+			THEN
+			%tstate @ not IF
+				%xdebug @ IF
+					DEPTH IF CR .S THEN
+				THEN
+				EXIT
+			THEN
+		REPEAT
+		DROP
+		REFILL not
+		\ go around until input finished.
+	UNTIL
+;
+</code>
+</pre>
+<h2>Local variables</h2>
+<p>Contains the local variable creating words.
+That is <i>variable</i> <i>constant</i> etc are redefined in these lists
+gforth compatability words should be added. Gforth allows you to create
+local variables that input and output from the blocks, but doesn't allow the creation
+of locals that only exist in the block. uCforth allows all types but only allows
+definition on word entry and exit.
+</p>
+<pre>
+<code>
+host&forth definitions
+vocabulary &target_local_input
+vocabulary &target_local_output
+vocabulary &target_local_data
+</code>
+</pre>
+<p>
+Words are created in a temp dictionary of this size. They are ghost words in a ghost vocabulary
+as we created the ghost vocabulary creation words we know how to create a temporary one.
+</p>
+<pre>
+<code>
+forth&host
+\ local dictionary has to become before code image otherwise
+$800 CONSTANT _#xlocal_size
+\ has to be in the code space otherwise things are not good
+CREATE _%local_dictionary _#xlocal_size ALLOT
+ram_variable _%in_local
+FALSE _%in_local !
+
+ram_variable _%local_old_here
+host&forth
+
+\ don't add target heads as they
+\ are not used.
+0 %target_wordlist_threads !
+ghost_vocabulary_only &ghost_locals
+#min_wordlists %target_wordlist_threads !
+
+: _xlocal_dictionary   ( --)
+
+        _%in_local @ ABORT" Entering -local- from -local- "
+	TRUE _%in_local !
+	\ have to manipulate the host, the target does not move
+	forth&host
+	HERE  _%local_old_here !
+	_%local_dictionary HERE - ALLOT \ move to local dictionary
+	host&forth
+	ghost_also &ghost_locals
+	ghost_definitions
+	clean_ghost_current
+
+;
+
+\ This gets called to switch from local to whatever was.
+: _exit_xlocal_dictionary
+
+		\ we have been adding words to a ghost wordlist in the local dictionary
+		ghost_previous_definitions
+		\ Restore things as they where when we entered.
+		forth&host
+		FALSE _%in_local !  \ (--
+		_%local_old_here @ HERE -
+		ALLOT
+		host&forth
+;
+
+</code>
+</pre>
+<h4>Define the local-input words</h4>
+<p>
+These cannot be used form assembler, only forth.
+The reason is this. Local words are put inside a temporary
+dictionary, a ghost wordlist can be created because we
+created the structure. The assembler is created using the host
+wordlist. We cannot destroy a host wordlist once created.
+We therefor can create temporary words that can be found in the
+interpretive mode. This is required for the assembler.
+</p>
+<pre>
+<code>
+host&forth   \ Have to be able to find tw,
+
+\ some data areas needed
+ram_variable _%local_input_bytes
+0 _%local_input_bytes !
+ram_variable _%local_output_bytes
+0 _%local_input_bytes !
+ram_variable _%local_data_bytes
+0 _%local_data_bytes !
+
+: cell_aligned ( value -- value)
+	CELL 1 - + CELL NEGATE AND
+;
+\ when the word is found within the : code this code compiles the correct code into the
+\ dictionary
+: local_input, ( xha --)
+	\ calculate offset relative to LP
+	ghost_data @ \ value stored in pfa
+	_%local_output_bytes @ +
+	_%local_data_bytes @ + NEGATE
+	assembler&host&forth
+	LP) A0 LEA
+	A0 S -) MOV
+	host&forth
+;
+
+also
+&target_local_input
+definitions
+
+: variable   \ parent ( --)
+	-1 ['] local_input, ghost_word
+	_%local_input_bytes @ CELL+ cell_aligned _%local_input_bytes !
+	_%local_input_bytes @ ,
+;
+
+\ returns an address
+: bytes   \ parent ( n--)
+	-1 ['] local_input, ghost_word
+	_%local_input_bytes @ +   \ note that the area isn't ALIGNED this
+	                          \ this is the programmers responsibility.
+	_%local_input_bytes !
+	_%local_input_bytes @ ,
+;
+
+previous
+definitions
+
+</code>
+</pre>
+<h4>Local ourput words</h4>
+<pre>
+<code>
+: local_output, ( xha --)
+	\ calculate offset relative to LP
+	ghost_data @ NEGATE
+	assembler&host&forth
+	LP) A0 LEA
+	A0 S -) MOV
+	host&forth
+;
+
+also
+&target_local_output
+definitions
+
+\ a variable returns an address
+: variable   \ parent ( --)
+	-1 ['] local_output, ghost_word
+	_%local_output_bytes @ CELL+ cell_aligned _%local_output_bytes !
+	_%local_output_bytes @ ,
+;
+
+
+: bytes  \ parent ( --)
+	-1 ['] local_output, ghost_word
+	_%local_output_bytes @ + _%local_output_bytes !
+	_%local_output_bytes @ ,
+;
+
+previous
+definitions
+
+\ define the local_data words
+
+: local_data, ( xha --)
+	\ calculate offset relative to LP
+	ghost_data @ _%local_output_bytes @ +
+	NEGATE
+	assembler&host&forth
+	LP) A0 LEA
+	A0 S -) MOV
+	host&forth
+;
+
+: constant, ( xt_host_xt --)
+	ghost_data @
+	assembler&host&forth
+	# S -) MOV
+	host&forth
+;
+
+
+: 2constant, ( xt_host_add --)
+	ghost_data
+	DUP @ SWAP CELL+ @
+	assembler&host&forth
+	# S -) MOV
+	# S -) MOV
+	host&forth
+;
+
+also
+&target_local_data
+definitions
+\  variable returns an address
+: variable   \ parent ( --)
+	-1 ['] local_data, ghost_word
+	_%local_data_bytes @ CELL+ cell_aligned _%local_data_bytes !
+	_%local_data_bytes @ ,
+;
+: bytes   \ parent ( --)
+	-1 ['] local_data, ghost_word
+	_%local_data_bytes @ + _%local_data_bytes !
+	_%local_data_bytes @ ,
+;
+
+: constant
+	\ .S ." in local constant" CR send
+	-1 ['] constant, ghost_word ,  ( the forth ,)
+;
+
+: 2constant
+	-1 ['] 2constant, ghost_word , ,  ( the forth ,)
+;
+
+previous
+definitions
+
+
+\ The following must end up in HOST
+host&forth
+definitions
+
+\ enter local variables
+\ This version is only used for ghost : code. Note that in is placed in the ghost
+\ vocabularies with the word ghost.
+ram_variable _%local_entry_last
+ram_variable _%local_use
+0 _%local_use !
+: {,  ( xha --)
+		\ .S ." in {," CR send
+		DROP
+		\ preserve %ghost_last as the compiled code will
+		\ be interested in that not the temp stuff we create
+		%ghost_last @  _%local_entry_last !
+
+		\ Indicate to the } and ; words that local setup and cleanup
+		\ code must be added to the target.
+		TRUE _%local_use !
+
+		zero  _%local_input_bytes !
+		zero  _%local_output_bytes !
+		zero  _%local_data_bytes !
+
+
+		\ Between { } we are in interpretive mode
+		FALSE %tstate !
+		\ .S ." about to _xlocal_dictionary" CR send
+		\ set up to compile into local dictionary
+		_xlocal_dictionary
+		\ .S ." done _xlocal_dictionary" CR send"
+		\ this vocabulary adds to the host
+		\ Remember between { } we are in interpretive mode
+		\ and are therefor using the host vocabularies.
+		also
+		&target_local_input
+	;
+
+
+	-1 ' {,  ghost_word {
+
+	\ switch from input to output
+	\ This is done by changing the first HOST searched vocabulary.
+	: --
+		&target_local_output
+	;
+
+	\ switch from output, or input to data
+	\ This is done by changing the first HOST searched vocabulary.
+	: }{
+		&target_local_data
+	;
+
+	\ switch back to normal
+	\ Remove the first HOST searched vocabulary, with PREVIOUS
+	\ Change the HERE points to point back to the permanent dictionary
+	\ and compile in the local setup code.
+	: }
+		\ the additional host search wordlist is lost
+		previous
+
+		\ last should point to the main word
+		_%local_entry_last @ %ghost_last !
+
+		\ HERE pointers back to main dictionary
+		_exit_xlocal_dictionary
+
+		\ add  entry code to ghost
+		_%local_use @ IF
+			_%local_input_bytes @
+			_%local_output_bytes @ +
+			_%local_data_bytes @ +  NEGATE
+			assembler&host&forth
+			lp # LINK
+			host&forth
+			_%local_input_bytes @ IF
+				assembler&host&forth
+				_%local_input_bytes @ 4 / # D0 MOV
+				R A0 MOV
+				BEGIN
+					S )+ A0 )+ MOV
+					1 # D0 SUB
+				EQ UNTIL
+				host&forth
+			THEN
+		THEN
+
+		\ WE added &xlocal to the ghost search order in {.
+		\ This has to be allowed for on exit
+		\ If _%local_use is set the system will assume &xlocal
+		\ has been added to ghost search order and must be removed.
+
+		\ back into the ghost compiler.
+		]T
+	;
+
+</code>
+</pre>
+<h1>Target specific host words proper</h1>
+<p>
+Now we are into defining the host words that are used to manipulate the target.
+First off the rank the assembler words used to exit assembler code.
+</p>
+<p>
+The length of the code field is target specific
+</p>
+<pre>
+<code>
+	
+\ .S .( about to define _#head_data) send
+	_#head_xt   6 +   \ Room for a JSR
+	DUP CONSTANT _#head_data
+	DROP
+
+: t_xt&gt;dfa ( addr1 -- addr2)
+	[ _#head_data _#head_xt - ] LITERAL +
+;
+
+: t_dfa&gt;xt ( addr1 -- addr2)
+	[ _#head_xt _#head_data - ] LITERAL +
+;
+: t_lfa&gt;dfa ( lfa -- pfa )
+	[ _#head_data _#head_link - ] LITERAL +
+;
+
+
+: t_dfa&gt;nfa ( addr --addr)
+	[ _#head_count _#head_data - ] LITERAL +
+;
+</code>
+</pre>
+<h3>app_data_ref</h3>
+<p>
+Library code can access the application data area through A5 if the data offset
+has been defined previously in the cross compile. This is what happens when vocabularies
+are defined. The head of the lists go in the application, the application gets the list
+of kernel words and can extend the list.
+</p>
+<pre>
+<code>
+: DP_data_offset ( addr --addr1)
+	%app_data_image -
+;
+</code>
+</pre>
+<h3>Recover bits of target words</h3>
+<p>
+<pre>
+<code>
+\ only has a RTS to recover.
+: recover_end  ( --)   -2 ALLOT ; \ has to be the host allot
+</code>
+</pre>
+<h2>Assembler extension</h2>
+<p>
+The cross compiler does not support local variables in code because the
+host cannot be guaranteed to support temporary dictionaries.
+</p>
+<pre>
+<code>
+assembler&host&forth definitions
+\ This version of next allows you to use local stack items in code words.
+\ Remember the assembler manipulates the target. Vocabulary stuff inside [ ]
+\ happens at compile time. Stuff in the code happens at runtime.
+: NEXT
+	assembler&host&forth
+	RTS
+	forth&host
+	PREVIOUS
+;
+
+
+\ assembler exit
+\ same as next but doesn't alter the vocabularies
+: EXIT
+	assembler&host&forth
+	RTS
+	forth&host
+;
+host&forth
+definitions
+
+</code>
+</pre>
+<h2>Inline</h2>
+<p>
+This is the first of the execution tokens used to compile code. This
+one copies code from one location in the dictionary to another.
+</p>
+<pre>
+<code>
+\ .S .( target_copy) send
+	\ copy one area of target to another
+	: target_copy ( from to num --)
+		zero ?DO  \ from to (--
+			OVER I + tw@ \ from to value(--
+			OVER I + tw! \ from to
+		2 +LOOP
+		2DROP
+	;
+
+	\ HERE and ALLOT are the host versions that deal with the target dictionary.
+	: target_add_to_dictionary ( from_target_addr num --)
+		HERE SWAP             \ from to num (--
+		DUP ALLOT               \ from to num (--
+		target_copy
+	;
+
+	\ used in class definition, data is moved from target into
+	\ a buffer
+	: move_from_target ( from to num --)
+		DUP 03 AND ABORT" Has to be cell aligned number"
+		zero ?DO  \ from to (--
+			OVER I + t@ \ from to value(--
+			OVER I + ! \ from to
+		CELL +LOOP
+		2DROP
+	;
+
+	\ used in class definition, data is moved from target into
+	\ a buffer
+	: move_to_target ( from to num --)
+		DUP 03 AND ABORT" Has to be cell aligned number"
+		zero ?DO  \ from to (--
+			OVER I + @ \ from to value(--
+			OVER I + t! \ from to
+		CELL +LOOP
+		2DROP
+	;
+
+</code>
+</pre>
+<p>
+When copying in-line you trace down to the first RTS to determine the copy length.
+Note that in-line cannot be used with code that does a JSR a code_ref will not be added
+to the reference table.
+</p>
+	<pre> <code>
+	: code_copy_length ( target_xt -- length )
+		zero
+		BEGIN
+			2DUP + tw@
+			4E75  \ ##code RTS
+			= IF
+				NIP
+				EXIT
+			THEN
+			2+
+		AGAIN
+	;
+</code>
+</pre>
+<p>
+To make the ghost word do in-line stuff the last defined ghost word needs
+to have its host action changed
+</p>
+<pre>
+<code>
+: inline,  ( host_xt_addr --)
+	get_target_xt DUP \ target_xt target_xt (--
+	code_copy_length \ xt num (--
+	target_add_to_dictionary
+;
+\ .S .( inline,) send
+\ a host word used to change the action of the ghost word just created.
+\ That is change the action of the cross compiler. The supplied xt is
+\ for a host word that manipulates the target.
+: change_ghost_action ( xt --)
+	%ghost_last @ @
+	_#ghost_head_host_xt +  !
+;
+
+: ghost_inline
+	['] inline,
+	change_ghost_action
+;
+
+</code>
+</pre>
+<p>
+inline has to do two things, change the ghost wordlists so Inline happens at
+cross compile time, and change the target so inline happens when word is used
+to compile new code in target.
+</p>
+<pre>
+<code>
+: inline ( --)
+	ghost_inline
+	\ target
+	\ because we set the target bit we cannot set inline
+	\ on words that have no target head.
+	%hds_last @ IF
+		\ can only set if a head is created
+		_#pure_bit
+		last_definition
+		t_xt>nfa
+		DUP tc@             \ _#c last_target_nfa n (--
+		ROT OR              \ last_target+nfa value(--
+		SWAP tc!
+	THEN
+;
+
+
+\ Set the immediate bit in target.
+\ Put the word in the immediate vocabulary so it can't be found by ]T
+: IMMEDIATE ( --)
+	\ can no longer be found by ]T
+	\ As the word is defined for target immediate action
+	\ and not host immediate action this is what is required.
+	ghost_immediate
+	%hds_last @ if
+		_#immediate_bit
+		last_definition
+		t_xt>nfa
+		DUP tc@
+		ROT OR
+		SWAP tc!
+	THEN
+;
+
+: ?target_immediate ( xt --)
+	t_xt>nfa
+	tc@ _#immediate_bit AND
+;
+</code>
+</pre>
+<h2>cross compiler proper</h2>
+<pre>
+<code>
+( makes an entry in HOST vocabulary only)
+: EQU ( n--)
+	CONSTANT
+;
+\ .S .( EQU ) send
+\ some host vocabulary manipulation
+\ want this word to go into assembler.
+
+
+
+\ the compile time action is to put code into the current word
+\ that will call the target xt
+: code, ( host_xt_addr --)
+	get_target_xt
+	assembler&host&forth
+	AB L. JSR
+	host&forth
+;
+
+: CODE ( --)
+	\ this is not the gforth version, redefined in forth.fs
+	BL WORD
+	DUP $create_target_head
+	\ here now points to xt
+	HERE                \ the target here
+ 	['] code,           \ $ xt_target xt_host(--
+	ROT
+	$ghost_word
+	assembler&host&forth
+	init_assembler
+	forth&host
+	\ An immediate word that we want executed when CODE is executed.
+	POSTPONE assembler&host&forth
+	host&forth
+;
+
+\ make sure you only use the address taken with AB
+: CODE_ADDRESS
+	host&forth
+	HERE
+	forth&host
+	CONSTANT
+;
+host&forth
+</code>
+</pre>
+<p>
+(CREATE) has the correct host compile time action,
+but the wrong target runtime action.
+</p>
+<pre>
+<code>
+\ this is the code executed when in host compiling a : word
+\ the resultant address has to have a reference.
+: (create), ( host_xt_addr --)
+	get_target_xt
+	t_xt&gt;dfa
+	HERE 2+ add_reference
+	assembler&host&forth
+	# S -) MOV
+	host&forth
+;
+
+\ just creates the ghost word, but adds nothing to the targets runtime.
+\ That is for others.
+: ghost&target_create ( host_xt --)
+	BL WORD
+	%xdebug @ 1 > IF
+		CR ." : " DUP COUNT TYPE ."  "
+	THEN
+	DUP $create_target_head
+	\ add to dictionary code that pushes data field onto stack
+	\  xt_host $ (--
+	HERE \ xt_host $ xt_target
+	ROT ROT
+	\ xt_target xt_host $
+	$ghost_word
+;
+
+: (CREATE)
+	['] (create), ghost&target_create
+;
+
+
+
+
+: literal, ( value xha  --)
+	DROP
+	assembler&host&forth
+	# S -) MOV
+	host&forth
+;
+
+-1 ' literal, ghost_word LITERAL
+
+
+: fliteral, ( float xha --)
+        DROP
+	SWAP
+	assembler&host&forth
+	# S -) MOV
+	# S -) MOV
+	host&forth
+;
+
+-1 ' fliteral, ghost_word FLITERAL
+
+\ this is a difficult one for a cross compiler to be 100%
+\ you should not assume the character coding is the same between systems.
+\ we are going to.
+
+: [char], ( xha --)
+	DROP
+	20 WORD 1 CHARS + C@
+	assembler&host&forth
+	# S -) MOV
+	host&forth
+;
+
+-1 ' [char], ghost_word [CHAR]
+
+\ this has to be in the immediate ghost vocabulary
+: [, ( xha--)
+	DROP
+	FALSE %tstate !
+;
+-1 ' [, ghost_word [
+
+
+ram_variable _%t_save_op
+
+: finish_word
+	\ word exit code
+	_%local_use @ IF
+		_%local_output_bytes @ IF
+			assembler&host&forth
+			_%local_output_bytes @ 4 / # D0 MOV
+			LP A0 MOV
+			BEGIN
+				A0 -)  S -) MOV
+				1 # D0 SUB
+			EQ UNTIL
+			host&forth
+		THEN
+		assembler&host&forth
+		LP UNLK
+		host&forth
+	THEN
+	\ when used as the terminator for a method
+	_%t_save_op @ IF
+		assembler&host&forth
+		R )+ OP MOV
+		host&forth
+	THEN
+;
+
+: ;, ( xha --)
+	DROP
+	finish_word
+	_%local_use @ IF
+		ghost_previous
+	THEN
+	zero _%t_save_op !
+	assembler&host&forth
+	RTS
+	host&forth
+	FALSE %tstate !
+;
+
+-1 ' ;, ghost_word ;
+
+: exit, ( xha --)
+	DROP
+	finish_word
+	assembler&host&forth
+	RTS
+	host&forth
+;
+
+-1 ' exit, ghost_word EXIT
+
+
+
+</code>
+</pre>
+<h3>;CODE and DOES&gt;</h3>
+<p>
+At the end of this we have ;CODE, this can be put on the end of a
+host word that compiles data into the target. The code that follows
+;CODE will be assembled by the assembler that assembles code into
+the target. In other words the code that follows ;CODE will end up in the
+target. The word containing ;CODE will be a host word that creates
+target words. Its job will be to point the xt jump instructions address
+of the new word created to the assember that was compiled into the
+target when the host word was created.
+</p>
+<pre>
+<code>
+
+
+: COMPILE! ( target_addr target_xt --)
+	2 + t!
+;
+
+</code>
+</pre>
+<p>
+The problem here is to define a version of ;code that will work
+in an ansi system. Such code is not allowed to have any knowedge of how
+the host forth system is put together. We rename use so it can be
+found through the hosts forth vocabulary.
+</p>
+<pre>
+<code>
+: use ( target_addr -- )
+	\ returns the xt of the last definition
+	last_definition
+	COMPILE!
+;
+
+\ have to slip through forth to the target version
+\ simple solution is to rename.
+: target_use ( target_addr --)
+	\ compile the target_address as the call address of the new word
+	use
+;
+
+
+\ This is a host word that is going to compile code into the host when called.
+\ The new host word will do whatever it does before ;CODE, this has to include
+\ the creation of a head in the target, the ;CODE action will then mod the target head
+\ to call the code that the parent had compiled in the target after ;CODE.
+\ ANSI FORTH is a cunning language.
+
+: ;code, ( xha--)
+	get_target_xt
+	assembler&host&forth
+	AB L. JSR
+	host&forth
+;
+
+: ;CODE ( --)
+	HERE
+	forth&host
+	\ host version of POSTPONE that compiles into host dictionary
+	POSTPONE LITERAL                 \ the value of here when ;CODE executed
+	POSTPONE target_use              \ if POSTPONE is defined correctly this will work
+
+	\ the host version of ; to finish of the host word.
+	\ we now must alter the ghost action of the child. The default action of CREATE ghost
+	\ is to put the data field address on the stack. This has to be altered to a call
+	\ compile
+	['] ;code, POSTPONE LITERAL
+	POSTPONE  change_ghost_action
+
+	POSTPONE ;
+
+	POSTPONE assembler&host&forth
+;	forth&host IMMEDIATE host&forth
+</code>
+</pre>
+<p>
+This version is used by HOST words that create child words.
+The call address of the child points to the parents target data.
+</p>
+<p>
+If you can follow this bit of code you understand forth. This is every dam trick
+in the book used in less than 10 lines of code. If you can't follow it don't worry
+about it, it's not worth it.
+</p>
+<pre>
+<code>
+
+forth&host : DOES> ( --)
+	\ This is the action of the parent when it is interpreted in the host.
+        \ The parent creates children
+	host&forth
+	HERE
+
+	forth&host
+	POSTPONE LITERAL                 \ the value of here when ;CODE execute
+
+	\ this alters the target child to point to the target parents code.
+	POSTPONE target_use              \ if POSTPONE is defined correctly in the host this will work.
+	                                 \ If it doesn't work try making target_use immediate.
+	\ finish the host portion
+
+	\ we now must alter the ghost action of the child. The default action of CREATE ghost
+	\ is to put the data field address on the stack. This has to be altered to a call
+	\ compile
+	['] ;code, POSTPONE LITERAL
+	POSTPONE  change_ghost_action
+	\ this has to go after the previous POSTPONES because of gforth, I am not sure if
+	\ it is a bug or a feature of gforth.
+	POSTPONE ;
+
+
+	\ now setup the target.
+	\ this is being placed in the targets parent.
+	\ simple remove the return address
+	\ and place it on the data stack and all will be good.
+	assembler&host&forth
+	R )+ S -) MOV
+	forth&host
+  	\  start the target compiler.
+	host&forth
+
+	]T
+ ;   forth&host IMMEDIATE
+ host&forth
+</code>
+</pre>
+<p> <i>[']</i> as a ghost word compiling to the target.</p>
+<samp>
+\ example target code
+: fred ['] name ;
+</samp>
+<pre>
+<code>
+
+( Returns a target address, this has to be redefined as , in host latter.)
+: ghost' ( -- )
+	defined_ghost not ABORT" Target address not found in host"
+	\ host
+	get_target_xt
+;
+
+: ['],     ( xha --)
+	DROP
+	ghost'                  \ find in ghost
+	\ has to be translated
+	assembler&host&forth
+	AB  A0  LEA
+	A0 S -) MOV
+	host&forth
+;
+
+-1 ' ['], ghost_word [']
+
+\ this is the host version of postpone. Used in HOST words that manipulate
+\ the target.
+\ The following word will have the ghost version executed when the
+\ host word being compiled is run.
+forth&host : POSTPONE
+	\ forth version
+	BL WORD
+	ghost_find_colon not ABORT" not defined as ghost word"
+	DUP -1 = ABORT" Can't POSTPONE with no host compile action defined."
+	\ hta(--
+	\ this is the host forth version of postpone
+	\ LITERAL is host forth version
+	\ EXECUTE is host forth version
+	POSTPONE LITERAL
+	POSTPONE DUP
+	POSTPONE @
+	POSTPONE EXECUTE
+;  forth&host IMMEDIATE host&forth
+
+</code>
+</pre>
+<p> <i>[']</i> as a host word compiling target address into host.</p>
+<p>
+It is up to the word taking the reference to add the address to the
+target with relocation entry.
+</p>
+<samp>
+\ example target code
+forth&host : fred host&forth ['] name ;
+</samp>
+<pre>
+<code>
+
+: [']     ( --)
+	ghost'                  \ find in ghost
+	forth&host
+	POSTPONE LITERAL  \ add literal to host
+;	forth&host IMMEDIATE host&forth
+</code>
+</pre>
+<h3>Control structure words</h3>
+<p>
+Control structures used to compile code into target. These must end up as ghost words.
+The following table gives the compile codes.
+</p>
+<pre>
+<code>
+1                      CONSTANT _#comp_code_begin
+2                      CONSTANT _#comp_code_if
+3                      CONSTANT _#comp_code_do
+_#comp_code_do NEGATE  CONSTANT _#comp_code_?do
+4                      CONSTANT _#comp_code_leave
+5                      CONSTANT _#comp_code_while
+
+
+\ we are dealing with the cross compiler not the host
+\ so we need to use ROLL and PICK not CS-ROLL and CS-PICK
+: roll_out_initiator ( ?? -- ??)
+		zero >R
+		BEGIN
+			R@ PICK
+			_#comp_code_leave =
+		WHILE
+			R> 2 + >R
+		REPEAT
+		R@ 1+ ROLL
+		R> 1+ ROLL
+;
+
+: !BACK ( addr --)
+	HERE  - tw,
+;
+
+: ?PAIR  ( n1 n1 -- )
+	- ABORT" Conditionals not matched"
+;
+
+: begin, ( xha -- target_addr control_code )
+	DROP
+	HERE
+	_#comp_code_begin
+;
+
+-1 ' begin, ghost_word BEGIN
+
+
+: until, ( ?? xha -- ?? )
+	DROP
+	roll_out_initiator
+	_#comp_code_begin ?PAIR
+	assembler&host&forth
+	S )+ TST
+	EQ BCC
+	host&forth
+;
+
+-1 ' until, ghost_word UNTIL
+
+: again, ( ?? xha -- ??)
+	DROP
+	roll_out_initiator
+	_#comp_code_begin ?PAIR
+	\ branch to address size does not have t be defined
+	assembler&host&forth
+	BRA
+	host&forth
+;
+
+-1 ' again, ghost_word AGAIN
+
+: then, ( ?? xha -- ??)
+	DROP
+	roll_out_initiator
+	_#comp_code_if ?PAIR
+	HERE OVER -  SWAP tw!
+;
+
+-1 ' then, ghost_word THEN
+
+: if, ( xha -- target_addr cond_code )
+	DROP
+	assembler&host&forth
+	S )+ TST
+	( address patch later, hold at word)
+	HERE EQ W. BCC
+	host&forth
+	HERE 2 -
+	_#comp_code_if
+;
+
+-1 ' if, ghost_word IF
+
+: while, ( target_Addr cond_code xha -- target_addr cond_code target_addr cond_code)
+	DROP
+	roll_out_initiator
+	0
+	if,
+	[ _#comp_code_while _#comp_code_if - ] LITERAL + 2SWAP
+;
+
+-1 ' while, ghost_word WHILE
+
+: repeat, ( ?? xha -- ??)
+	again,
+	[ _#comp_code_if _#comp_code_while - ] LITERAL +
+	0
+	then,
+;
+
+-1 ' repeat, ghost_word REPEAT
+: else, ( ?? xha --)
+	DROP
+	roll_out_initiator
+	assembler&host&forth
+	HERE W. BRA
+	HERE 2 -
+	host&forth
+  	-rot
+	0 \ for then, to drop
+	then,
+	_#comp_code_if
+;
+
+-1 ' else, ghost_word ELSE
+
+: leave,  ( ?? xha --)
+	DROP
+	assembler&host&forth
+	8 # R ADD
+	HERE W. BRA
+	host&forth
+	HERE 2 -
+      	_#comp_code_leave
+;
+
+-1 ' leave, ghost_word LEAVE
+</code>
+</pre>
+<h3>Comments</h3>
+<p>
+When compiling forth code into the target we are in the ]T compiler, this only
+uses ghost words so we must add the immediate comment words to the ghost
+vocabulary.
+</p>
+<pre>
+<code>
+\ we almost use the host versions
+forth&host
+: (, DROP POSTPONE ( ;
+: \, DROP POSTPONE \ ;
+host&forth
+-1 ' (, ghost_word (
+-1 ' \, ghost_word \
+</code>
+</pre>
+<p>
+Word added because uCforth is subroutine threaded, and these speedups
+are possible.
+We can't use the inline method as these words use the return stack and the
+called and inline forms are different.
+</p>
+<pre>
+<code>
+: >r,  ( 32b-- \ xha --)
+	DROP
+	assembler&host&forth
+	S )+ R -) MOV
+	host&forth
+;
+
+-1 ' >r, ghost_word >R
+
+: r>, ( --32b \ --xha )
+	DROP
+	assembler&host&forth
+	R )+ S -) MOV
+	host&forth
+;
+
+-1 ' r>, ghost_word R>
+
+: r@, ( --32b \ xha--)
+	DROP
+	assembler&host&forth
+	R ) S -) MOV
+	host&forth
+;
+
+-1 ' r@, ghost_word R@
+
+: 2>r, ( 32b 32b \ xha --)
+	DROP
+	assembler&host&forth
+	S )+ D0 MOV
+	S )+ R -) MOV
+	D0 R -) MOV
+	host&forth
+;
+
+-1 ' 2>r, ghost_word 2>R
+
+: 2r>, ( -- 32b 32b \ xha --)
+	DROP
+	assembler&host&forth
+	R )+ D0 MOV
+	R )+ S -) MOV
+	D0 S -) MOV
+	host&forth
+;
+
+-1 ' 2r>, ghost_word 2R>
+
+: r>drop, ( -- \ xha --)
+	DROP
+	assembler&host&forth
+	4 # R ADD
+	host&forth
+;
+
+-1 ' r>drop, ghost_word r>drop
+
+: 2r>drop, ( -- \ xha --)
+	DROP
+	assembler&host&forth
+	8 # R ADD
+	host&forth
+;
+
+-1 ' 2r>drop, ghost_word 2r>drop
+
+
+: dup>r, ( -- \ xha--)
+	DROP
+	assembler&host&forth
+	S ) R -) MOV
+	host&forth
+;
+
+-1 ' dup>r, ghost_word dup>r
+
+</code>
+</pre>
+<p>
+Now we get into words that create heads in the target
+<pre>
+<code>
+forth&host : :NONAME ( --xt)
+		host&forth
+		HERE
+		0 _%local_use !
+		_%t_save_op @ IF
+			assembler&host&forth
+			OP R -) MOV
+			S )+ OP MOV
+			host&forth
+		THEN
+		]T
+;
+
+</code>
+</pre>
+<p>
+Have to create an entry in the host vocabulary, the ghost vocabulary and the target vocabulary.
+The runtime action for ghost was defined when local constants were defined.
+</p>
+<pre>
+<code>
+
+: constant, ( xt_host_xt --)
+	ghost_data @
+	assembler&host&forth
+	# S -) MOV
+	host&forth
+;
+
+
+: CONSTANT  ( n --)
+	\ .S ." in constant" CR send
+	\ in the host
+	>IN @ >R
+	DUP CONSTANT
+	\ .S ." Done host constant" CR send
+	R> >IN !
+	\ in ghost and target
+	\ inline will provide the host_xt, unless the
+	\ constant value is #jsr
+	forth&host
+	\ .S ." about to ghost&target_create" CR send
+	['] constant, ghost&target_create
+	DUP
+	,
+	\ .S ." about to set assembler" CR send
+	assembler&host&forth
+	# S -) MOV
+	RTS
+	host&forth
+	\ .S ." about to exit assembler" CR send
+;
+
+\ A (REFERENCE) can be compiled into a word, but can NOT be found in the host
+\ When compiling the appropriate reference is added to the reference list.
+\ If the value is taken out to the assembler the fact that it is a reference
+\ is lost
+forth : reference, ( hxa --)
+	host&forth
+	ghost_data @
+	here 2 + add_reference
+	assembler&host&forth
+	# S -) MOV
+	host&forth
+;
+
+\ not found in host
+forth : (REFERENCE)  ( lib_addr --)
+	\ in ghost and target
+	\ inline will provide the host_xt
+	forth&host
+	['] reference, ghost&target_create
+	DUP ,
+	assembler&host&forth
+	here 2 + add_reference
+	# S -) MOV
+	RTS
+	host&forth
+;
+
+\ A (DP_REFERENCE) can be compiled into a word, but can NOT be found in the host
+\ When compiling the appropriate reference is added to the reference list.
+\ If the value is taken out to the assembler the fact that it is a reference
+\ is lost
+forth : dp_reference, ( hxa --)
+	host&forth
+	ghost_data @
+	assembler&host&forth
+	DP) A1 LEA
+	A1 S -) MOV
+	host&forth
+;
+
+\ not found in host.
+\ app data reference.
+forth : (DP_REFERENCE)  ( app_data_addr --)
+	\ .S ." the target ref" CR send
+	\ in ghost and target
+	\ inline will provide the host_xt
+	forth&host
+	['] dp_reference, ghost&target_create
+	host&forth
+	DP_data_offset
+	forth&host
+	DUP ,
+	\ .S ." about to assemble" CR send
+	assembler&host&forth
+	DP) A1 LEA
+	A1 S -) MOV
+	RTS
+	host&forth
+	\ .S ." finished assemble" send CR
+;
+\ found in host. Suitable for the creation of linked lists.
+\ and values that are going to be accessed with AB in assembler
+forth : REFERENCE
+	\ in the host
+	forth&host
+	>IN @ >R
+	DUP CONSTANT
+	R> >IN !
+	(REFERENCE)
+	host&forth
+;
+
+
+forth : DP_REFERENCE
+	\ in the host
+	forth&host
+	>IN @ >R
+	\ .S ." about to constant" CR send
+	DUP CONSTANT
+	\ .S ." about to (DP_REFERENCE)" CR send
+	R> >IN !
+	(DP_REFERENCE)
+	host&forth
+;
+\ A wonderfull cross compiler addition. Data goes in the application
+\ data segment
+\ so it can be altered at run time.  This is
+\ a perfect word to start any linked list with.
+\ You don't have to patch it at the end of the cross compile.
+\ The value stored in the pointer must be absolute so it needs a reference.
+: POINTER
+	\ .S ." in pointer" CR send
+	uhere
+	\ for the contents
+	\ .S ." about to add_reference" CR send
+	DUP add_reference
+	\ for the word created
+	\ .S ." about to DP_REFERENCE" CR send
+
+	DP_REFERENCE
+	CELL uallot
+	\ ." out of pointer" CR send
+;
+
+: 2constant, ( xt_host_add --)
+	ghost_data
+	DUP @ ( top)
+	SWAP CELL+ @ ( top-1)
+	assembler&host&forth
+	# S -) MOV
+	# S -) MOV
+	host&forth
+;
+\ .( into 2constant) send
+: 2CONSTANT
+	\ in the host
+	>IN @ >R
+		2DUP 2CONSTANT
+	 R> >IN !
+	 forth&host
+	['] 2constant, ghost&target_create
+	2DUP
+	\ into host top top-1
+	,
+	,
+	assembler&host&forth
+	SWAP
+	# S -) MOV  ( top-1 )
+	# S -) MOV  ( top   )
+	RTS
+	host&forth
+;
+\ .( out of 2 constant)
+
+</code>
+</pre>
+<p>
+uCforth applications are run from dram so all is relocated. There are two data segments
+the library and the kernel. When cross compiling data_create is in the library data area
+and ucreate is in the application data area.
+</p>
+<pre>
+<code>
+: data_create
+	data_here
+	REFERENCE
+;
+
+: data_variable
+	data_create
+	cell data_allot
+;
+
+: 2data_variable
+	data_create
+	2 CELLS data_allot
+;
+
+: ucreate
+	uhere
+	DP_REFERENCE
+;
+
+: uvariable
+	ucreate
+	cell uallot
+;
+
+: 2uvariable
+	ucreate
+	2 CELLS uallot
+;
+
+
+\ these will allocate into whatever state is active.
+: ram_create
+	ram_here REFERENCE
+;
+
+: ram_variable
+	ram_create
+	cell ram_allot
+;
+
+: 2ram_variable
+	ram_create
+	2 CELLS ram_allot
+;
+
+forth : ," ( --)
+    	forth&host
+	[CHAR] "
+	PARSE
+	#$buffer get_buffer
+	2DUP buffer SWAP MOVE
+	\ addr n (--
+	buffer OVER html_string
+	\ addr n n1(--
+	buffer SWAP
+	host&forth
+	\ addr n(--
+	,string
+	forth&host
+	2DROP
+	kill_buffer
+	host&forth
+;
+
+
+
+\ The xcompiler load should have allocate the data memory for the forth heads
+\ there should be no code space allocated.
+%lib_code_pointer @ %lib_code_image ??=
+%app_code_pointer @ %app_code_image ??=
+
+</code>
+</body>
+</html>
+

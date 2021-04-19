@@ -1,0 +1,246 @@
+<html>
+<head>
+<title>xcompiler2.html</title>
+<META NAME="Author" CONTENT="Charles Esson">
+<META NAME="keywords" CONTENT="forth">
+<META NAME="description" CONTENT=" used to generate uCforth">
+<LINK REL=stylesheet HREF="forth.css" TYPE="text/css">
+</head>
+
+<body>
+<h1>xcompiler2</h1>
+<a HREF="./license.html">license</a>
+<p>
+We have the complication that the value returned be create must be relocated.
+Target runtime is relocated. Whenover the relocated value is used in : words
+the result will be relocated because a reference is added. It will not work if
+the address is taken in the host and not relocated. We just need to take care.
+<pre>
+<code>
+\ this can be used with the host version of DOES>
+: COMPILE, ( xt --)
+	assembler&host&forth
+	AB L. JSR
+	host&forth
+;
+: [CREATE]
+	host&forth
+	zero ALLOT
+	(CREATE)
+	assembler&host&forth
+	['] _do_create COMPILE,
+	host&forth
+;
+
+\ this can be used with does>, and adds
+\ the address reference to the host.
+: CREATE
+	host&forth
+	zero ALLOT
+	>IN @
+	(CREATE)
+	>IN !
+	assembler&host&forth
+	['] _do_create COMPILE,
+	HERE
+	forth&host
+	CONSTANT
+	host&forth
+;
+
+\ the ghost entry can be played with using DOES>
+\ the target entry can have code laid down
+: -CREATEFIELD-
+	host&forth
+	zero ALLOT
+	>IN @
+	\ create the ghost entry
+	(CREATE)
+	>IN !
+	forth&host
+	\ this will have it's action changed by create_field using 
+	\ the forth version of DOES>
+	CREATE
+	host&forth
+;
+
+: loop,  ( -- \ addr 3 xha-- )
+	DROP
+	assembler&host&forth
+	['] _do_loop COMPILE,
+	forth&host
+	BEGIN
+		DUP
+		host&forth
+		_#comp_code_leave
+		forth&host
+		=
+	WHILE
+		DROP
+		\ still haven't added in loop offset
+		host&forth
+		HERE
+		forth&host
+		2 + OVER -  SWAP
+		host&forth
+		tw!
+		forth&host
+	REPEAT
+	DUP ABS
+	host&forth
+	_#comp_code_do  ?PAIR
+	forth&host
+	OVER
+	host&forth
+	!BACK
+	forth&host
+	0&lt; IF
+		\ In here for ?do
+		\ this gives the address to be patched
+		2 -
+		host&forth
+		HERE
+		forth&host
+		OVER -  SWAP
+		host&forth
+		tw!
+    		forth&host
+	ELSE
+    		DROP
+    	THEN
+	host&forth
+    ;
+
+ \ we have the runtime action of loop defined but that is not the target xt of loop
+ -1 ' loop, ghost_word LOOP 
+
+: +loop,  ( n -- \ addr 3 xha-- )
+	DROP
+	assembler&host&forth
+	['] _do_+loop COMPILE,
+	forth&host
+	BEGIN
+		DUP HOST _#comp_code_leave forth =
+	WHILE
+		DROP
+		\ still haven't added LOOP offset
+		host&forth
+		HERE
+		forth&host
+		2 + OVER -  SWAP
+		host&forth
+		tw!
+		forth&host
+	REPEAT
+	\ The address points to where we want to branch back too
+	DUP ABS
+	host&forth
+	_#comp_code_do  ?PAIR
+	forth&host
+	OVER HOST !BACK
+	forth&host
+	\ The address points after the branch so we have to
+	\ subtract 2.
+	0&lt; IF
+		 2 -
+		 host&forth
+		 HERE
+		 forth&host
+		 OVER -  SWAP host&forth
+		 tw!
+		 forth&host
+	ELSE
+		DROP
+	THEN
+	host&forth
+;
+
+-1 ' +loop, ghost_word +LOOP
+
+: do,    ( limit start -- \ -- addr 3 xha )
+	DROP
+	assembler&host&forth
+	['] _do_do COMPILE,
+	host&forth
+	\ to branch back to
+	HERE _#comp_code_do
+	host&forth
+;
+
+-1 ' do, ghost_word DO
+
+: ?do,   ( limit start -- \ -- addr -3 xha )
+	DROP
+	assembler&host&forth
+	['] _do_?do COMPILE,
+	host&forth
+	zero tw,
+	\ to branch back to
+	\ 2- and you get the address to resolve
+	HERE _#comp_code_?do
+;
+
+-1 ' ?do, ghost_word ?DO
+
+
+: recurse, ( hxt--)
+	DROP
+	last_definition
+	COMPILE,
+;
+-1 ' recurse, ghost_word RECURSE
+
+\ for debug
+: forth' ' ;
+
+</code>
+</pre>
+<p>
+Now really screw up the host system.
+From this point on there is a host : that compiles into
+the target and a forth : that compiles into the host.
+From now on it is more difficult to create words in the target
+as the search order has to be changed.
+</p>
+<pre>
+<code>
+
+: :, ( host_xt_addr --)
+	get_target_xt DUP -1 = ABORT" target word not yet defined"
+	COMPILE,
+;
+
+
+: :
+	forth&host ['] :,
+	host&forth
+	ghost&target_create
+	zero _%local_use !
+	assembler&host&forth
+	init_assembler
+	host&forth
+	_%t_save_op @ IF
+		assembler&host&forth
+		OP R -) MOV
+		S )+ OP MOV
+		host&forth
+	THEN
+	\ this is the key, ]T searches ghost vocabularies these are created using methods
+	\ defined in this file, the limits of ANSI wordlist is not an issue.
+	]T
+;
+
+
+
+\ redefine , in host vocabulary so that it searches the ghost vocabulary
+\ and returns a target address. Note that we now have to switch to forth
+\ to pick up the right :
+
+forth&host
+: ' ghost' ;
+host&forth
+
+</code>
+</pre>
+</body>
+</host>

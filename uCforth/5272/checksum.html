@@ -1,0 +1,50 @@
+<html>
+<head>
+<title>checksum.html</title>
+<META NAME="Author" CONTENT="Charles Esson">
+<META NAME="keywords" CONTENT="forth">
+<META NAME="description" CONTENT=" used to generate uCforth">
+<LINK REL=stylesheet HREF="forth.css" TYPE="text/css">
+</head>
+
+<body>
+<a HREF="./license.html">license</a>
+<p>
+<i>checksum</i> is used extensively. All names are checksummed and the value used to
+speed up name searches. The application and kernel are checksumed, with the
+checksummed checked on a restart. And string change of value is detected
+with checksums.
+</p>
+<pre> 
+<code>
+\ small changes
+\ the checksum_table address has to be relocated
+\ value AB A1 LEA must be used to have this happen
+\ value # MOV will not get relocated
+CODE  checksum ( addr count --value)
+		S )+ D0 MOV
+		S )+ A0 MOV
+		-1 # D1 MOV
+		D0 TST NE IF
+			checksum_table AB A1 LEA
+			BEGIN
+				0 # D2 MOV
+				D1 D2 B. MOV
+				8 # D1 LSR
+				0 # D3 MOV
+				A0 )+ D3 B. MOV
+				D3 D2 EOR
+				2 # D2 ASL
+				( extract an entry from a 256 long word table)
+				[ A1 D2 ] D3 MOV
+				D3 D1 EOR
+				1 # D0 SUB
+			LE UNTIL
+		THEN
+		-1 # D1 EOR
+		D1 S -) MOV
+	NEXT
+</code>
+</pre>
+</body>
+</html>

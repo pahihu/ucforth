@@ -1,0 +1,163 @@
+<html>
+<head>
+<title>basic_io.html</title>
+<META NAME="Author" CONTENT="Charles Esson">
+<META NAME="keywords" CONTENT="forth">
+<META NAME="description" CONTENT=" used to generate uCforth">
+<LINK REL=stylesheet HREF="forth.css" TYPE="text/css">
+</head>
+<body>
+<h3>Basic I/O</h3>
+<a HREF="./license.html">license</a><br>
+<a HREF="./input_output.html#send">See send</a>
+<pre> <code>
+	| CREATE (_send_)
+	0 ref,
+	| : send (_send_) @execute ;
+
+</code> </pre>
+<a HREF="./input_output.html#TYPE">See TYPE</a>
+<pre> <code>
+	| CREATE (_type_)
+	0 ref,
+	
+	| : TYPE ( addr num --)
+		(_type_) @execute
+	;
+
+	
+	| CREATE (.S)
+		0 ref,
+
+	| : .S (.S) @execute ;
+
+	| CREATE (dump)
+		0 ref,
+
+	| : DUMP (dump) @execute ;
+
+\ Non standard
+\
+: $type   ( addr --) COUNT TYPE ;
+
+
+</code> </pre>
+<a HREF="./input_output.html#TYPE">See EXPECT</a>
+<pre> <code>
+	| CREATE (_expect_)
+	0 ref,
+
+	| : EXPECT ( addr num --)
+		(_expect_) @execute ;
+	</code> </pre>
+<a name="EMIT"></a>
+<h5>ANS 6.1.1320 EMIT</h5>
+<p>( x -- )</p>
+<p>
+If x is a graphic character in the implementation-defined character set,
+display x. The effect of EMIT for all other values of x is
+implementation-defined.
+</p>
+<p>
+When passed a character whose character-defining bits have a value between
+hex 20 and 7E inclusive, the corresponding standard character, specified by
+3.1.2.1 Graphic characters, is displayed. Because different output devices
+can respond differently to control characters, programs that use control
+characters to perform specific functions have an environmental dependency.
+Each EMIT deals with only one character.
+</p>
+<p>
+This code deals with the endian issue. 
+</p>
+	<pre> <code>
+	: EMIT { ( char --) }{
+		variable %buffer }
+		\ room on the data stack
+		%buffer C!
+		%buffer 1
+		\ addr n(--
+		TYPE
+		\ (--
+	;
+
+	CREATE (_cr_)
+	0 ref,
+
+	| : CR (_cr_) @execute ;
+
+
+</code> </pre>
+<a name="visible"></a>
+<h5>visible ( from num to --)</h5>
+<p>
+Move the characters from the buffer described by from and num to the buffer
+pointed to by to. Make sure the characters are in a visible range. Useful for
+printing ASCII text out to terminals that will interpret some characters as
+control characters.
+</p>
+	<pre> <code>
+
+
+	: visible ( from num to --)
+		-rot               \ to from num (--
+		OVER               \ to from num from (--
+		+                  \ to start end (--
+		SWAP               \ to end start (--
+		DO                 \ to (--
+			I C@
+			DUP BL &lt; IF
+				DROP [CHAR] ~
+			THEN
+			DUP [CHAR] ~ &gt; IF
+				DROP [CHAR] ~
+			THEN
+			OVER C!
+			CHAR+
+		[ 1 CHARS ]T LITERAL +LOOP
+		DROP
+	;
+</code>
+</pre>
+<p>
+Convert invisible characters to ~
+</p>
+<pre>
+<code>
+	: ~type ( addr num --)
+		DUP IF
+			DUP get_buffer
+				TUCK			\ num addr num (--
+				buffer visible
+			    buffer SWAP     \ addr num (--
+				TYPE
+			kill_buffer
+		ELSE
+			2DROP
+			\ all I/O should take a trip to the os
+			xpause
+		THEN
+	;
+
+
+\ slip in inline strings, the sooner it is defined the sooner we can us it in kernel.
+
+\ the return address is on the stack.
+: runtime" ( flag --)
+		R> DUP skip_string >R
+		$type
+;
+
+forth&host : .",  ( xfa--)
+	host&forth
+	code,
+	,"
+;
+
+' runtime" forth&host ' .", host&forth ghost_word ."
+
+
+ </code>
+ </pre>
+
+</body>
+</html>

@@ -1,0 +1,86 @@
+<html>
+<head>
+<title>startup.html</title>
+<META NAME="Author" CONTENT="Charles Esson">
+<META NAME="keywords" CONTENT="forth">
+<META NAME="description" CONTENT=" uCforth uses this file to generate uCforth">
+<LINK REL=stylesheet HREF="forth.css" TYPE="text/css">
+</head>
+<body>
+<h3>Startup</h3>
+<p>
+The routine called to get things started. If the startup is for the library
+return addresses are on the stack. argv[] and count are on the return stack
+</p>
+<pre>
+<code>
+\ use linux urandom device to init random
+\ Failure is not a reason to stop so we ignore errors.
+CREATE $linux_random_device ," /dev/urandom"
+: _random_init ( --)
+	$linux_random_device COUNT R/O OPEN-FILE DROP
+	%z1 $10 jump READ-FILE 2DROP
+	CLOSE-FILE DROP
+	%z1 @ ABS 2 MAX %z1 !
+	%z2 @ ABS 8 MAX %z2 !
+	%z3 @ ABS $10 MAX %z3 !
+	%z4 @ ABS $80 MAX %z4 !
+;
+
+\ Have to setup, take the address of incoming arguments and save off and that
+\ is about it.
+\ REGISTER DP
+\ REGISTER S
+\ REGISTER R
+: return_error
+	TRUE ABORT" Return stack underrun"
+;
+
+' return_error (return_error) t!
+
+: forth_startup
+	zero
+	\ create required standard i/o objects
+	0 0 R/W OPEN-FILE THROW %input_file !
+	1 0 R/W OPEN-FILE THROW %output_file !
+	2 0 R/W OPEN-FILE THROW %abort_file !
+	\ bash closes all file descriptors greater than 3 if login shell.
+	\ 3 0 R/W OPEN-FILE THROW %aux_file !
+	\ 4 0 R/W OPEN-FILE THROW %lpt_file !
+
+	.S ." (-- Opened standard i/o" send
+
+	\ set search order to root
+	ONLY
+	['] use_args %abort !
+
+	\ initialize random number generator
+	.S ." (--about to _random_init" send
+	_random_init
+
+	\ initialize signals
+	.S ." (--about to init_sig" send
+	init_sig
+	\ set up the for forth environment but don't
+	\ change the output path to the abort path.
+	\ We are still dealing with the script and must follow
+	\ the unix rules.
+	.S ." error error error error error(--all error should be zero" send
+	_abort
+;
+
+\ If the libary needs startup action add it here. It gets executed before
+\ app_startup. See application.html for the app_startup code. If you need to add
+\ anything remember the data stack is not setup and the I/O objects have not been
+\ created. Also this file is in the common section. If you add code it will have
+\ to be moved to processor specific.
+\
+\ In other words lets try and not have a lib init function.
+\
+CODE lib_startup
+NEXT
+
+</code>
+</pre>
+</body>
+</html>

@@ -1,0 +1,470 @@
+<html>
+<head>
+<title>linux_constants.html</title>
+<META NAME="Author" CONTENT="Charles Esson">
+<META NAME="keywords" CONTENT="forth">
+<META NAME="description" CONTENT=" file used to create uCforth">
+<LINK REL=stylesheet HREF="forth.css" TYPE="text/css">
+</head>
+<body>
+<h1>Linux constants</h1>
+<a HREF="./license.html">license</a>
+<h2>sys call codes</h2>
+<p>
+The linux syscall jump table is in entry.S.
+<p>
+The syscall names are found in <i>includes/as_m68k/unistd.h</i>.
+</p>
+<pre> <code>
+DECIMAL
+001 CONSTANT __NR_exit
+002 CONSTANT __NR_fork
+003 CONSTANT __NR_read
+004 CONSTANT __NR_write
+005 CONSTANT __NR_open
+006 CONSTANT __NR_close
+007 CONSTANT __NR_waitpid
+008 CONSTANT __NR_creat
+009 CONSTANT __NR_link
+010 CONSTANT __NR_unlink
+011 CONSTANT __NR_execve
+012 CONSTANT __NR_chdir
+013 CONSTANT __NR_time
+014 CONSTANT __NR_mknod
+015 CONSTANT __NR_chmod
+016 CONSTANT __NR_chown
+017 CONSTANT __NR_break
+018 CONSTANT __NR_oldstat
+019 CONSTANT __NR_lseek
+020 CONSTANT __NR_getpid
+021 CONSTANT __NR_mount
+022 CONSTANT __NR_umount
+023 CONSTANT __NR_setuid
+024 CONSTANT __NR_getuid
+025 CONSTANT __NR_stime
+026 CONSTANT __NR_ptrace
+027 CONSTANT __NR_alarm
+028 CONSTANT __NR_oldfstat
+029 CONSTANT __NR_pause
+030 CONSTANT __NR_utime
+031 CONSTANT __NR_stty
+032 CONSTANT __NR_gtty
+033 CONSTANT __NR_access
+034 CONSTANT __NR_nice
+035 CONSTANT __NR_ftime
+036 CONSTANT __NR_sync
+037 CONSTANT __NR_kill
+038 CONSTANT __NR_rename
+039 CONSTANT __NR_mkdir
+040 CONSTANT __NR_rmdir
+041 CONSTANT __NR_dup
+042 CONSTANT __NR_pipe
+043 CONSTANT __NR_times
+044 CONSTANT __NR_prof
+045 CONSTANT __NR_brk
+046 CONSTANT __NR_setgid
+047 CONSTANT __NR_getgid
+048 CONSTANT __NR_signal
+049 CONSTANT __NR_geteuid
+050 CONSTANT __NR_getegid
+051 CONSTANT __NR_acct
+052 CONSTANT __NR_umount2
+053 CONSTANT __NR_lock
+054 CONSTANT __NR_ioctl
+055 CONSTANT __NR_fcntl
+056 CONSTANT __NR_mpx
+057 CONSTANT __NR_setpgid
+058 CONSTANT __NR_ulimit
+059 CONSTANT __NR_oldolduname
+060 CONSTANT __NR_umask
+061 CONSTANT __NR_chroot
+062 CONSTANT __NR_ustat
+063 CONSTANT __NR_dup2
+064 CONSTANT __NR_getppid
+065 CONSTANT __NR_getpgrp
+066 CONSTANT __NR_setsid
+067 CONSTANT __NR_sigaction
+068 CONSTANT __NR_sgetmask
+069 CONSTANT __NR_ssetmask
+070 CONSTANT __NR_setreuid
+071 CONSTANT __NR_setregid
+072 CONSTANT __NR_sigsuspend
+073 CONSTANT __NR_sigpending
+074 CONSTANT __NR_sethostname
+075 CONSTANT __NR_setrlimit
+076 CONSTANT __NR_getrlimit
+077 CONSTANT __NR_getrusage
+078 CONSTANT __NR_gettimeofday
+079 CONSTANT __NR_settimeofday
+080 CONSTANT __NR_getgroups
+081 CONSTANT __NR_setgroups
+082 CONSTANT __NR_select
+083 CONSTANT __NR_symlink
+084 CONSTANT __NR_oldlstat
+085 CONSTANT __NR_readlink
+086 CONSTANT __NR_uselib
+087 CONSTANT __NR_swapon
+088 CONSTANT __NR_reboot
+089 CONSTANT __NR_readdir
+090 CONSTANT __NR_mmap
+091 CONSTANT __NR_munmap
+092 CONSTANT __NR_truncate
+093 CONSTANT __NR_ftruncate
+094 CONSTANT __NR_fchmod
+095 CONSTANT __NR_fchown
+096 CONSTANT __NR_getpriority
+097 CONSTANT __NR_setpriority
+098 CONSTANT __NR_profil
+099 CONSTANT __NR_statfs
+100 CONSTANT __NR_fstatfs
+101 CONSTANT __NR_ioperm
+102 CONSTANT __NR_socketcall
+103 CONSTANT __NR_syslog
+104 CONSTANT __NR_setitimer
+105 CONSTANT __NR_getitimer
+106 CONSTANT __NR_stat
+107 CONSTANT __NR_lstat
+108 CONSTANT __NR_fstat
+107 CONSTANT __NR_olduname
+110 CONSTANT __NR_iopl                         \ not supported
+111 CONSTANT __NR_vhangup
+112 CONSTANT __NR_idle                         \ Obsolete
+113 CONSTANT __NR_vm86                         \ not supported
+114 CONSTANT __NR_wait4
+115 CONSTANT __NR_swapoff
+116 CONSTANT __NR_sysinfo
+117 CONSTANT __NR_ipc
+118 CONSTANT __NR_fsync
+119 CONSTANT __NR_sigreturn
+120 CONSTANT __NR_clone
+121 CONSTANT __NR_setdomainname
+122 CONSTANT __NR_uname
+123 CONSTANT __NR_cacheflush
+124 CONSTANT __NR_adjtimex
+125 CONSTANT __NR_mprotect
+126 CONSTANT __NR_sigprocmask
+127 CONSTANT __NR_create_module
+128 CONSTANT __NR_init_module
+129 CONSTANT __NR_delete_module
+130 CONSTANT __NR_get_kernel_syms
+131 CONSTANT __NR_quotactl
+132 CONSTANT __NR_getpgid
+133 CONSTANT __NR_fchdir
+134 CONSTANT __NR_bdflush
+135 CONSTANT __NR_sysfs
+136 CONSTANT __NR_personality
+137 CONSTANT __NR_afs_syscall                  \ Syscall for Andrew File System
+138 CONSTANT __NR_setfsuid
+139 CONSTANT __NR_setfsgid
+140 CONSTANT __NR__llseek
+141 CONSTANT __NR_getdents
+142 CONSTANT __NR_newselect
+143 CONSTANT __NR_flock
+144 CONSTANT __NR_msync
+145 CONSTANT __NR_readv
+146 CONSTANT __NR_writev
+147 CONSTANT __NR_getsid
+148 CONSTANT __NR_fdatasync
+149 CONSTANT __NR_sysctl
+150 CONSTANT __NR_mlock
+151 CONSTANT __NR_munlock
+152 CONSTANT __NR_mlockall
+153 CONSTANT __NR_munlockall
+154 CONSTANT __NR_sched_setparam
+155 CONSTANT __NR_sched_getparam
+156 CONSTANT __NR_sched_setscheduler
+157 CONSTANT __NR_sched_getscheduler
+158 CONSTANT __NR_sched_yield
+159 CONSTANT __NR_sched_get_priority_max
+160 CONSTANT __NR_sched_get_priority_min
+161 CONSTANT __NR_sched_rr_get_interval
+162 CONSTANT __NR_nanosleep
+163 CONSTANT __NR_mremap
+164 CONSTANT __NR_setresuid
+165 CONSTANT __NR_getresuid
+166 CONSTANT __NR_getpagesize
+167 CONSTANT __NR_query_module
+168 CONSTANT __NR_poll
+169 CONSTANT __NR_nfsservctl
+170 CONSTANT __NR_setresgid
+171 CONSTANT __NR_getresgid
+172 CONSTANT __NR_prctl
+173 CONSTANT __NR_rt_sigreturn
+174 CONSTANT __NR_rt_sigaction
+175 CONSTANT __NR_rt_sigprocmask
+176 CONSTANT __NR_rt_sigpending
+177 CONSTANT __NR_rt_sigtimedwait
+178 CONSTANT __NR_rt_sigqueueinfo
+179 CONSTANT __NR_rt_sigsuspend
+180 CONSTANT __NR_pread
+181 CONSTANT __NR_pwrite
+182 CONSTANT __NR_lchown
+183 CONSTANT __NR_getcwd
+184 CONSTANT __NR_capget
+185 CONSTANT __NR_capset
+186 CONSTANT __NR_sigaltstack
+187 CONSTANT __NR_sendfile
+188 CONSTANT __NR_getpmsg                      \ some people actually want streams
+189 CONSTANT __NR_putpmsg                      \ some people actually want streams
+190 CONSTANT __NR_vfork
+191 CONSTANT __NR_ugetrlimit
+192 CONSTANT __NR_mmap2
+193 CONSTANT __NR_truncate64
+194 CONSTANT __NR_ftruncate64
+185 CONSTANT __NR_stat64
+196 CONSTANT __NR_lstat64
+197 CONSTANT __NR_fstat64
+198 CONSTANT __NR_chown32
+199 CONSTANT __NR_getuid32
+200 CONSTANT __NR_getgid32
+201 CONSTANT __NR_geteuid32
+202 CONSTANT __NR_getegid32
+203 CONSTANT __NR_setreuid32
+204 CONSTANT __NR_setregid32
+205 CONSTANT __NR_getgroups32
+206 CONSTANT __NR_setgroups32
+207 CONSTANT __NR_fchown32
+208 CONSTANT __NR_setresuid32
+209 CONSTANT __NR_getresuid32
+210 CONSTANT __NR_setresgid32
+211 CONSTANT __NR_getresgid32
+212 CONSTANT __NR_lchown32
+213 CONSTANT __NR_setuid32
+214 CONSTANT __NR_setgid32
+215 CONSTANT __NR_setfsuid32
+216 CONSTANT __NR_setfsgid32
+217 CONSTANT __NR_pivot_root
+
+220 CONSTANT __NR_getdents64
+221 CONSTANT __NR_fcntl64
+222 CONSTANT __NR_tkill
+</code> </pre>
+
+<h2>File open flag</h2>
+<p>
+open/fcntl - O_SYNC is only implemented on blocks devices and on files
+located on an ext2 file system.
+</p>
+<p>
+With C if a number starts with 0 it is octal, COLDFORTH has to number prefix for
+octal so we need to use the base changing word.
+</p>
+<pre> <code>
+octal
+000003 CONSTANT O_ACCMODE        \ Not mentioned in man page
+000000 CONSTANT O_RDONLY         \ Read only
+000001 CONSTANT O_WRONLY         \ write only
+000002 CONSTANT O_RDWR           \ Read write
+000100 CONSTANT O_CREAT          \ If the file does not exist it will be created
+000200 CONSTANT O_EXCL           \ Error on create if file exists
+000400 CONSTANT O_NOCTTY         \ If terminal device, don't use as applications device
+001000 CONSTANT O_TRUNC          \ if write enable truncate the file to 0
+002000 CONSTANT O_APPEND         \ Add to the end of file.
+004000 CONSTANT O_NONBLOCK       \ Don't block on I/O if possible.
+O_NONBLOCK CONSTANT O_NDELAY
+010000 CONSTANT O_SYNC           \ Write to hardware before continue with next.
+O_SYNC CONSTANT O_FSYNC          \
+020000 CONSTANT O_ASYNC          \ send signal when output possible.
+040000 CONSTANT O_DIRECTORY      \ Must be a directory.
+0100000 CONSTANT O_NOFOLLOW      \ Do not follow links.
+0200000 CONSTANT O_DIRECT        \ Direct disk access.
+
+</code> </pre>
+
+<p> For now Linux has synchronizing options for data and read operations.
+   We define the symbols here but let them do the same as O_SYNC since
+   this is a superset.
+</p>
+<pre> <code>
+O_SYNC CONSTANT O_DSYNC          \ Synchronize data.
+O_SYNC CONSTANT O_RSYNC          \ Synchronize read operations.
+0400000 CONSTANT O_LARGEFILE     \ Size greater than 31 bit value.
+
+\ the bits on the fam code that belong to linux
+777777 CONSTANT O_linux
+
+DECIMAL
+</code> </pre>
+<h2>fctrl commands</h2>
+<pre> <code>
+
+0 CONSTANT F_DUPFD                      \ dup
+1 CONSTANT F_GETFD                      \ get close_on_exec
+2 CONSTANT F_SETFD                      \ set/clear close_on_exec
+3 CONSTANT F_GETFL                      \ get file->f_flags
+4 CONSTANT F_SETFL                      \ set file->f_flags
+5 CONSTANT F_GETLK
+6 CONSTANT F_SETLK
+7 CONSTANT F_SETLKW
+
+8 CONSTANT  F_SETOWN                    \ for sockets.
+9 CONSTANT F_GETOWN                     \ for sockets.
+10 CONSTANT F_SETSIG                    \ for sockets.
+11 CONSTANT F_GETSIG                    \ for sockets.
+
+12 CONSTANT F_GETLK64                   \ using 'struct flock64'
+13 CONSTANT F_SETLK64
+14 CONSTANT F_SETLKW64
+</code> </pre>
+<h2>File mode constants</h2>
+<pre> <code>
+octal
+00700 CONSTANT S_IRWXU
+00400 CONSTANT S_IRUSR
+00200 CONSTANT S_IWUSR
+00100 CONSTANT S_IXUSR
+00070 CONSTANT S_IRWXG
+00040 CONSTANT S_IRGRP
+00020 CONSTANT S_IWGRP
+00010 CONSTANT S_IXGRP
+
+00007 CONSTANT S_IRWXO
+00004 CONSTANT S_IROTH
+00002 CONSTANT S_IWOTH
+00001 CONSTANT S_IXOTH
+\ bits that belong to linux
+0777 CONSTANT S_linux
+DECIMAL
+</code> </pre>
+<h2>Mount flags</h2>
+<p>
+These are the fs-independent mount-flags: up to 32 flags are supported
+</p>
+<pre> <code>
+$00000001 CONSTANT MS_RDONLY        \ Mount read-only
+$00000002 CONSTANT MS_NOSUID        \ Ignore suid and sgid bits
+$00000003 CONSTANT MS_NODEV         \ Disallow access to device special files
+$00000008 CONSTANT MS_NOEXEC        \ Disallow program execution
+$00000010 CONSTANT MS_SYNCHRONOUS   \ Writes are synced at once
+$00000020 CONSTANT MS_REMOUNT       \ Alter flags of a mounted FS
+$00000040 CONSTANT MS_MANDLOCK      \ Allow mandatory locks on an FS
+$00000400 CONSTANT MS_NOATIME       \ Do not update access times.
+$00000800 CONSTANT MS_NODIRATIME	 \ Do not update directory access times
+$00001000 CONSTANT MS_BIND          \ make a file or dir sub tree visable at another point in file system.
+$00002000 CONSTANT MS_MOVE          \ move a mount point.
+$00004000 CONSTANT MS_REC           \ not in man pages
+$00008000 CONSTANT MS_VERBOSE       \ not in man pages
+$40000000 CONSTANT MS_ACTIVE        \ not in man pages
+$80000000 CONSTANT MS_NOUSER        \ not in man pages
+
+
+
+\ from file include\asm-m68k\mman.h
+$1 CONSTANT PROT_READ                   \ page can be read
+$2 CONSTANT PROT_WRITE                  \ page can be written
+$4 CONSTANT PROT_EXEC                   \ page can be executed
+$0 CONSTANT PROT_NONE                   \ page can not be accessed
+
+$01 CONSTANT MAP_SHARED                 \ Share changes
+$02 CONSTANT MAP_PRIVATE                \ Changes are private
+$0F CONSTANT MAP_TYPE                   \ Mask for type of mapping
+$10 CONSTANT MAP_FIXED                  \ Interpret addr exactly
+$20 CONSTANT MAP_ANONYMOUS              \ don't use a file
+
+$0100 CONSTANT MAP_GROWSDOWD            \ stack-like segment
+$0800 CONSTANT MAP_DENYWRITE            \ ETXTBSY
+$1000 CONSTANT MAP_EXECUTABLE           \ mark it as an executable
+$2000 CONSTANT MAP_LOCKED               \ pages are locked
+$4000 CONSTANT MAP_NORESERVE             \ don't check for reservations
+</code> </pre>
+<h2>Values for the second argument to access.</h2>
+<p>These may be OR'd together.</p>
+<pre> <code>
+4 CONSTANT R_OK                 \ Test for read permission.
+2 CONSTANT W_OK                 \ Test for write permission.
+1 CONSTANT X_OK                 \ Test for execute permission.
+0 CONSTANT F_OK                 \ Test for existence.
+</code> </pre>
+<h2>Values used for clone flags.</h2>
+<p>The CLONE_NEWNS is described in</p>
+<pre> <code>
+$00000100 CONSTANT CLONE_VM         \ .set if VM shared between processes
+$00000200 CONSTANT CLONE_FS         \ .set if fs info shared between processes
+$00000400 CONSTANT CLONE_FILES      \ .set if open files shared between processes
+$00000800 CONSTANT CLONE_SIGHAND    \ .set if signal handlers and blocked signals shared
+$00001000 CONSTANT CLONE_PID        \ .set if pid shared ( init only)
+$00002000 CONSTANT CLONE_PTRACE     \ .set if we want to let tracing continue on the child too
+$00004000 CONSTANT CLONE_VFORK      \ .set if the parent wants the child
+                                    \ .to wake it up on mm_release.
+$00008000 CONSTANT CLONE_PARENT     \ .set if we want to have the same parent as the cloner
+$00010000 CONSTANT CLONE_THREAD     \ .Same thread group?
+$00020000 CONSTANT CLONE_NEWNS      \ -New namespace group?
+</code> </pre>
+<h2>The seek constants</h2>
+<pre>
+<code>
+0 CONSTANT SEEK_SET
+1 CONSTANT SEEK_CUR
+2 CONSTANT SEEK_END
+</code>
+</pre>
+<h2>Signal names</h2>
+<pre>
+<code>
+\ These constants are #defined in the file: /include/asm-m68knommu/signal.h
+01 CONSTANT SIGHUP         \ Hangup(POSTIX)
+02 CONSTANT SIGINT         \ Terminal interrupt(ANSI)
+03 CONSTANT SIGQUIT        \ Terminal quit POSTIX)
+04 CONSTANT SIGILL         \ Illegal Instruction (ANSI)
+05 CONSTANT SIGTRAP        \ Trace trap (POSTIX)
+06 CONSTANT SIGIOT         \ IOT Trap (4.2 BSD)
+07 CONSTANT SIGBUS         \ BUS error (4.2 BSD)
+08 CONSTANT SIGFPE         \ Floating point exception (ANSI)
+09 CONSTANT SIGKILL        \ Kill (can't be caught or ignored) (POSIX)
+10 CONSTANT SIGUSR1        \ User defined signal 1 (POSTIX)
+11 CONSTANT SIGSEGV        \ Invalid memory access (ANSI)
+12 CONSTANT SIGUSR2        \ User defined signal 2 (POSTIX)
+13 CONSTANT SIGPIPE        \ Write on a pipe with no reader, Broken pipe (POSIX)
+14 CONSTANT SIGALRM        \ Alarm clock (POSTIX)
+15 CONSTANT SIGTERM        \ Termination (ANSI)
+16 CONSTANT SIGSTKFLT      \ Stack fault
+17 CONSTANT SIGCHLD        \ Child process has stopped or exited, changed (POSIX)
+18 CONSTANT SIGCONT        \ Continue executing if stopped (POSIX)
+19 CONSTANT SIGSTOP        \ Stop executing ( can't be caught or ignored) (POSTIX)
+20 CONSTANT SIGTSTP        \ Terminal stop signal (POSIX)
+21 CONSTANT SIGTTIN        \ Background process trying to read TTY (POSTIX)
+22 CONSTANT SIGTTOU        \ Background process trying to write to TTY (POSTIX)
+23 CONSTANT SIGURG         \ Urgent condition on socket (4.2 BSD)
+24 CONSTANT SIGXCPU        \ CPU limit exceeded (4.2 BSD)
+25 CONSTANT SIGXFSZ        \ File size limit exceeded (4.2 BSD)
+26 CONSTANT SIGVTALRM      \ Virtual alarm clock (4.2 BSD)
+27 CONSTANT SIGPROF        \ Profiling alarm clock (4.2 BSD)
+28 CONSTANT SIGWINCH       \ Window size change (4.3 BSD Sun)
+29 CONSTANT SIGIO          \ I/O now possible (4.2 BSD)
+30 CONSTANT SIGPWR         \ Power failure restart ( System V)
+31 CONSTANT SIGSYS
+31 CONSTANT SIGUNUSED
+</code>
+</pre>
+<p>
+Calls to forth signal routines require <i>SA_SIGINFO</i> to be set,
+see <i>signal.html</i> for reason. These constants are 
+<i>#define_d</i> in the file: <I>/include/asm-m68knommu/signal.h</i>
+</p>
+<pre>
+<code>
+$00000001  CONSTANT SA_NOCLDSTOP       \ Turn off SIGCHLD when children stop
+$00000002  CONSTANT SA_NOCLDWAIT       \ Not supported yet
+$00000004  CONSTANT SA_SIGINFO	       \ Save full machine state when calling signals
+$08000000  CONSTANT SA_ONSTACK	       \ Use stack other than user stack, user has to make
+                                       \ other call to provide addres
+$10000000  CONSTANT SA_RESTART         \ Flag to get restart, default long ago.
+$40000000  CONSTANT SA_NODEFER         \ Prevents current signal being masked in handler.
+$80000000  CONSTANT SA_RESETHAND       \ Clears the handler when the signal is delivered ( one shot)
+</code>
+</pre>
+<h3>cacheflush system call</h3>
+<pre>
+<code>
+\ scope
+1 CONSTANT  FLUSH_SCOPE_LINE            \ Flush a cache line
+2 CONSTANT  FLUSH_SCOPE_PAGE            \ Flush a page
+3 CONSTANT  FLUSH_SCOPE_ALL             \ Flush the whole cache -- superuser only
+\ cache
+1 CONSTANT FLUSH_CACHE_DATA             \ Writeback and flush data cache
+2 CONSTANT FLUSH_CACHE_INSN             \ Flush instruction cache
+3 CONSTANT FLUSH_CACHE_BOTH             \ Flush both caches
+</code>
+</pre>
+</body>
+</html>

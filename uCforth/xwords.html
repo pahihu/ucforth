@@ -1,0 +1,38 @@
+<html>
+<head>
+<title>xwords.html</title>
+<META NAME="Author" CONTENT="Charles Esson">
+<META NAME="keywords" CONTENT="forth"> 
+<META NAME="description" CONTENT=" uCforth uses this file to generate uCforth">
+<LINK REL=stylesheet HREF="forth.css" TYPE="text/css">
+</head>
+
+<body>
+<h3>Returning to the OS</h3>
+<a name="xpause"></a>
+<h5>xpause</h5>
+<pre> 
+<code>
+	: xpause  ( --)
+		_sys_sched_yield
+		DROP
+	;
+</code>
+</pre>
+<a name="xwait"></a>
+<h5>xwait</h5>
+<p>
+Sleep for the specified time
+</p>
+<pre> 
+<code>
+	: xwait  ( n --)
+		ABORT" not implemented"
+	;
+</code> 
+</pre>
+</body>
+</html>
+
+
+

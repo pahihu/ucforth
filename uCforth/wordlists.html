@@ -1,0 +1,63 @@
+<html>
+<head>
+<title>wordlist.html</title>
+<META NAME="Author" CONTENT="Charles Esson">
+<META NAME="keywords" CONTENT="forth">
+<META NAME="description" CONTENT=" uCforth uses this file to generate uCforth">
+<LINK REL=stylesheet HREF="forth.css" TYPE="text/css">
+</head>
+
+<body>
+<a HREF="./license.html">license</a>
+
+<a name="FORTH-WORDLIST"></a>
+<h5>ANS 16.6.1.1595 FORTH-WORDLIST</h5>
+<p>( -- wid )</p>
+<p>
+Return wid, the identifier of the word list that includes all standard words
+provided by the implementation. This word list is initially the compilation
+word list and is part of the initial search order.
+</p>
+<p>
+The forth wordlist is being constructed through ghost_forth. If can stay that
+way, we create a new wordlist but it points to the same location in the target.
+We do not use this wordlist to add to the target so the ghost head values are
+of little interest.
+</p>
+<p>
+Because current_target_wordlist is referenced twice ( FORTH-WORDLIST and FORTH)
+it is emptied twice.
+</p>
+<pre>
+<code>
+current_target_wordlist (create_wordlist) FORTH-WORDLIST
+</code>
+</pre>
+
+<a name="FORTH"></a>
+<h5>ANS 6.6.2.1590 FORTH</h5>
+<p>( -- )</p>
+<p>
+Transform the search order consisting of widn, ... wid2, wid1
+(where wid1 is searched first) into widn, ... wid2, wid
+</p>
+<pre>
+<code>
+\ this creates the full bottle including a host word
+\ the hosts version of forth is lost you need to use forth&host
+\ from now on.
+
+current_target_wordlist (vocabulary) FORTH
+
+
+
+host&forth
+\ the vocabulary for local variables
+vocabulary &local_input
+vocabulary &local_output
+vocabulary &local_data
+
+</code>
+</pre>
+</body>
+</html>

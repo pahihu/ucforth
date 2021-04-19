@@ -1,0 +1,9 @@
+#!./ucf_app
+\ system will not exit
+' QUIT %abort !
+
+\ If you like "ok"
+\ ' ansi_prompt %prompt !
+
+\ desribe desired environment here
+$1000 dictionary

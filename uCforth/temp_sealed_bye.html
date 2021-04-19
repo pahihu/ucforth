@@ -1,0 +1,77 @@
+<html>
+<head>
+<title>sealed_bye.html</title>
+<META NAME="Author" CONTENT="Charles Esson">
+<META NAME="keywords" CONTENT="forth">
+<META NAME="description" CONTENT=" used to generate uCFORTH">
+<LINK REL=stylesheet HREF="forth.css" TYPE="text/css">
+</head>
+
+<body>
+<a HREF="./license.html">license</a>
+<pre>
+<code>
+	: bye ( --)
+		%seal @ IF
+			\ the user is trying to exit forth
+			\ better help him out.
+			0 _sys_exit
+		THEN
+		ONLY
+		&commands
+		DECIMAL
+		TRUE %seal !
+		ABORT
+	;
+
+	: hi ( --)
+	\ echo_off
+		."  Password : " send
+		$buffer
+			buffer #$maximum_data ACCEPT  \ num
+			\ echo_on
+			buffer SWAP
+			$password COUNT
+			COMPARE
+		kill_buffer
+		_#same <> ABORT" Try again"
+		FALSE %seal !
+		ONLY
+		FORTH
+		DEFINITIONS
+	;
+</code>
+</pre>
+<pre>
+<code>
+\ words seen when the system is sealed
+vocabulary &commands
+
+	ghost_also
+	&commands
+	ghost_definitions
+
+	\ take &commands out of search order
+	\ we don't have a smudge bit
+	ghost_previous
+
+	: bye
+		bye
+	;
+
+
+
+	: hi
+		hi
+	;
+
+	: .note ( --)
+		." Words that can by interpreted in COMMAND> mode."
+	;
+
+ghost_previous_definitions
+
+</code>
+</pre>
+</body>
+</html

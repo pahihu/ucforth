@@ -1,0 +1,103 @@
+<html>
+<head>
+<title>target_vocabulary</title>
+<META NAME="Author" CONTENT="Charles Esson">
+<META NAME="keywords" CONTENT="forth">
+<META NAME="description" CONTENT=" this file is used to generate uCforth">
+<LINK REL=stylesheet HREF="forth.css" TYPE="text/css">
+</head>
+
+<body>
+<h3>Vocabulary words in target</h3>
+<a HREF="./license.html">license</a>
+</code>
+</pre>
+<a name="WORDLIST".</a>
+<h5>ANS 16.6.1.2460 WORDLIST</h5>
+<p>( -- wid )</p>
+<p>
+Create a new empty word list, returning its word list identifier wid.
+The new word list may be returned from a pool of preallocated word lists
+or may be dynamically allocated in data space.
+A system shall allow the creation of at least 8 new word lists in
+addition to any provided as part of the system.
+</p>
+<p>
+uCforth creates the new vocabulary in user space, when you run out of user
+space you run out of the potential to use WORDLIST.
+</p>
+<pre>
+<code>
+
+	: (wordlist)    ( $name-- wid )
+		data_here SWAP
+		d,  \ the name pointer
+		%threads_number @  1 MAX DUP d,
+		zero DO
+			data_here add_reference
+			0 d,
+		LOOP
+	;
+
+	\ no name
+	: WORDLIST ( -- wid
+		0 (wordlist)
+	;
+
+	: create_wordlist ( --wid)  \ child
+		\ string in dictionary
+		\ --------------------
+		\ This is for the wid to point to.
+		\ The word name is stored ass about so use of that
+		\ would require storeage of the string address and count.
+		\ There are not enough wid's in system to worry about the
+		\ storage of the string twice.
+		\ patch the name into the wid
+		0 (wordlist)
+		\ wid (--
+		\ add stuff for empty list
+		\ the wid
+		HERE add_reference
+		DUP ,
+		\ the link back to list head
+	    	HERE add_reference
+		HERE %lists_head @ ,
+		%lists_head !
+		\ the action to be performed.
+		\ Note there has to be two different word lists, the one's in the
+		\ kernel use DP offsets for the data areas, the one's in the
+		\ application use absolute addresses.
+		_#word_list ,
+
+		CREATE
+		\ name field points back to head.
+		last_definition lfa>nfa OVER _#wid_name + !
+		HERE add_reference
+		,
+		DOES>
+			@
+		;
+
+	: vocabulary ( --) \ child
+		\ string in dictionary
+		\ --------------------
+
+		0 (wordlist)
+		\ wid (--
+		\ add stuff for empty list
+	    	HERE add_reference
+		DUP ,
+		HERE %lists_head @ ,
+		%lists_head !
+		_#word_list ,
+		CREATE
+		last_definition lfa>nfa OVER _#wid_name + !
+		HERE add_reference
+		,
+		DOES>
+			@ %context !
+	;
+</code>
+</pre>
+</body>
+</html>

@@ -1,0 +1,31 @@
+<html>
+<head>
+<title>root.html</title>
+<META NAME="Author" CONTENT="Charles Esson">
+<META NAME="keywords" CONTENT="forth">
+<META NAME="description" CONTENT=" used to generate uCforth">
+<LINK REL=stylesheet HREF="forth.css" TYPE="text/css">
+</head>
+
+<body>
+<h3>root vocabulary</h3>
+<a HREF="./license.html">license</a>
+<pre>
+<code>
+ghost_also
+root
+ghost_definitions
+\ smudge bit isn't used in cross compiler
+\ take root out of search order so forth version found.
+ghost_previous
+: .note
+	." Standard vocabulary. Vocabulary set when ONLY is executed." CR
+	." Contains the word FORTH so you can get out of it." CR
+;
+: FORTH FORTH ;
+ghost_previous_definitions
+
+</code> 
+</pre>
+</body>
+</html>

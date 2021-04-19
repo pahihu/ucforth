@@ -1,0 +1,362 @@
+<html>
+<head>
+<title>abort.html</title>
+<META NAME="Author" CONTENT="Charles Esson">
+<META NAME="keywords" CONTENT="forth">
+<META NAME="description" CONTENT=" uCforth uses this file to generate uCforth">
+<LINK REL=stylesheet HREF="forth.css" TYPE="text/css">
+</head>
+
+<body>
+<h3>Abort</h3>
+<a HREF="./license.html">license</a>
+<pre>
+<code>
+
+
+	CREATE (return_error)
+		HERE add_reference
+		0 t,
+	CREATE (create)
+		HERE add_reference
+		0 t,
+
+	CREATE (closes)
+		HERE add_reference
+		0 t,
+
+
+	\ ---------------------------------------------------------------------
+	\ Finishing local dictionary
+	\ Needed by abort
+	\ ---------------------------------------------------------------------
+	\ local dictionary
+	\ Created with { -- }{ }
+	\ removed on ;
+	: end_local_dictionary
+		%local_in @ IF
+			%local_old_here @  %here !
+			%local_old_top @ %here_top !
+			FALSE %local_in !
+		THEN
+		FALSE %local_use !
+	;
+
+
+\ Note this doesn't change the output path.
+\ It resets the forth environment.
+
+CODE _abort
+
+	_%data_stack_end DP_data_offset DP) S MOV
+	S -) CLR
+
+	_%return_stack_end DP_data_offset DP) R MOV
+
+	\ address of word that will be called if we underrun the return
+	\ stack
+	(return_error) AB R -) MOV
+
+
+
+	\ back to interpreting
+	FALSE # D0 MOV
+	D0 STATE DP_data_offset DP) MOV
+
+	\ default create word
+	(create) AB D0 MOV
+	D0 %create DP_data_offset DP) MOV
+
+	\ vector to whatever
+	%abort DP_data_offset DP) W MOV
+	W ) JMP
+
+
+	| CREATE (close_included_files)
+		0 ref,
+
+
+	: _abort_action ( --)
+		end_local_dictionary
+		\ Return buffers claimed with get_buffer
+		_return_linked_buffers
+
+		\ .S ." close included files"
+		(close_included_files) @execute
+
+		\ don't use old catch
+		\ This shouldn't be required.
+		\ As we should have caught back to
+		\ setting the link to zero.
+		zero %catch_link !
+
+                \ release all claimed facilities
+\               release_all_facilities
+		_abort
+	;
+
+
+
+
+	CREATE _$no_reason ," No reason for abort given"
+
+
+: _abort"_action ( $--)
+	%abort_file @ %output_file !
+	\ If zero we were not given a reason
+	DUP not IF
+		DROP _$no_reason
+	THEN
+     	%abort_supress$ @ not IF  ( don't suppress error strings)
+		ONLY
+		FORTH DEFINITIONS
+			CR
+			COUNT ~type send
+	THEN
+	_abort_action
+;
+	</code> </pre>
+
+<a name="THROW"></a>
+<h5>ANS 9.6.1.2275 THROW</h5>
+<p>EXCEPTION</p>
+<p>( k*x n -- k*x | i*x n )</p>
+<p>
+uCforth does not use negative numbers as error codes.
+We use the address of a string.
+</p>
+<p>
+If any bits of n are non-zero, pop the topmost exception frame from
+the exception stack, along with everything on the return stack above
+that frame.
+</p>
+<p>
+uCforth doesn't do this:
+<i>Then restore the input source specification in use
+before the corresponding CATCH</i>
+</p>
+<p>
+and adjust the depths of all
+stacks defined by this Standard so that they are the same as the depths
+saved in the exception frame (i is the same number as the i in the
+input arguments to the corresponding CATCH), put n on top of the
+data stack, and transfer control to a point just after the CATCH
+that pushed that exception frame.
+</p>
+<p>
+If the top of the stack is non zero and there is no exception frame
+on the exception stack, the behavior is as follows:
+</p>
+<p>
+If n is minus-one (-1), perform the function of 6.1.0670 ABORT
+(the version of ABORT in the Core word set), displaying no message.
+</p>
+<p>
+If n is minus-two, perform the function of 6.1.0680 ABORT"
+(the version of ABORT" in the Core word set), displaying the
+characters ccc associated with the ABORT" that generated the THROW.
+</p>
+<p>
+Otherwise, the system may display an implementation-dependent message
+giving information about the condition associated with the THROW code n.
+Subsequently, the system shall perform the function of 6.1.0670 ABORT
+(the version of ABORT in the Core word set).
+</p>
+<p>
+If THROW is executed with a non zero argument, the effect is as if
+the corresponding CATCH had returned it. In that case, the stack
+depth is the same as it was just before CATCH began execution.
+The values of the i*x stack arguments could have been modified
+arbitrarily during the execution of xt. In general,
+nothing useful may be done with those stack items, but since
+their number is known (because the stack depth is deterministic),
+the application may DROP them to return to a predictable stack state.
+</p>
+<p>
+Typical use:
+</p>
+<pre> <samp>
+: could-fail ( -- char )
+    KEY DUP [CHAR] Q =  IF  1 THROW THEN ;
+
+: do-it ( a b -- c)   2DROP could-fail ;
+
+: try-it ( --)
+    1 2 ['] do-it  CATCH  IF ( x1 x2 )
+        2DROP ." There was an exception" CR
+    ELSE ." The character was " EMIT CR
+    THEN
+	send
+;
+
+: retry-it ( -- )
+    BEGIN  1 2 ['] do-it CATCH  WHILE
+       ( x1 x2) 2DROP  ." Exception, keep trying" CR
+    REPEAT ( char )
+    ." The character was " EMIT CR
+	send
+;
+</samp>
+</pre>
+<p>
+These are not used within the kernel but are needed if a standard program
+throws one of the defined error codes. This does not interfere with linux_about
+as linux_abort converts the error code to a string.
+</p>
+<pre>
+<samp>
+CREATE _abort_strings
+( 000 ) 	," Not an abort"
+( -01 )		," ABORT"
+( -02 )		," ABORTquote"
+( -03 )		," stack overflow"
+( -04 )		," stack underflow"
+( -05 )		," return stack overflow"
+( -06 )		," return stack underflow"
+( -07 )		," do-loops nested too deeply during execution"
+( -08 )		," dictionary overflow"
+( -09 )		," invalid memory address"
+( -10 )		," division by zero"
+( -11 )		," result out of range"
+( -12 )		," argument type mismatch"
+( -13 )		," undefined word"
+( -14 )		," interpreting a compile-only word"
+( -15 )		," invalid FORGET"
+( -16 )		," attempt to use zero-length string as a name"
+( -17 )		," pictured numeric output string overflow"
+( -18 )		," parsed string overflow"
+( -19 )		," definition name too long"
+( -20 )		," write to a read-only location"
+( -21 )		," unsupported operation (e.g., AT-XY on a too-dumb terminal)"
+( -22 )		," control structure mismatch"
+( -23 )		," address alignment exception"
+( -24 )		," invalid numeric argument"
+( -25 )		," return stack imbalance"
+( -26 )		," loop parameters unavailable"
+( -27 )		," invalid recursion"
+( -28 )		," user interrupt"
+( -29 )		," compiler nesting"
+( -30 )		," obsolescent feature"
+( -31 )		," &gt;BODY used on non-CREATEd definition"
+( -32 )		," invalid name argument (e.g., TO xxx)"
+( -33 )		," block read exception"
+( -34 )		," block write exception"
+( -35 )		," invalid block number"
+( -36 )		," invalid file position"
+( -37 )		," file I/O exception"
+( -38 )		," non-existent file"
+( -39 )		," unexpected end of file"
+( -40 )		," invalid BASE for floating point conversion"
+( -41 )		," loss of precision"
+( -42 )		," floating-point divide by zero"
+( -43 )		," floating-point result out of range"
+( -44 )		," floating-point stack overflow"
+( -45 )		," floating-point stack underflow"
+( -46 )		," floating-point invalid argument"
+( -47 )		," compilation word list deleted"
+( -48 )		," invalid POSTPONE"
+( -49 )		," search-order overflow"
+( -50 )		," search-order underflow"
+( -51 )		," compilation word list changed"
+( -52 )		," control-flow stack overflow"
+( -53 )		," exception stack overflow"
+( -54 )		," floating-point underflow"
+( -55 )		," floating-point unidentified fault"
+( -56 )		," QUIT"
+( -57 )		," exception in sending or receiving a character"
+( -58 )		," [IF], [ELSE], or [THEN] exception"
+	-1 t,
+
+CREATE $out_of_range ," About code not known."
+	: abort_code&gt;$ { ( code -- $) }{
+		variable %current_code }
+		NEGATE
+		0 %current_code !
+		_abort_strings
+		BEGIN
+			\ code addr (--
+			OVER %current_code @ = IF
+				NIP
+				EXIT
+			THEN
+			COUNT DUP $FF = IF
+				DROP 2DROP
+				$out_Of_range EXIT
+			THEN
+			+ ALIGNED
+			1 %current_code +!
+		AGAIN
+	;
+
+
+	-#58 CONSTANT _#last_abort_code
+
+</samp>
+</pre>
+<pre>
+<code>
+	\ They are just a waste of memory.
+	\ The linux codes at least get used.
+	| CREATE _not_supported ," Ansi about codes not supported"
+	: abort_code&gt;$ ( code -- $)
+		DROP _not_supported
+	;
+
+</code>
+</pre>
+<a name="throw"></a>
+<p>
+<b>uCforth</b> Aborts supply an address to an error string. If you want to
+recover from a particular error find the address of the string and compare.
+</p>
+<pre>
+<code>
+
+	\ System assumes non zero value is a string except for
+	\ -1  to _#last_abort_code which are standard ANSI abort codes.
+	: THROW ( n --)
+		DUP not IF
+			\ There are no problems
+			DROP EXIT
+		THEN
+		\ There are problems and someone has done a CATCH
+		%catch_link @ IF
+			_throw
+			\ we will never come back
+		THEN
+		\ No CATCH sort the string out now.
+		\ n(--
+		DUP -1 = IF \ ABORT
+			\ There is no string
+			DROP 0 _abort_action
+		THEN
+		\ -2 indicates the string is in the dictionary.
+		\ Well, not likely to see it am I, the user will
+		\ tend to use ABORT" and it returns a string.
+		DUP 0&lt; IF
+			\ User threw with a ANSI standard abort code.
+			abort_code&gt;$
+		THEN
+		_abort"_action
+	;
+
+
+ </code>
+ </pre>
+        <a name="dollarabort"></a>
+ <pre>
+ <code>
+	: $abort  ( $ --)
+		?DUP IF
+			THROW
+		THEN
+	;
+
+	' $abort ($abort) t!
+
+
+</code>
+</pre>
+
+</body>
+</html>

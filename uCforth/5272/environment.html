@@ -1,0 +1,188 @@
+<html>
+<head>
+<title>environment.html</title>
+<META NAME="Author" CONTENT="Charles Esson">
+<META NAME="keywords" CONTENT="forth">
+<META NAME="description" CONTENT=" used to generate uCforth">
+<LINK REL=stylesheet HREF="forth.css" TYPE="text/css">
+</head>
+
+<body>
+<h3>Environment</h3>
+<a HREF="./license.html">license</a>
+<a name="ENVIRONMENT_"></a>
+<h5>6.1.1345 ENVIRONMENT?</h5>
+<p>environment-query CORE</p>
+<p>( c-addr u -- false | i*x true )</p>
+<p>
+c-addr is the address of a character string and u is the string's character
+count. u may have a value in the range from zero to an
+implementation-defined maximum which shall not be less than 31.
+The character string should contain a keyword from 3.2.6
+Environmental queries or the optional word sets to be checked for
+correspondence with an attribute of the present environment. If
+the system treats the attribute as unknown, the returned flag is false;
+otherwise, the flag is true and the i*x returned is of the type
+specified in the table for the attribute queried.
+</p>
+<p>
+I has been explained to me, apparently a forth system doesn't have to support
+vocabularies. Yes well so be it. So instead of a word set we have this. I ask you
+why wouldn't you just put it in the forth vocabulary. Anyway, here it is.
+</p>
+<pre>
+<code>
+	create_wordlist ~environment
+
+	: ENVIRONMENT? ( addr n -- x true|false)
+		~environment SEARCH-WORDLIST not IF
+			FALSE EXIT
+		THEN
+		EXECUTE
+		TRUE
+	;
+
+
+	\ define the environment words
+	ghost_also
+	~environment %ghost_context !
+	ghost_definitions
+
+	\ maximum size of a counted string, in characters
+	: /COUNTED-STRING ( -- n )  0FF ;
+
+	\ size of the pictured numeric output string buffer, in characters
+	: /HOLD ( -- n  )  #picture_min  ;
+
+	\ size of the scratch area pointed to
+	: /PAD   ( --n  )  #$buffer   ;
+
+	\ size of one address unit, in bits
+	: ADDRESS-UNIT-BITS  ( -- n  ) 0 ;
+
+	\ true if complete core word set present (i.e., not a subset as defined in 5.1.1)
+	: CORE   ( --true) TRUE ;
+
+	\ true if core extensions word set present
+	: CORE-EXT ( --true) TRUE ;
+
+	\ true if floored division is the default
+	: FLOORED  ( -- false)  FALSE ;
+
+	\ maximum value of any character in the implementation-defined character set
+	: MAX-CHAR ( --255) 0FF ;
+
+	\ largest usable signed double number
+	: MAX-D  ( -- double ) 0FFFFFFFF 7FFFFFFF ;
+
+	\ largest usable signed integer
+	: MAX-N  ( -- nmax ) 07FFFFFFF ;
+
+	\ largest usable unsigned integer
+	: MAX-U  ( -- umax ) 0FFFFFFFF ;
+
+	\ largest usable unsigned double number
+	: MAX-UD ( --ud ) 0FFFFFFFF 0FFFFFFFF ;
+
+	\ This needs to be looked into more, linux gives it to us.
+	: RETURN-STACK-CELLS ( -- n )  $100 ;
+
+	\ This can be set to what you want this is the startup size.
+	: STACK-CELLS   ( --n)  $100 ;
+
+	\ block word set present
+	: BLOCK ( --false) FALSE ;
+
+	\ block extensions word set present
+	: BLOCK-EXT ( --false) TRUE ;
+
+	\ double-number word set present
+	: DOUBLE  ( -- true)  TRUE ;
+
+	\  double-number extensions word set present
+	: DOUBLE-EXT ( --true) TRUE ;
+
+	\ Exception word set present
+	: EXCEPTION  ( --true) TRUE ;
+
+	\ Exception extensions word set present
+	: EXCEPTION-EXT ( --true ) TRUE ;
+
+	\ facility word set present
+	\ Not standard
+	: FACILITY  ( --true) FALSE ;
+
+	\ facility extensions word set present
+	\ not standard
+	: FACILITY-EXT ( --true) FALSE ;
+
+	\ file word set present
+	: FILE ( --true) TRUE ;
+
+	\ file extensions word set present
+	: FILE-EXT ( --true) TRUE ;
+
+	\ floating-point word set present
+    	: FLOATING ( --false) TRUE ;
+
+	\ floating-point extensions word set present
+	: FLOATING-EXT ( --false) TRUE ;
+
+	\ If n = zero, floating-point numbers are
+	\ kept on the data stack; otherwise n is
+    	\ the maximum depth of the separate
+    	\ floating-point stack.
+	: FLOATING-STACK zero ;
+
+	\ largest usable floating-point number
+	: MAX-FLOAT 7FFFFFFF 7FFFFFFF ;
+
+	\ maximum number of local variables in a definition
+	\ We don't support the standard set.
+	: #LOCALS ( --zero)  zero ;
+
+	\ locals word set present
+	\ Don't support the standard
+	: LOCALS ( --flag) FALSE ;
+
+	\ locals extensions word set present
+	\ Don't support standard locals
+	: LOCALS-EXT ( --flag) FALSE ;
+
+	\ memory-allocation word set present
+	: MEMORY-ALLOC  ( --true) TRUE ;
+
+	\ memory-allocation extensions word set present
+	: MEMORY-ALLOC-EXT ( --true) TRUE ;
+
+	\ programming-tools word set present
+	\ Have to return false as I don't support SEE
+	\ And as we are a subroutine threaded forth with
+	\ code copy are not very likely to.
+	: TOOLS ( --false) FALSE ;
+
+	\ programming-tools extensions word set present
+	: TOOLS-EXT  ( --flag) TRUE ;
+
+	\ search-order word set present
+	: SEARCH-ORDER ( --flag) TRUE ;
+	
+	\ search-order extensions word set present
+	: SEARCH-ORDER-EXT ( --flag) TRUE ;
+	
+	\ maximum number of word lists usable
+	: WORDLISTS  ( --n)   #vocs  ;
+	
+	\ string word set present
+	: STRING  ( --true) TRUE ;
+	
+	\ string extensions word set present
+    	: STRING-EXT ( --true) TRUE ;
+
+ghost_previous_definitions
+ghost_previous
+</code> 
+</pre>
+</body>
+</html>
+

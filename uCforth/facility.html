@@ -1,0 +1,126 @@
+<html>
+<head>
+<title>facility.html</title>
+<META NAME="Author" CONTENT="Charles Esson">
+<META NAME="keywords" CONTENT="forth">
+<META NAME="description" CONTENT=" Used to generate uCforth">
+<LINK REL=stylesheet HREF="forth.css" TYPE="text/css">
+</head>
+<body>
+<h3>facility</h3>
+<a HREF="./license.html">license</a>
+<p>
+A facility only has meaning if the area to be claimed in the text segment.
+Remember the text segment is shared by all tasks. This creates the head of
+the facility list. There is one head per task
+</p>
+
+<p>
+Facilities added to the application have no meaning as applications cannot have
+a common data area.
+</p>
+<pre>
+<code>
+
+CREATE facility_list
+	0 ref,
+</code>
+</pre>
+<p>
+Describe the facility data area. Facilities can't be added to applications so this is
+not part of empty. They can't be added to applications because applications don't have a common data
+area.
+</p>
+<pre>
+<code>
+	zero
+	DUP CONSTANT _#facility               CELL+   \ contains a count
+	DUP CONSTANT _#facility_task          CELL+   \ claiming task
+	    CONSTANT _#facility_length
+
+
+	\ facilities have to be created in the lib ram space.
+	\
+	\ all forth tasks see the same data.
+	forth&host : create_facility
+		host&forth
+		ram_create  \ returns the address
+		HERE add_reference
+		\ links stuff into facility linked list.
+		ram_here t,
+		_#facility_length ram_allot
+		HERE DUP add_reference
+		0 t,
+		facility_list link_target_single
+	;
+
+
+
+_#facility 0 ??=
+\ any address in the application data segment will do.
+ucreate facility_us
+: claim_facility ( addr-- flag)
+	1 OVER +!
+	DUP @ 1 = IF
+		\ we have to indicate it is us
+		\ so the abort code can release the facility
+		facility_us SWAP _#facility_task + !
+		TRUE
+	ELSE
+		-1 SWAP +!
+		FALSE
+	THEN
+;
+
+\ stay here until we have the facility.
+: grab_facility ( facility --)
+	BEGIN
+		DUP claim_facility IF
+			DROP
+			EXIT
+		THEN
+		xpause
+	AGAIN
+;
+
+
+\ stay here until we have the facility.
+: get_facility ( facility --)
+	xpause
+	BEGIN
+		DUP claim_facility IF
+			DROP
+			EXIT
+		THEN
+		xpause
+	AGAIN
+;
+\ should only be called if we have the facility
+\ but failure in our code can damage all threads
+\ so check.
+: release_facility ( facility --)
+	DUP _#facility_task + @ facility_us = IF
+		zero OVER _#facility_task + !
+		-1 SWAP +!
+	ELSE
+		DROP
+	THEN
+;
+
+
+\ because we check to see if we own the facility release_all_facility is simpler.
+: release_all_facilities ( --)
+	facility_list
+	BEGIN
+		@ DUP
+	WHILE
+		\ the facility is before the link
+		DUP cell -  @ release_facility
+	REPEAT
+;
+
+
+</code>
+</pre>
+</body>
+</html>

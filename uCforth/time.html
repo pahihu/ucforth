@@ -1,0 +1,143 @@
+<html>
+<head>
+<title>time.html</title>
+<META NAME="Author" CONTENT="Charles Esson">
+<META NAME="keywords" CONTENT="forth">
+<META NAME="description" CONTENT=" used to generate uCFORTH">
+<LINK REL=stylesheet HREF="forth.css" TYPE="text/css">
+</head>
+<body>
+<h1>Time</h>
+<a name="time"><a>
+
+<pre>
+<code>
+DECIMAL
+
+CREATE _days/nmonth
+	31 tc, 28 tc, 31 tc, 30 tc, 31 tc, 30 tc,
+	31 tc, 31 tc, 30 tc, 31 tc, 30 tc, 31 tc,
+
+CREATE _days/lmonth
+	31 tc, 29 tc, 31 tc, 30 tc, 31 tc, 30 tc,
+	31 tc, 31 tc, 30 tc, 31 tc, 30 tc, 31 tc,
+
+
+: (d_to_dm) { ( value addr --) }{
+	variable %month }
+	zero %month !
+	BEGIN
+		2DUP C@ - 0&lt; IF
+			1+ \ one based day
+			%month @ 
+			1+ \ one based month
+			EXIT
+		THEN
+		1 %month +!
+		2DUP C@ - ROT DROP SWAP 1 CHARS +
+	AGAIN
+;
+
+: leap_to_dm ( days -- day m)
+	_days/lmonth (d_to_dm)
+;
+
+: normal_to_dm ( days -- day m )
+	_days/nmonth (d_to_dm)
+;
+
+
+
+|        365 4 * 1 +            CONSTANT _#days/leap
+|        _#days/century 4 * 1 + CONSTANT _#days/quadcentury
+|        12                     CONSTANT _#months/year
+|        1900                   CONSTANT _#base_year
+|        4                      CONSTANT _#years/leap
+|        365                    CONSTANT _#days/year
+|        366                    CONSTANT _#days/leap_year
+
+
+
+\ The base is the beginning of any quad. 200 is chosen quad.
+#200 CONSTANT #year_base
+: days_to_dmy { }{
+	variable %years
+	}
+	#year_base  %years !
+	0 %months !
+	_#days/quadcentury /MOD #400 * %years +! DUP _#days/leap_year &lt; IF
+		\ its a quad cent, that is a leap year
+		leap_to_dm
+		%years @ EXIT
+	THEN
+	_#days/century /MOD #100 * %years +! DUP _#days/leap_year &lt; IF
+		\ its a quad cent, not a  leap year
+		normal_to_dm
+		%years @ EXIT
+	THEN
+	_#days/leap /MOD #4 * %years +! DUP _#days/leap_year &lt; IF
+		leap_to_dm
+		%years @ EXIT
+	THEN
+	_#days/year /MOD %years +! normal_to_dm %years @
+;
+
+\ unix_to_base is the number of days from base to unix base.
+\ Get that right and it will work.
+: unix_to_dmy
+	unix_to_base
+	days_to_dmy
+;
+
+
+
+#60              CONSTANT _#sec/min
+_#sec/min #60 *  CONSTANT _#sec/hour
+_#sec/hour #24 * CONSTANT _#sec/day
+
+: >hms ( sec -- h m s )
+		_#sec/hour /MOD SWAP
+		_#sec/min  /MOD SWAP
+;
+
+: &gt;ds ( sec -- days sec)
+	_#sec/day /MOD SWAP
+;
+
+</code>
+</pre>
+<A name=10.6.2.2292></a>
+<h5>10.6.2.2292 TIME&DATE<h5>
+<p>
+time-and-date FACILITY EXT
+</p>
+<p>
+	( -- +n1 +n2 +n3 +n4 +n5 +n6 )
+</p>
+<p>
+Return the current time and date.  +n1 is the second {0...59}, +n2 is
+the minute {0...59}, +n3 is the hour {0...23}, +n4 is the day {1...31}
++n5 is the month {1...12}, and +n6 is the year (e.g., 1991).
+</p>
+<p>
+What a crock of shit. n1,n2,n3 and n6 are zero based. n4 and n5 are one base.
+I know there is crap is to be had re the year but it is zero based, there is a year zero.
+</p>
+<pre>
+<code>
+: TIME&DATE ( -- +n1 +n2 +n3 +n4 +n5 +n6 )
+	\ seconds since the start of unix time.
+	0 _sys_time
+	\ secs(--
+	&gt;ds
+	\ days sec(--
+	SWAP >R
+	>hms
+	-ROT -ROT
+	\ sec min hour(--
+	R> unix_to_dmy
+;
+</code>
+</pre>
+</body>
+</html>

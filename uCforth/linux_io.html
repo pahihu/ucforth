@@ -1,0 +1,1107 @@
+<html>
+<head>
+<title>linux_io.html</title>
+<META NAME="Author" CONTENT="Charles Esson">
+<META NAME="keywords" CONTENT="forth">
+<META NAME="description" CONTENT="file used to generate uCforth">
+<LINK REL=stylesheet HREF="forth.css" TYPE="text/css">
+</head>
+<body>
+<a HREF="./license.html">license</a>
+<h2>linux_io</h2>
+<p>
+All I/O is done through <i>linux_io</i> objects.
+</p>
+<pre>
+<code>
+
+	\ it all works out better if all the access info is encoded in 4 bits
+	\ top 4 bits are for us.
+	\ If in binary mode we set %%terminal to false
+	$80000000 CONSTANT #fl_mode_binary
+	O_RDONLY $10 LSHIFT CONSTANT #fl_mode_RDONLY         \ Read only
+	O_WRONLY $10 LSHIFT CONSTANT #fl_mode_WRONLY         \ write only
+	O_RDWR   $10 LSHIFT CONSTANT #fl_mode_RDWR           \ Read write
+	O_CREAT O_EXCL OR $10 LSHIFT CONSTANT #fl_mode_create
+
+
+	#cr 0D ??=
+	#^z 1A ??=
+	1 CHARS 1 ??=
+	#esc 1B ??=
+
+
+	\ object (***
+	\ :construct
+	\ :destruct
+	\ :print
+	\	link_class (***
+	\	:link
+	\		linux_io (***
+	\		:!name
+	\		:@name
+	\		:span
+	\		:!terminal
+	\		:@terminal
+	\		:!timeout
+	\		:@timeout
+	\		:!mode
+	\		:@mode
+	\		:read
+	\		:read_line
+	\		:write_direct
+	\		:flush_file
+	\		:write
+	\		:buffer_size!
+	\		:cr
+	\		:write_line
+	\		:type
+	\		:mark
+	\		:status
+	\		:?send
+	\		:reposition_file
+	\		:file_position
+	\		:key?
+	\		:clear
+	\		:!control
+	\		:!eot
+	\		:linemode
+	\		:!device
+	\		:baud
+	\		:?page
+	\		:!?page
+	\		:character#
+	\		:line#
+	\		:page#
+	\		:page!
+	\		:line_max
+	\		:character_max
+	\		:normal
+	\		:rev
+	\		: blink
+	\		:dim
+	\		:udl
+	\		:dim&blink
+	\		:rev&blinl
+	\		:rev&dim
+	\		:rev&udl
+	\		:rev&dim&blink
+	\		:rev&dim&udl
+	\		:tab
+	\		:page
+	\		:>|
+	\		:|>
+	\		:|i
+	\		:|o
+	\		:|v
+	\		:|h
+	\		:|n
+	\		:|tl
+	\		:|tr
+	\		:|br
+	\		:termination>code
+	\		:box
+	\		:element
+	\		:line
+	\		:zed
+	\		:labels
+	\		:shift_labels
+	\		:cursor
+	\		:no_curser
+	\		:message
+	\		:no_message
+	\		:foreground
+	\		:background
+	\		:border
+	\		:a4
+	\		:quarto
+	\		:eoj
+	\		:bye
+	\		:consume_port
+	\		:priority!
+	\		:terminal_mode!
+	\		:terminal_mode@
+	\		:inuse?
+	\		:@file_size
+	\		:!file_size
+	\		:?directory
+	\		:get_directory_name
+	\		:put_directory_name
+	\		:next_directory_cookie
+	\		:first_directory_cookie
+	\		:make_file
+	\		:remove_file
+	\		:make_directory
+	\		:format
+
+
+	CREATE std0 ," STDIN"
+	CREATE std1 ," STDOUT"
+	CREATE std2 ," STDER"
+	CREATE std3 ," STDAX"
+	CREATE std4 ," STDLP"
+
+	CREATE #std$
+		5 t,
+		std0 ref,
+		std1 ref,
+		std2 ref,
+		std3 ref,
+		std4 ref,
+
+	: get_std$ ( n --addr)
+		1+ #std$ @ MIN CELLS #std$ + @
+	;
+
+
+\	ram_variable %file_debug
+\	: break1 %file_debug @ IF
+\	%abort_file @ %output_file !
+\	.S ." break1" send
+\	THEN ;
+\	: break2 %file_debug @ IF
+\	%abort_file @ %output_file !
+\	.S ." break2" send THEN ;
+\	: break3 %file_debug @ IF .S ." break3" send THEN ;
+\	: break4 %file_debug @ IF .S ." break4" send THEN ;
+\	: break5 %file_debug @ IF .S ." break5" send THEN ;
+
+	link_class class
+
+		cell% instance_variable %%name>
+		cell% instance_variable %%terminal
+
+		\ access allowed constants starting with S_I
+		cell% instance_variable %%mode
+		\ flags, constants starting with O_
+		cell% instance_variable %%fam
+
+		cell% instance_variable %%timeout
+
+		cell% instance_variable %%terminal_mode
+
+		\ type buffer
+		\ The type buffer is only allocated if used.
+		\ There are many ways to write to a datagram.
+		\ You can make the type buffer any size you desire
+		\ see :buffer_size!
+
+		| #$buffer CONSTANT _#type_buffer_size
+		| #$buffer CONSTANT _#accept_buffer_size
+
+		cell% instance_variable %%type_buffer_size
+		cell% instance_variable %%type_buffer_count
+		cell% instance_variable %%type_buffer>
+
+		\ :read_line gets a buffer full of data from the OS
+		\ and then hands it out a line at a time.
+		cell% instance_variable %%accept_buffer_size
+		cell% instance_variable %%accept_buffer_count
+		cell% instance_variable %%accept_buffer>
+		cell% instance_variable %%accept_addr
+
+		\ the os provides a handle when a device is opened the
+		\ handle is stored here
+		cell% instance_variable %%file_instance
+		cell% instance_variable %%directory_offset
+		cell% instance_variable %%std_io
+		\ span belongs in the i/o_object. It is only needed for EXPECT
+		\ EXPECT is for past compatibility only.
+		cell% instance_variable %%span
+
+		m: ( addr/std_no n fam/mode --)
+
+			this [parent] :construct
+
+			DUP $FFFF AND %%mode !
+			$10 RSHIFT %%fam !
+			\ addr n(--
+			DUP IF
+				-1 %%std_io !
+			ELSE
+				DROP
+				DUP %%std_io !
+				\ this will abort if std out of range
+				get_std$ COUNT
+			THEN
+			\ addr n (--
+			\ the string class null terminates the string.
+			string_class heap_object
+
+			%%name> !
+			\ forth supports different terminal types directly
+			terminal_class heap_object
+			%%terminal !
+
+			0 %%timeout !
+
+			%%fam @ #fl_mode_binary AND not
+			%%terminal_mode !
+
+
+			zero %%type_buffer> !
+			zero %%type_buffer_count !
+			_#type_buffer_size %%type_buffer_size !
+
+
+			zero %%accept_buffer> !
+			zero %%accept_buffer_count !
+			zero %%accept_addr !
+			_#accept_buffer_size %%accept_buffer_size !
+
+
+			\ name
+			\ flags
+			\ mode  _sys_open
+
+			\ the string class null terminates it's strings
+			\ because we are dealing with a unix os
+			%%std_io @ -1 = IF
+
+				%%name> @
+
+				:string@ DROP \ addr(--
+				%%fam @ O_linux AND
+				\ world r/w group r/w user r/w
+				%%mode @
+				_sys_open
+				\ if we fail file instance contains the error code
+				\ :destruct notes the value.
+				DUP %%file_instance !
+				linux_abort
+			ELSE
+				%%std_io @ %%file_instance !
+			THEN
+		; overrides :construct
+
+
+		m: ( add n --)
+		 	%%name> @ :string!
+		; method :!name
+
+		m: ( -- addr n )
+			%%name> @ :string@
+		; method :@name
+
+
+
+		m: \ compile_time ( --xt)
+		   \ runtime ( addr n --n)
+			%%file_instance @ -rot _sys_write
+			DUP linux_abort
+		; method :write_direct
+
+		\ write buffered data to storage.
+		\ A write places data into object storage
+		\ Flush file sends it to the system.
+		m:  \ compile time ( --xt)
+		        \ runtime ( --)
+			%%type_buffer_count @ IF
+				%%type_buffer> @ %%type_buffer_count @ this :write_direct
+				NEGATE %%type_buffer_count +!
+				%%type_buffer_count @ ABORT" Data is not being written to the file."
+			THEN
+		; method :flush_file
+
+		m: ( --)
+			%%name> @ ?DUP IF
+				heap_object_free
+			THEN
+			\ if one was allocated remove the type buffer
+ 			%%type_buffer> @ IF
+                                \ clear buffered data
+                                this :flush_file
+                                %%type_buffer> @
+				0 %%type_buffer> !
+				FREE THROW
+			THEN
+			\ if one was allocated remove the expect buffer
+ 			%%accept_buffer> @ ?DUP IF
+				0 %%accept_buffer> !
+				FREE THROW
+			THEN
+			\ does the unlinking
+			%%terminal @ ?DUP IF
+				0 %%terminal !
+				heap_object_free
+			THEN
+			\ if the sys open failed the %%file_instance
+			\ contains the error code.
+			%%file_instance @ 0&lt; not IF
+				%%file_instance @ _sys_close  \ error(--
+			ELSE
+				\ we are already abort no need to do it again
+				zero
+			THEN
+			\ may as well finish of our stuff before
+			\ we report the file error
+			this [parent] :destruct
+			\ error(--
+			linux_abort
+		; overrides :destruct
+
+		m: ( --addr)
+			%%span
+		; method :span
+</code>
+</pre>
+<a name="!terminal"></a>
+<pre>
+<code>
+		\ devices that can have different types of terminals connected
+		\ for example tyx have there print words vectored trough %%terminal
+		\ %%terminal contains an object derived from <i>terminal_class</i>
+		m: ( class --)
+			%%terminal @
+			heap_object_free
+			heap_object %%terminal !
+		; method :!terminal
+
+
+		m: ( --object)
+			%%terminal @
+		; method :@terminal
+
+
+		\ the base i/o words
+		\ ------------------
+		\ There is only one read operation, if timeout is required you must
+		\ execute !timeout, it timeout occurs the read bytes are set to zero.
+		\ If a timeout of zero is set there is no timeout.
+		m:       \ compile time ( --xt)
+				 \ runtime ( timeout --)
+			%%timeout !
+		; method :!timeout
+
+		m:       \ compile time ( --xt)
+				 \ runtime ( timeout --)
+			%%timeout @
+		; method :@timeout
+
+		</code> </pre>
+		<p>
+		The wordset used for a device
+		</p>
+		<pre> <code>
+		m:  \ compile time ( --xt)
+			\ runtime ( addr count --count)
+
+			\ make sure send buffer is empty.
+			this :flush_file
+
+			\ If the read-line buffer has data put it back.
+			\ this allows us to do a read after a read-line
+			%%accept_buffer_count @ IF
+				%%file_instance @ %%accept_buffer_count @ NEGATE SEEK_CUR
+				_sys_lseek
+				linux_abort
+				0 %%accept_buffer_count !
+			THEN
+			%%file_instance @ -rot _sys_read DUP linux_abort
+		; method :read
+
+
+		: accept_to_start ( --)
+			%%accept_addr @ %%accept_buffer> @ %%accept_buffer_count @ CMOVE
+			%%accept_buffer> @ %%accept_addr !
+		;
+
+		\ flag is true if code is termination code
+		\ flag is false if it is a character
+		: get_character ( -- code flag)
+			BEGIN
+				%%accept_addr @ %%accept_buffer_count @
+				\ the termination codes are terminal dependent.
+				%%terminal @ ::termination>code IF
+					\ was enough data
+					?DUP IF
+						\ was a termination code
+						\ as characters consumed
+						DUP CHARS %%accept_addr +!
+						NEGATE %%accept_buffer_count +!
+						\ code(--
+						TRUE
+						EXIT
+					ELSE
+						\ was not a terminator
+						%%accept_addr @ C@
+						1 CHARS %%accept_addr +!
+						-1 %%accept_buffer_count +!
+						FALSE
+						EXIT
+					THEN
+				ELSE
+					\ Needs more data.
+					\ If we are lucky the OS is set up to give
+					\ us what is there.
+					\ We have to move what is left in the buffer
+					\ to the start, and get more. As terminator
+					\ sequences are short the number of characters left
+					\ in the buffer will be small. Moving data will be faster
+					\ than moving pointers.
+					accept_to_start
+					%%accept_buffer_count @ >R
+					\ the :read will reposition the rad pointer if this is not zero
+					zero %%accept_buffer_count !
+					\ we need to read past the data already in buffer
+					%%accept_addr @ R@ CHARS +
+					%%accept_buffer_size @ R@ - this :read DUP not IF
+						DROP
+						\ no more data
+						\ have to supply the part termination sequence if there.
+						\ is any.
+						R> IF
+							%%accept_buffer_count !
+							\ was not a terminator
+							%%accept_addr @ C@
+							1 CHARS %%accept_addr +!
+							-1 %%accept_buffer_count +!
+							FALSE
+							EXIT
+						ELSE
+							#end_eof
+							TRUE
+							EXIT
+						THEN
+					THEN
+					R> + %%accept_buffer_count !
+				THEN
+			AGAIN
+		;
+
+		\ We read_line though a local buffer. This way we don't have to do it a character at a time
+		\ and we don't have to push characters back ( reseek).
+		\ FLAG IS FALSE IF WE HAVE COME TO EOF
+		m:  { ( addr count -- count flag) }{
+			variable %out_addr
+			variable %out_count
+			variable %out_down_count
+			}
+
+			\ make sure all output data has been sent.
+			this :flush_file
+
+			\ addr count(--
+			\ not even room for terminator
+			DUP not ABORT" Read buffer is zero"
+
+			\ we allow room for the termination code.
+			\ The ANSI standard requires a buffer longer than than the count.
+			\ That is just stupid, a sure way to get bugs and untidy code.
+			1 CHARS -
+			\ addr count(--
+			\ room for terminator no more
+			DUP not IF
+				DROP
+				#end_count SWAP C!
+				zero
+				TRUE
+				EXIT
+			THEN
+
+			\ request looks good now get into it.
+			zero %out_count !
+			%out_down_count !
+			%out_addr !
+
+			%%accept_buffer> @ not IF
+				\ This is the default buffer size.
+				\ No words are provided to change it.
+				%%accept_buffer_size @ ALLOCATE THROW
+				DUP %%accept_buffer> !
+				%%accept_addr !
+				zero %%accept_buffer_count !
+			THEN
+			\ transfer data out of the accept buffer until terminator found
+			\ or until we run out of data
+			\ addr count(--
+			BEGIN
+				\ The terminator can be multicharacter.
+				\ returned flag is true if the accept is to
+				\ be terminated. If the accept is to be terminated
+				\ the supplied data is the termination code.
+				\
+				get_character ( code flag)
+				IF
+					\ save terminator code in buffer and
+					\ exit. The terminator code is not part of the count.
+					DUP %out_addr @ C!
+					%out_count @
+					\ end of file and no data we are finished
+					SWAP #end_eof = OVER 0= AND not
+					EXIT
+				ELSE
+					\ just another character, transfer to output
+					\ if output buffer is full terminate with info and exit
+					%out_addr @ C!
+					1 CHARS %out_addr +!
+					1 %out_count +!
+					-1 %out_down_count +!
+					%out_down_count @ 0 = IF
+						\ ran out of space
+						\ the buffer still has room for terminator.
+						\ See the play with the count done on word entry.
+						#end_count %out_addr @ C!
+						%out_count @
+						TRUE
+						EXIT
+					THEN
+				THEN
+			AGAIN
+		; method :read_line
+
+
+
+		\ This only gets called if buffer large enough for input data
+		: _data>type_buffer ( addr count -- )
+			%%type_buffer> @ not IF
+				\ this is the default buffer size nothing more
+				\ see :buffer_size!
+				%%type_buffer_size @ ALLOCATE THROW
+				%%type_buffer> !
+				zero %%type_buffer_count !
+			THEN
+                        \ you have to use the actual set buffer size as there
+                        \ may be other limits at play.
+			\ With the uClinux free memory allocation sub system this is
+			\ no big issue
+			\ character we are up to since last record ( eol ).
+			%%type_buffer> @  %%type_buffer_count @ + SWAP \ addr to count(--
+			\ update %%type_buffer_count after you have done the address calculations
+			DUP %%type_buffer_count +!
+			MOVE
+		;
+
+ </code>
+ </pre>
+ <a name=":write"></a>
+ <p>
+ Long writes such as pictures are handed directly to the OS. Short stuff is buffered
+ so OS i/o calls are reduced. Short stuff that spans a buffer
+ boundary will all be sent in the next buffer.
+ </p>
+ <pre>
+ <code>
+
+
+                m: ( addr num--)
+			DUP IF  \ There is some data
+			
+				\ if data will fit in after the flush things are good.
+				\ If data will not fit in after flush data the buffer
+				\ will have to be flushed before write_direct is used.
+				DUP %%type_buffer_size @ %%type_buffer_count @ - &gt; IF
+					this :flush_file
+				THEN
+				\ If data is a small write to buffer
+				DUP %%type_buffer_size @ %%type_buffer_count @ - &gt; not IF
+					_data>type_buffer
+				ELSE
+					\ It's big stuff just go for it.
+					\ The short stuff buffer has already been flushed.
+					TUCK this :write_direct
+					\ n1 n2(--
+					<> ABORT" Failed to write data"
+				THEN
+			ELSE
+				2DROP
+			THEN
+		; method :write
+
+	</code> </pre>
+<p>
+methods needed to set object data.
+</p>
+	<pre> <code>
+		m: ( n --)
+			%%type_buffer> @ IF
+				this :flush_file
+				%%type_buffer> @ FREE THROW
+				0 %%type_buffer> !
+			THEN
+			%%type_buffer_size !
+			zero %%type_buffer_count !
+		; method :buffer_size!
+
+
+		m: ( -- )
+			this %%terminal @ ::cr
+		; method :cr
+
+
+		m: ( addr num --)
+			this :write
+			this :cr
+		; method :write_line
+
+		m: ( addr len --)
+			this %%terminal @ ::type
+		; method :type
+
+		m: ( addr num -- )
+			this %%terminal @ ::rev
+			this %%terminal @ ::type
+			this %%terminal @ ::normal
+		; method :mark     ( send out data highlighted)
+
+		</code> </pre>
+		<p>
+		File or device status.
+		</p>
+		<pre> <code>
+
+		m:  \ compile time ( --xt)
+			\ runtime ( --status)
+			zero
+		; method :status
+
+		\ make sure all will fit in transmit buffer
+		\ This was used for commands that were not allowed
+		\ to span two transmit buffers. The write will now
+		\ always put short data in one buffer so this is
+		\ a null function.
+		m: ( num --)
+		; method :?send
+
+		\ The seek functions
+		\ ------------------
+		m:  \ compile time ( --xt)
+		    \ runtime ( offset --)
+		    
+		    	\ data in write buffer has to be written at
+			\ the current position before we seek
+			this :flush_file
+
+			0 %%accept_buffer_count !
+			%%file_instance @ OVER SEEK_SET 
+			_sys_lseek
+			DUP linux_abort
+			<> ABORT" Failed to seek"
+		; method :reposition_file
+
+		\ if you seek you have the file position returned, you have the
+		\ option of seeking relative to the current pointer so;
+		m: ( -- u)
+			%%file_instance @ 0 SEEK_CUR _sys_lseek DUP linux_abort
+			\ need to subtract whatever is left in the %%accept buffer
+			\ that will be discarded.
+			%%accept_buffer_count @ -
+			0 %%accept_buffer_count !
+		; method :file_position
+
+
+		</code> </pre>
+<h5> Methods needed for serial devices</h5>
+		<pre> <code>
+		m: ( --flag)
+			FALSE
+		; method :key?
+
+		\ clear all input
+		m: ( --)
+		; method :clear
+
+
+		m: ( data --)
+			DROP
+		; method :!control
+
+		m: ( --)
+			." Execute when in telnet; not after logging into task"
+		; method :linemode
+
+		m: ( data --)
+			DROP
+		; method :!device
+
+		m: ( data --)
+			DROP
+		; method :baud
+
+		</code> </pre>
+<h5>Calling terminal methods from the device</h5>
+		<pre> <code>
+		\ if required wait for terminal input before flipping pages
+		m:
+			this %%terminal @ ::?page
+		; method :?page
+
+		m:
+			this %%terminal @ ::!?page
+		; method :!?page
+		</code> </pre>
+<p>
+Application access to current character line and page
+</p>
+		<pre> <code>
+		m: ( -- num)
+			%%terminal @ ::character#
+		; method :character#
+
+		m: ( --num)
+			%%terminal @ ::line#
+		; method :line#
+
+		m: ( --num)
+			%%terminal @ ::page#
+		; method :page#
+
+		m: ( --num)
+			%%terminal @ ::page!
+		; method :page!
+
+		m: ( --addr)
+			%%terminal @ ::line_max
+		; method :line_max
+
+		m: ( --addr)
+			%%terminal @ ::character_max
+		; method :character_max
+</code> 
+</pre>
+<p>
+terminal attributes.
+</p>
+<pre>
+<code>
+
+		\ normal character presentation
+		m: ( --)
+			this %%terminal @ ::normal
+		; method :normal
+
+		\ reverse character presentation
+		m: ( --)
+			this %%terminal @ ::rev
+		; method :rev
+
+
+		\ blink character presentation
+		m: ( --)
+			this %%terminal @ ::blink
+		; method :blink
+
+		\ dim character presentation
+		m: ( --)
+			this %%terminal @ ::dim
+		; method :dim
+
+
+		\ underline character presentation
+		m: ( --)
+			this %%terminal @ ::udl
+		; method :udl
+
+		m: ( --)
+			this %%terminal @ ::dim&blink
+		; method :dim&blink
+
+		m: ( --)
+			this %%terminal @ ::rev&blink
+		; method :rev&blink
+
+		m: ( --)
+			this %%terminal @ ::rev&dim
+		; method :rev&dim
+
+		m: ( --)
+			this %%terminal @ ::rev&udl
+		; method :rev&udl
+
+
+		m: ( --)
+			this %%terminal @ ::rev&dim&blink
+		; method :rev&dim&blink
+
+
+		m: ( --)
+			this %%terminal @ ::rev&dim&udl
+		; method :rev&dim&udl
+</code>
+</pre>
+                <a name="tab">
+<pre>
+<code>
+		m: ( -- )
+			this %%terminal @ ::tab
+		; method :tab
+
+
+		m: ( --)
+			this %%terminal @ ::page
+		; method :page
+
+		\ to graphics
+		m: ( --)
+			this %%terminal @ ::>|
+		; method :>|
+
+		\ from graphics
+		m: ( --)
+			this %%terminal @ ::|>
+		; method :|>
+
+		\ pc element input
+		m: ( --)
+			this %%terminal @ ::|i
+		; method :|i
+
+		\ pc element output
+		m: ( --)
+			this %%terminal @ ::|o
+		; method :|o
+
+		\ pc element vertical line
+		m: ( --)
+			this %%terminal @ ::|v
+		; method :|v
+
+		\ pc element horizontal line
+		m: ( --)
+			this %%terminal @ ::|h
+		; method :|h
+
+		\ pc element not
+		m: ( --)
+			this %%terminal @ ::|n
+		; method :|n
+
+		\ pc element top left
+		m: ( --)
+			this %%terminal @ ::|tl
+		; method :|tl
+
+		\ pc element top right
+		m: (  --)
+			this %%terminal @ ::|tr
+		; method :|tr
+
+		\ pc element bottom left
+		m: ( --)
+			this %%terminal @ ::|bl
+		; method :|bl
+
+		\ pc element bottom left
+		m: ( --)
+			this %%terminal @ ::|br
+		; method :|br
+
+		\ flag -- is true if we have a result, false if not enough data.
+		\ num -- is the number of character consumed. This will be zero if
+		\ we didn't have a terminator.
+		\ code is the result
+		m: ( addr num --code num flag)
+			%%terminal @ ::termination>code
+		; method :termination>code
+
+		\ draw a box
+		m: ( line character --)
+			this %%terminal @ ::box
+		; method :box
+
+
+		m: ( line character depth width num.in num.out --)
+			this %%terminal @ ::element
+		; method :element
+
+
+		m: ( line character number -- )
+			this %%terminal @ ::line
+		; method :line
+
+
+		m: ( line character line -- )
+			this %%terminal @ ::zed
+		; method :zed
+
+
+		m: ( table_addr --)
+			this %%terminal @ ::labels
+		; method :labels
+
+		m: ( table_addr --)
+			this %%terminal @ ::shift_labels
+		; method :shift_labels
+
+		m: ( object --)
+			this %%terminal @ ::cursor
+		; method :cursor
+
+		m: ( --)
+			this %%terminal @ ::no_cursor
+		; method :no_cursor
+
+		m: ( addr num --)
+			this %%terminal @ ::message
+		; method :message
+
+		m: ( --)
+			this %%terminal @ ::no_message
+		; method :no_message
+
+
+		m: ( colour --)
+			this %%terminal @ ::foreground
+		; method :foreground  ( forground colour)
+
+		m: ( colour --)
+			this %%terminal @ ::background
+		; method :background ( background colour)
+
+		m: ( colour --)
+			this %%terminal @ ::border
+		; method :border     ( Border colour)
+
+		m: ( --)
+			this %%terminal @ ::a4
+		; method :a4          ( paper size)
+
+		m: ( --)
+			this %%terminal @ ::quarto
+		; method :quarto      ( paper size)
+
+		m: ( --)
+			this %%terminal @ ::eoj
+		; method :eoj     ( paper size)
+</code>
+</pre>
+<p>
+<i>bye</i> has to send a termination code if the task is communicating via a tube.
+To have this happen <i>bye</i> has to execute the following method.
+</p>
+<pre>
+<code>
+		m: ( --)
+		; method :bye
+		\ look at following link to see why it is treated as
+		\ byte variables
+		\ <a HREF="./tyx.html#:!control">!control ( code-- )</a>
+
+		m: ( flag --)
+			%%terminal_mode !
+		; method :terminal_mode!
+
+		m: ( --flag )
+			%%terminal_mode @
+		; method :terminal_mode@
+
+
+		\ relevent for pipes, set to true if someone using
+		m: ( --flag)
+			TRUE
+		; method :inuse?
+
+
+		\ get the file size
+		\ seek to the end the result is the file size
+		m: ( -- size)
+			%%file_instance @ 0 SEEK_END _sys_lseek DUP linux_abort
+		; method :@file_size
+
+		\ store the file size.
+		\ If you seek past the end the file grows to that size
+		\ Unwritten bytes return zero. If the file sub system
+		\ is any good unwritten bytes will not take up disk space.
+		m: (  size -- )
+			\ find out where we are
+			%%file_instance @ 0 SEEK_CUR  _sys_lseek DUP linux_abort
+			\ size pos(--
+			%%file_instance @ ROT SEEK_SET _sys_lseek DUP linux_abort
+			\ put us back
+			%%file_instance @ SWAP SEEK_SET _sys_lseek linux_abort
+		; method :!file_size
+
+		\ if you try and read and it is a directory you will get an error
+		\ saying this is a directory.
+		m: ( --flag)
+			0 %%directory_offset !
+		; method :?directory
+
+		\ directory entry name
+		\ a single directory entry is put in the buffer as a counted string.
+		\ The _sys_getdents returns directory entries, we are only interested in one
+
+		\ we seek to the last entry
+		m: { ( addr max-- ) }{
+				\ describe the directory entry
+				\ inode
+				00 CONSTANT d_ino
+				\ file offset we can seek to this for next
+				04 CONSTANT d_off
+				\ length of this record, includes alignment
+				08 CONSTANT d_reclen
+				\ null terminated name
+				0A CONSTANT d_name
+			}
+			\ seek to the last read value
+			%%file_instance @ %%directory_offset @ SEEK_SET _sys_lseek linux_abort
+			\ addr max (--
+			2DUP %%file_instance @ -rot _sys_getdents DUP linux_abort
+			\ if zero finished
+			\ addr n n_returned(--
+			IF
+				\ we need to get the
+				\ add n
+				OVER DUP  d_reclen + w@ + d_off + @ %%directory_offset !
+				OVER d_name + SWAP d_name - null>count
+				\ add n1
+				2DUP SWAP C! \ the count
+				\ add n1
+				>R
+				\ move the string down
+				DUP 1 CHARS + SWAP d_name + R> MOVE
+			ELSE
+				\ add n(--
+				DROP
+				zero SWAP C!
+			THEN
+		; method :get_directory_name
+
+		\ store directory entry
+		m: ( addr num dir_entry %handle -- )
+			TRUE ABORT" Not a directory entry"
+		; method :put_directory_name
+
+
+		m: ( addr n --inode)
+			TRUE ABORT" Can't make files on this device"
+		; method :make_file
+
+		m: ( addr n --)
+			TRUE ABORT" No files on this device"
+		; method :remove_file
+
+		m: ( parent_inode --inode)
+			TRUE ABORT" Can't create a directory on this device"
+		; method :make_directory
+
+		m: ( --)
+		TRUE ABORT" Can't format this device"
+		; method :format
+
+		\ you need the linux handle to do direct sys calls against the file
+		m: ( --linux_handle)
+			%%file_instance @
+		; method :linux_handle
+
+		m: ( indent --)
+			CR DUP SPACES ." io_common | " ." Object: " this .h
+			\ indent(--
+			DROP
+			send
+		; overrides :print
+
+	end_class linux_io
+
+
+\ deal with the forward reference
+| : (:write) ( addr num object --)
+	:write
+;
+
+' (:write) ':write t!
+
+	</code> </pre>
+
+</body>
+</html>

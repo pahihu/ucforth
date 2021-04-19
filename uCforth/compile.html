@@ -1,0 +1,82 @@
+<html>
+<head>
+<title>compile.html</title>
+<META NAME="Author" CONTENT="Charles Esson">
+<META NAME="keywords" CONTENT="forth">
+<META NAME="description" CONTENT=" uCforth uses this file to generate uCforth">
+<LINK REL=stylesheet HREF="forth.css" TYPE="text/css">
+</head>
+<body>
+<h3>Compile</h3>
+<h4>Words to set bits in the head</h4>
+<a HREF="./license.html">license</a>
+<a name="IMMEDIATE"></a>
+<h5> ANS  6.1.1710 IMMEDIATE</h5>
+<p>( -- )</p>
+<p>
+Make the most recent definition an immediate word.
+An ambiguous condition exists if the
+most recent definition does not have a name.
+</p>
+<samp>
+Typical use: : X ... ; IMMEDIATE
+</samp>
+<p>
+IMMEDIATE words carry a lot of baggage, refer to the ANS standard for clarification.
+</p>
+<p>
+An immediate word will be executed when in the compiling state.
+</p>
+<pre> 
+<code>
+
+	: IMMEDIATE	( --)
+		%last		\ addr(-- contain last list added to
+		@		\ addr1(-- last list added to
+		@               \ addr2(-- address of last word
+		lfa>nfa
+		DUP C@          \ addr3 count (--
+		_#immediate_bit OR
+		SWAP C!
+	;
+</code>
+</pre>
+
+<p>
+Sets a bit in the words name so it can't be found by FIND, allows you to redefine words.
+</p>
+
+<pre>
+<code>
+    : smudge  ( --)
+		%last @ ?DUP IF
+			                 \ thread(--
+			@                \ lfa(--
+			lfa>nfa          \ nfa(--
+			DUP C@           \ nfa count_head(---
+			_#smudge_bit  XOR
+			SWAP             \ count+flags nfa(--
+			C!
+		THEN
+	;
+</code>
+</pre>
+<p>
+Set the inline bit in the words name field.
+</p>
+
+<pre>
+<code>
+	: inline	( --)
+		%last			\ addr(-- contain last list added to
+		@				\ addr1(-- last list added to
+		@               \ addr2(-- address of last word
+		lfa>nfa
+		DUP C@          \ addr3 count (--
+		_#pure_bit OR
+		SWAP C!
+	;
+</code>
+</pre>
+</body>
+</html>

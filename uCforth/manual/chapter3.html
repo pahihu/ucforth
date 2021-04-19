@@ -1,0 +1,1199 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+<HEAD>
+<TITLE>uCforth chapter 3 Programming</TITLE>
+        <META NAME="AUTHOR" CONTENT="Charles Esson">
+        <META NAME="keywords" CONTENT="uCforth">
+        <LINK REL=stylesheet HREF="forth.css" TYPE="text/css">
+</HEAD>
+<BODY bgcolor=#ffffff>
+<h1>uCforth MANUAL CHAPTER 3 Programming</h1>
+
+<ul>
+<li><a href="#developing">Developing an application</a></li>
+        <ul>
+        <li><a href="#marker">MARKER</a></li>
+        </ul>
+<li><a href="#condition_compile">Conditional compiling</a></li>
+<li><a href="#colon_words">: words</a></li>
+        <ul>
+        <li><a href="#if_then_else">IF ELSE and THEN</a></li>
+        <li><a href="#begin_until">BEGIN UNTIL</a></li>
+        <li><a href="#begin_while_repeat">BEGIN WHILE REPEAT</a></li>
+        <li><a href="#begin_again">BEGIN AGAIN</a></li>
+        <li><a href="#do_loop">DO LOOP</a></li>
+        <li><a href="#do_plus_loop">DO +LOOP</a></li>
+        <li><a href="#execution_token">EXECUTION TOKENS</a>
+                <ul>
+                <li><a href="#using_execution_token">Using execution tokens</a></li>
+                </ul>
+        <li><a href="#vector_execution">VECTORED EXECUTION</a></li>
+        <li><a href="#does&gt;">DOES&gt;</a></li>
+        <li><a href="#[]">Using [ and ]</a></li>
+        </ul>
+<li><a href="#local_variables">Local_variables</a></li>
+        <ul>
+        <li><a href="#local_exit">Exiting words using a <i>stack frame</i></a></li>
+        <li><a href="#local_input">Data stack to <i>stack frame</i></a></li>
+        <li><a href="#local_output"><i>Stack frame</i> to data stack</a></li>
+        <li><a href="#local_data">Local data</a></li>
+        <li><a href="#local_defining">Describing the areas.</a></li>
+                <ul>
+                <li><a href="#local_defining_2variable">2variable</a></li>
+                <li><a href="#local_defining_bytes">bytes</a></li>
+                <li><a href="#local_defining_fvariable">fvariable</a></li>
+                <li><a href="#local_defining_value">value</a></li>
+                <li><a href="#local_defining_variable">variable</a></li>
+                </ul>
+        </ul>
+<li><a href="#pictured_numbers">Pictured Numbers</a></li>
+        <ul>
+        <li><a href="#pictured_numbers1">&lt;# and #&gt;</a></li>
+        <li><a href="#pictured_numbers2">[# and #]</a></li>
+        </ul>
+</ul>
+
+<a name="developing"><h2>Developing an application</h2></a>
+<p>
+The system comes with a lot of Forth WORDS, you join these together to make new words, 
+you use your new words to create bigger things. When you have a word that does what 
+you want you have a program.
+</p>
+<p>
+In a real time system you have to consider how you are going to schedule you programs. We will start
+by looking at creating words that do what you want.
+</p>
+<p>
+You can enter a program in one of two ways.
+</p>
+<ul>
+<li>Enter the word using the interpreter.</li>
+<li>Create a file and load it.</li>
+</ul>
+<p>
+As files can be loaded from a remote computer using NFS, the best option is to create the file on the
+remote computer using your favorite editor, and then load into the <b>uCforth</b> system using TELNET.
+</p>
+<p>
+You load a file with the code:
+</p>
+<samp><i>FORTH &gt;</i><b>INCLUDE nfs/file_name</b><img src="./enter.gif" height="9" width="20"></samp>
+<a name="marker"><h2>MARKER</h2></a></li>
+<p>
+Unfortunately none of us write perfect code.
+A well written FORTH application has the problem divided up into small well defined words.
+After designing your application, laying down the code is best done in small steps.
+Add some words, find the mistakes, empty the new words out, make the required changes and
+load them again.
+</p>
+<p>
+You mark where you want to unload back to with the worker <samp>MARKER</samp>. 
+When using <samp>MARKER</samp> you follow it
+with a name. If you type in the <samp>name</samp> later the system will unload all code defined after
+<samp>name</samp> and the <samp>name</samp> word itself.
+<h5>EXAMPLE</h5>
+<pre><samp>
+MARKER empty
+: fred0 12434 . ;
+empty
+</samp></pre>
+<p>
+Both <samp>empty</samp> and <samp>fred0</samp> will be lost after the
+<samp>MARKER</samp> child word <samp>empty</samp> is executed.
+</p>
+<table>
+<tr><th>word</th><th>stack</th><th>Description</th></tr>
+<tr><td><samp><a HREF="./source/marker.html#MARKER">MARKER</a></samp></td><td> <i><u>compile time</u> " =spaces=name" -- <u>runtime</u> -- </td><td>Create a child word, execution of the child word empties the dictionary back to before the marker.</td></tr>
+</table>
+<a name="condition_compile"><h2>Conditional compiling</h2></a>
+
+<p>
+Often one source base is used for different products. The code that is compiled is dependent on flags set in some way.
+The <b>uCforth</b> Kernel is an example. The card you are compiling the kernel for is set.
+<a href="./source/kernel.html#card_select">here</a>
+</p>
+<p>
+Conditional compile will only work if you have some words to control the process. The word set is <samp>[IF]</samp>
+<samp>[ELSE]</samp> and <samp>[THEN]</samp> do the job.
+</p>
+<h5>EXAMPLE</h5>
+<pre><samp>
+TRUE CONSTANT #system_x
+
+#system_x [IF]
+        : .system ( --) ." System_x" ;
+[ELSE]
+        : .system ( --) ." System_a";
+[THEN]
+ </samp></pre>
+<p>
+These words can be used within a colon word. For example.
+</p>
+<pre><samp>
+TRUE CONSTANT #system_x
+: .system
+        [ #system_x ] [IF]
+        ." System_x"
+        [ELSE]
+        ." System_a"
+        [THEN]
+;
+</samp></pre>
+<p>
+The above code examples will compile a .system word that prints out "System_x"
+</p>
+<table>
+<tr><th>word</th><th>stack</th><th>Description</th></tr>
+<tr><td><samp><a HREF="./source/if_then_else.html#[ELSE]">[ELSE]</a></samp></td><td> -- </td><td>Skip code to the matching [THEN]</td></tr>
+<tr><td><samp><a HREF="./source/if_then_else.html#[IF]">[IF]</a></samp></td><td> flag -- </td><td>If the stack flag is true
+                   continue compiling. If the stack flag is false skip code to the matching <samp>[ELSE]</samp> or <samp>[THEN]</samp></tr></td>
+<tr><td><samp><a HREF="./source/if_then_else.html#[THEN]">[THEN]</a></samp></td><td> -- </td><td>A marker used by
+               <samp>[ELSE]</samp> and <samp>[IF]</samp></td></tr>
+</table>
+<a name="colon_words"><h2>: WORDS</h2></a>
+        <ul>
+        <li><a href="#if_then_else">IF ELSE and THEN</a></li>
+        <li><a href="#begin_until">BEGIN UNTIL</a></li>
+        <li><a href="#begin_while_repeat">BEGIN WHILE REPEAT</a></li>
+        <li><a href="#begin_again">BEGIN AGAIN</a></li>
+        <li><a href="#do_loop">DO LOOP</a></li>
+        <li><a href="#do_plus_loop">DO +LOOP</a></li>
+        <li><a href="execution_token">EXECUTION TOKENS</a></li>
+                <ul>
+                <li><a href="using_execution_token">Using execution tokens</a></li>
+                </ul>
+        <li><a href="#vector_execution">VECTORED EXECUTION</a></li>
+        <li><a href="#does&gt;">DOES&gt;</a></li>
+        <li><a href="#[]">Using [ and ]</a></li>
+        </ul>
+<p>
+: is the basic program building block. The basic form is
+</p>
+<pre> <samp>
+
+: name .......code.......... ;
+
+</samp></pre>
+<p>
+<samp>name</samp> is the name of the new word.
+</p>
+<p>
+If you enter the following code at the <b>uCforth</b> prompt.
+</p>
+
+<samp><i>FORTH &gt;</i><b>: 0print 0 . ;</b><img src="./enter.gif" height="9" width="20"></samp>
+<p>
+<p>
+And then enter:
+</p>
+<samp><i>FORTH &gt;</i><b>0print</b><img src="./enter.gif" height="9" width="20"></samp>
+<p>
+You will get a <i>0</i> printed. <samp>Oprint</samp> is a word that pushes 0 on the stack and prints it.
+0print is a new word you can use just as any of the pre defined words can be.
+</p>
+<p>
+0print uses no <samp>IMMEDIATE</samp> words, that is words executed by the compiler. The rest of this section discusses
+<samp>IMMEDIATE</samp> words such as <samp>IF</samp> <samp>THEN</samp> and <samp>ELSE</samp>.
+
+<table>
+<tr><th>word</th><th>stack</th><th>Description</th></tr>
+<tr><td><samp><a HREF="./source/compile.html#colon">:</a></samp></td><td><u>runtime</u> ??--??</td><td>Start compilation</td></tr>
+<tr><td><samp><a HREF="./source/compile.html#semicolon">;</a></samp></td><td><u>runtime</u> ??--??</td><td>Stop compilation</td></tr>
+</table>
+
+<a name="if_then_else"><h3>IF ELSE and THEN</h3></a>
+<p>
+<samp>IF</samp> <samp>THEN</samp> and <samp>ELSE</samp> are <samp>IMMEDIATE</samp> words. <samp>IMMEDIATE</samp> words
+are executed by the compiler when encountered in the input stream. The interpreter executes all words ( including IMMEDIATE words)
+when they are found in the input stream. IMMEDIATE words however tend not to have useful functionality when in interpreter
+mode as they deal with altering code being created by the compiler.
+</p>
+<p>
+An immediate word will have a compile time action and a runtime action. As a programmer we tend to be more interested
+in the runtime action. The compile time action is about how the word implements the run time action.
+</p>
+<p>
+The general form of the IF statement is.
+</p>
+<pre><samp>
+\ flag (--
+IF \ (--
+        ....code1.....
+ELSE
+        ....code2....
+THEN
+
+or
+
+\ flag (--
+IF \ (--
+        ....code1.....
+THEN
+</samp></pre>
+<p>
+At runtime the code compiled by <samp>IF</samp> takes the top stack item and if true
+<samp>code1</samp> is executed, if false <samp>IF</samp> jumps to the matching <samp>ELSE</samp>
+or if no <samp>ELSE</samp> the matching <samp>THEN</samp> statement.
+</p>
+<h5>EXAMPLE</h5>
+<pre><samp>
+\ the following code will print out the flag state of the top stack item.
+: xxx ( flag --)
+        IF
+                ." the flag was true"
+        ELSE
+                ." the flag was false"
+        THEN
+;
+</samp></pre>
+<p>
+or
+</p>
+<pre><samp>
+\ the following code will only tell you if it is true.
+: xxx ( flag --)
+        IF
+                ." the flag was true"
+         THEN
+;
+</samp></pre>
+<p>
+<samp>IF</samp> can be nested as desired.
+</p>
+<pre><samp>
+: xxx ( flag --)
+        ?DUP IF
+                -1 = IF
+                        ." the flag was a normalized true"
+                ELSE
+                        ." The flag was a non zero true"
+                THEN
+        ELSE
+                ." the flag was false"
+        THEN
+;
+</samp></pre>
+<table>
+<tr><th>word</th><th>stack</th><th>Description</th></tr>
+<tr><td><samp><a HREF="./source/compile.html#IF">IF</a></samp></td><td><u>runtime</u> flag--</td><td>If flag is true execute code after, else go to <samp>ELSE</samp>, or if no <samp>ELSE</samp> the <samp>THEN</samp>.</td></tr>
+<tr><td><samp><a HREF="./source/compile.html#ELSE">ELSE</a></samp></td><td><u>runtime</u> --</td><td>Code executed if <samp>IF</samp> sees a false flag.</td></tr>
+<tr><td><samp><a HREF="./source/compile.html#THEN">THEN</a></samp></td><td><u>runtime</u> --</td><td>Code executed when <samp>IF</samp> is done.</td></tr>
+
+</table>
+
+<a name="begin_until"><h3>BEGIN UNTIL</h3></a>
+<p>
+<samp>BEGIN</samp> starts the loop, <samp>UNTIL</samp> tests the top stack item, if the top stack item is false we go back
+to the <samp>BEGIN</samp>, if the top stack item is true execution continues after the <samp>UNTIL</samp>.
+</p>
+<p>
+The general form of the code is
+</p>
+<pre><samp>
+
+BEGIN
+        ....code1....
+        \ flag(--
+UNTIL
+\ (--
+
+</samp></pre>
+<h5>EXAMPLE</h5>
+<pre><samp>
+: print_some ( --)
+        0                 \ 0(--
+        BEGIN
+                DUP .
+                1+        \ n(--
+                DUP 10 =  \ n flag(--
+        UNTIL
+        DROP
+;
+</samp></pre>
+<table>
+<tr><th>word</th><th>stack</th><th>Description</th></tr>
+<tr><td><samp><a HREF="./source/compile.html#BEGIN">BEGIN</a></samp></td><td><u>runtime</u> --</td><td>Start a control structure</td></tr>
+<tr><td><samp><a HREF="./source/compile.html#UNTIL">UNTIL</a></samp></td><td><u>runtime</u> flag--</td><td>If flag false go back to BEGIN</td></tr>
+</table>
+
+<a name="begin_while_repeat"><h3>BEGIN WHILE REPEAT</h3></a>
+<p>
+<samp>BEGIN</samp> starts the loop, WHILE takes at the top stack item if it is true the code after the <samp>WHILE</samp>
+is executed. If <samp>WHILE</samp> finds that the top stack item is FALSE, execution continues after the
+<samp>REPEAT</samp>. Repeat takes execution back to the <samp>BEGIN</samp>.
+</p>
+<pre><samp>
+: print_some1
+        0
+        BEGIN
+                DUP 10 = not
+        WHILE
+                DUP .
+                1+
+        REPEAT
+        DROP
+;
+</samp></pre>
+<table>
+<tr><th>word</th><th>stack</th><th>Description</th></tr>
+<tr><td><samp><a HREF="./source/compile.html#BEGIN">BEGIN</a></samp></td><td><u>runtime</u> --</td><td>Start a control structure</td></tr>
+<tr><td><samp><a HREF="./source/compile.html#WHILE">WHILE</a></samp></td><td><u>runtime</u> flag--</td><td>If flag false go to code after WHILE</td></tr>
+<tr><td><samp><a HREF="./source/compile.html#REPEAT">REPEAT</a></samp></td><td><u>runtime</u> --</td><td>Go back to the BEGIN</td></tr>
+</table>
+
+<a name="begin_again"><h3>BEGIN AGAIN</h3></a>
+<p>
+<samp>BEGIN</samp> <samp>AGAIN</samp> is a loop that goes on forever, unless <samp>EXIT</samp> is used. You often
+see <samp>BEGIN</samp> <samp>AGAIN</samp> used in code executed by a task. The operating system gives the CPU
+a task for a short while. The task tends to be structured so it will execute some code and give the CPU back to the OS ( co-operative multitasking)
+Next time round the task will do exactly the same thing.
+</p>
+<p>
+<samp>BEGIN</samp> <samp>AGAIN</samp> can also be combined with EXIT.
+</p>
+<pre><samp>
+: print_some2
+        0
+        BEGIN
+                DUP 10 = IF
+                        DROP
+                        EXIT
+                THEN
+                DUP .
+                1+
+        AGAIN
+        \ never get here
+;
+</samp></pre>
+<p>
+If <samp>EXIT</samp> is executed, execution of the word stops directly and execution continues in the calling word.
+When trying to write clean code, <samp>EXIT</samp> can be very useful as the loop can be terminated for many reasons
+without having to perform complicated logic operations to generate the flag required to keep <samp>UNTIL</samp>
+or <samp>REPEAT</samp> happy.
+</p>
+<pre><samp>
+\ finish at n if n is less than 10.
+: print_some3 ( n --)
+        zero
+        BEGIN
+                \ n count (--
+                DUP 10 = IF
+                        2DROP
+                        EXIT
+                THEN
+                2DUP = IF
+                        2DROP
+                        EXIT
+                THEN
+                DUP .
+                1+
+        AGAIN
+        \ never get here
+;
+</samp></pre>
+<table>
+<tr><th>word</th><th>stack</th><th>Description</th></tr>
+<tr><td><samp><a HREF="./source/compile.html#BEGIN">BEGIN</a></samp></td><td><u>runtime</u> --</td><td>Start of control structure</td></tr>
+<tr><td><samp><a HREF="./source/compile.html#AGAIN">AGAIN</a></samp></td><td><u>runtime</u> --</td><td>Go back to the BEGIN</td></tr>
+</table>
+
+<a name="do_loop"><h4>DO LOOP</h4></a>
+<p>
+<samp>DO</samp> takes the top two stack items and uses them as a loop start count and a terminator.
+</p>
+<p>
+<samp>LOOP</samp> looks at the terminator and how many times the loop has been done. If the loop
+has been executed enough times control continues after the LOOP word. If the loop is to loop again
+then control is transfered back to the DO.
+</p>
+<pre><samp>
+: print_some4 ( --)
+        10 0 DO
+                I .
+        LOOP
+;
+</samp></pre>
+<p>
+The example above will output the numbers 0,1,2,3,4,5,6,7,8 and 9. 10 is the terminating number zero is the
+start number. <samp>DO</samp> sets <samp>I</samp> ( the index) up, <samp>LOOP</samp> increments <samp>I</samp>
+and tests to see if <samp>I</samp> has reached the terminator.
+</p>
+<p>
+<samp>DO</samp> uses the return stack. The words exit address is stored on the return stack. All this has to be
+understood and extra care taken if you use <samp>EXIT</samp> inside a <samp>DO</samp> loop.
+<p>
+<pre><samp>
+: print_some5 ( n --)
+        10 0 DO
+                \ n(--
+                DUP I = IF
+                        UNLOOP
+                        DROP
+                        EXIT
+                THEN
+                DUP .
+        LOOP
+        DROP
+;
+</samp></pre>
+<p>
+As an aside <b>uCforth</b> makes a proper stack frame if local variables are used. The following code is also valid.
+If a proper stack frame is present <samp>EXIT</samp> can use the stack frame to remove the data off the return stack.
+</p>
+<pre><samp>
+: print_some6 { ( n -- ) }
+        10 0 DO
+                \ n(--
+                DUP I = IF
+                        DROP
+                        EXIT
+                THEN
+                DUP
+                .
+        LOOP
+        DROP
+;
+</samp></pre>
+<p>
+This is convenient, but it is not standard.
+</p>
+<table>
+<tr><th>word</th><th>stack</th><th>Description</th></tr>
+<tr><td><samp><a HREF="./source/compile.html#DO">DO</a></samp></td><td><u>runtime</u> limit start--</td><td>Compile code to start a do loop</td></tr>
+<tr><td><samp><a HREF="./source/compile.html#LOOP">LOOP</a></samp></td><td><u>runtime</u> --</td><td>Compile code to add n to the index and see if the loop should be terminated.</td></tr>
+<tr><td><samp><a HREF="./source/compile.html#EXIT">EXIT</a></samp></td><td><u>runtime</u> --</td><td>Exit the word directly.</td></tr>
+</table>
+<a name="do_plus_loop"><h3>DO +LOOP</h3></a>
+<p>
+<samp>+LOOP</samp> can be used with <samp>DO</samp> to add any number to the index. The follow code will print out 10 20 and 30.
+</p>
+<pre><samp>
+: print_some7 ( --)
+        40 10 DO
+                I .
+        10 +LOOP
+;
+</samp></pre>
+<p>
+With <samp>+LOOP</samp> you can go backwards. The following code will print out 40 30 20 10. If your going backwards
+<samp>+LOOP</samp> terminates when the index is less than the terminator, when your going forward it terminates when
+the index is greater or equal to the terminator.
+</p>
+<pre><samp>
+: print_some7 ( --)
+        10 40 DO
+                I .
+        -10 +LOOP
+;
+</samp></pre>
+<table>
+<tr><th>word</th><th>stack</th><th>Description</th></tr>
+<tr><td><samp><a HREF="./source/compile.html#DO">DO</a></samp></td><td><u>runtime</u> limit start--</td><td>Compile code to start a <samp>DO</samp> loop</td></tr>
+<tr><td><samp><a HREF="./source/compile.html#+LOOP">+LOOP</a></samp></td><td><u>rintime</u> n --</td><td>Compile code to add n to the index and seeif the loop should be terminated.</td></tr>
+</table>
+
+<a name="questiondo_loop"><h3>?DO LOOP</h3></a>
+<p>
+<samp>?DO</samp> takes the top two stack items and uses them as a loop start count and a terminator.
+</p>
+<p>
+The run time code compiled makes sure the termination conditions aren't met before entering the loop. A <samp>DO</samp>
+will always execute the loop code once. A <samp>?DO</samp> loop will only execute the code if the loop termination
+conditions aren't met.
+</p>
+<pre><samp>
+\ this code will print 0
+: print_some8 ( --)
+        0 0 DO
+                I .
+        LOOP
+;
+
+
+\ this code will not print 0
+: print_some9 ( --)
+        0 0 ?DO
+                I .
+        LOOP
+;
+</samp></pre>
+
+<p>
+<samp>?DO</samp> uses the return stack. The words exit address is stored on the return stack. All this has to be
+understood and extra care taken if you use <samp>EXIT</samp> inside a <samp>?DO</samp> loop.
+<p>
+<pre><samp>
+: print_some5 ( n --)
+        10 0 ?DO
+                \ n(--
+                DUP I = IF
+                        UNLOOP
+                        DROP
+                        EXIT
+                THEN
+                DUP .
+        LOOP
+        DROP
+;
+</samp></pre>
+<p>
+As an aside <b>uCforth</b> makes a proper stack frame if local variables are used. The following code is also valid.
+If a proper stack frame is present <samp>EXIT</samp> can use the stack frame to remove the loop data off the return stack
+on exit.
+</p>
+<pre><samp>
+: print_some6 { ( n -- ) }
+        10 0 ?DO
+                \ n(--
+                DUP I = IF
+                        DROP
+                        EXIT
+                THEN
+                DUP
+                .
+        LOOP
+        DROP
+;
+</samp></pre>
+<p>
+This is convenient, but it is not standard.
+</p>
+<table>
+<tr><th>word</th><th>stack</th><th>Description</th></tr>
+<tr><td><samp><a HREF="./source/compile.html#questionDO">?DO</a></samp></td><td><u>runtime</u> limit start--</td><td>Compile code to start a <sanp>DO</samp> loop; only enter loop if loop termination conditions not met.</td></tr>
+<tr><td><samp><a HREF="./source/compile.html#LOOP">LOOP</a></samp></td><td><u>runtime</u> --</td><td>Compile code to add n to the index and see if the loop should be terminated.</td></tr>
+<tr><td><samp><a HREF="./source/compile.html#EXIT">EXIT</a></samp></td><td><u>runtime</u> --</td><td>Exit the word directly.</td></tr>
+</table>
+
+<a name="execution_token"><h3>EXECUTION TOKENS</h3></a>
+<p>
+There are times when a function is best treated as data. The next section will talk about vectored execution, and table
+driven programs. Here we introduce the conversion of a token to an execution token, and why you would want to do such
+a thing.
+</p>
+<p>
+A token is a sequence of characters, an execution token is the address of the code related to the token.
+To convert the token to an execution token requires a
+dictionary search, something that takes time.
+Time is a resource you often do not have when your dealing with a real time problem.
+The solution is to look up the address of the code
+at compile time and use that address at run time.
+</p>
+<p>
+Converting the character token to a execution token has other advantages. The token fits in a cell so it can be
+manipulated as a stack item and stored in a cell variable.
+</p>
+<p>
+To convert a character token to an execution token you use <samp>'</samp>. You can invoke the execution token
+with execute. The following two examples yield the same result.
+</p>
+<samp><i>FORTH &gt;</i><b>1234 .</b><img src="./enter.gif" height="9" width="20"></samp>
+<br>
+<samp><i>FORTH &gt;</i><b>1234 ' . EXECUTE</b><img src="./enter.gif" height="9" width="20"></samp>
+<p>
+The second example has <samp>'</samp> finding the execution token of . and <samp>EXECUTE</samp> using it.
+</p>
+<p>
+What does the following code do?
+</p>
+<pre><samp>
+: fred ' DUP ;
+fred OVER
+</samp></pre>
+<p>
+It puts two copies of the execution token for <samp>OVER</samp> on the stack. If you wanted the execution token
+for <samp>DUP</samp> you would be disapointed. <samp>'</samp> is not an <samp>IMMEDIATE</samp> word.
+</p>
+<p>
+The following code will return the execution token for <samp>DUP</samp>.
+</p>
+<pre><samp>
+: fred [ ' DUP ] LITERAL ;
+</samp></pre>
+<p>
+Like many things there is another option.
+</p>
+<pre><samp>
+: fred ['] DUP ;
+</samp></pre>
+<p>
+In a colon word <samp>'</samp> will get and look for a token at run time, <samp>[']</samp> will take the next
+token in the input stream and convert it to an execution token at compile time.
+</p>
+<a name="using_execution_token"><h4>Using execution tokens</h4></a>
+<p>
+We have mentioned <samp>EXECUTE</samp>. <samp>EXECUTE</samp> takes an execution token from the top of the stack
+end executes the code. <samp>@execute</samp> is also an option, <samp>@execute</samp> takes the address containing
+an execution token from the stack. @execute can be definied:
+<pre><samp>
+: @execute ( addr -- ?? )
+        @ EXECUTE
+;
+</samp></pre>
+<p>
+Execution tokens are also used for vectored execution ( covered next) and by <a href="#catch">CATCH</a>.
+</p>
+<table>
+<tr><th>word</th><th>stack</th><th>Description</th></tr>
+<tr><td><samp><a HREF="./source/more_ansi_colon_words.html#tick">'</a></samp></td>
+     <td>"name" -- addr</td>
+     <td>Returns the execution address of the next token in the input stream</td></tr>
+<tr><td><samp><a HREF="./source/colon_words.html#@execute">@execute</a></samp></td>
+    <td>addr --??</td>
+    <td>Fetch an execution token from addr, and use it.</td></tr>
+<tr><td><samp><a HREF="./source/ansi_code_words.html#EXECUTE">EXECUTE</a></samp></td>
+    <td>xt --??</td>
+    <td>Use the execution token</td></tr>
+<tr><td><samp><a HREF="./source/compile.html#[']">[']</a></samp></td>
+    <td><u>compile time</u>"name" --<br><u>runtime</u> -- xt</td>
+    <td>An <samp>IMMEDIATE</samp> word, take the next token from the input stream and compile code to put it's
+                                 execution token on the stack at run time.</td></tr>
+</table>
+
+<a name="vector_execution"><h3>VECTORED EXECUTION</h3></a>
+<p>
+Standard ANSI FORTH supports a CASE statement. It is implemented in <b>uCforth</b> however vectored execution is a better
+way to go. If makes for cleaner code. A CASE statement no matter how it is written is confusing and one long mess. Vectored
+execution requires you to write a word to deal with each case, create a table, and write a word
+to select a table entry and execute it. The offset used to select the vector can also be used to
+extract data from other tables.
+</p>
+<h5>EXAMPLE</h5>
+<pre><samp>
+: worda 0 . ;
+: wordb 1 . ;
+: wordc 2 . ;
+: wordd 3 . ;
+: worde ."out of range" ;
+
+CREATE _word_table
+        0 w,
+        HERE
+        ' worda ,
+        ' wordb ,
+        ' wordc ,
+        ' wordd ,
+        ' worde ,
+
+
+\ let the interpretor fill out the number of entries
+HERE SWAP - cell / _word_table w!
+
+: fred1 ( n --)
+        _word_table vector
+;
+
+</samp></pre>
+<p>
+Note that the _word_table count is a 1/2 cell value ( <samp>W,</samp> ), this is acceptable as the dictionary is 1/2 cell aligned.
+</p>
+<p>
+Jump tables can be quite complex, with the table containing code to vector to and additional data.
+For a complex program written around tables take a look at the <b>uCforth</b> <a href="./source/ass.html">ASSEMBLER</a>
+</p>
+ <table>
+<tr><th>word</th><th>stack</th><th>Description</th></tr>
+<tr><td><samp><a HREF="./source/more_ansi_colon_words.html#tick">'</a></samp></td><td>"name" -- addr</td><td>Returns the execution address of the next token in the input stream</td></tr>
+<tr><td><samp><a HREF="./source/memory_allocation.html#,">,</a></samp></td><td>x --</td><td>Top stack item is added to the dictionary, the dictionary pointer moves on four</td></tr>
+<tr><td><samp><a HREF="./source/colon_words.html#vector">vector</a></samp></td><td>entry table_address--</td><td>Select the ëntry "from the "table" and execute.</td></tr>
+<tr><td><samp><a HREF="./source/memory_allocation.html#w,">w,</a></samp></td><td>x --</td><td>Top stack item is added to the dictionary, the dictionary pointer moves on two</td></tr>
+</table>
+<a name="CATCH"><h2>CATCH</h2></a>
+<p>
+The ANSI standard talks about <a HREF="./source/user_using_words.html#CATCH"><samp>CATCH</samp></a>
+and <a HREF="./source/abort.html#THROW"><samp>THROW</samp></a>. <samp>CATCH</samp> will catch any
+<a HREF="./source/more_forth.html#ABORT"><samp>ABORT</samp></a>,
+ <a HREF="./source/more_forth.html#ABORTquote"><samp>ABORT"</samp></a> or
+ <a HREF="./source/abort.html#dollarabort"><samp>$abort</samp></a>.
+<p>
+Both <samp>$abort</samp> and <samp>ABORT"</samp> use <samp>THROW</samp>, entering it with zero on the
+stack if all is OK, or the address of the error string if there is  problems.
+In other words both provide a string to help find the problem.
+</p>
+<p>
+<samp>THROW</samp> is required by standard programs and has been implemented. There is a set of standard
+ANSI error codes. There has been a word written
+( <a HREF="./source/abort.html#abort_code>$">abort_code>$</a>)  to
+convert the ANSI standard error code to the address of a printable strings.
+The use of <samp>THROW</samp> is not recommended, the use of <samp>$abort</samp> or <samp>ABORT"</samp> is.
+</p>
+<p>
+<samp>CATCH</samp> requires an <a href="#execution_token">execution token</a>. If the word executes without
+an abort catch adds zero to the top of the stack. If the code aborts the error code will be on the top of the
+stack. <b>COLDFORH</b> gives the address of an error string as the error code. If you have loaded a standard program
+<samp>THROW</samp> may have been used with an ANSI error codes. All ANSI error codes are negative number, the
+address of strings are not. The ABORT code converts ANSI error codes to printable strings. ANSI error
+codes are only of itererest if you want to catch a particular code.
+</p>
+<p>
+<samp>CATCH</samp> is usfull if you have allocated resource that must be returned even if the operation
+that you desires fails. An example can be seen in <a href="./chapter5.html#get_free_buffer">chapter 5</a>.
+</p>
+
+
+
+<a name="does&gt;"><h2>DOES&gt;</h2></a>
+<p>
+Two things are important when writing code.
+</p>
+<ul>
+<li>The code has to work</li>
+<li>The code has to be maintainable</li>
+</ul>
+<p>
+It is hard to argue that code using <samp>DOES&gt;</samp> is simple to maintain. However,
+if you understand <samp>DOES&gt;</samp> you are well on the way to understanding the subtleties of FORTH.
+If you can work out how the cross compiler deals with <samp>DOES&gt;</samp> you have done well.
+</p>
+<p>
+A word containing DOES&gt; is used to create child words. <samp>CONSTANT</samp> as an example can ( and is ) defined
+using <samp>DOES&gt;</samp>.
+</p>
+<pre> <samp>
+: CONSTANT ( parent x-- child --x )
+        CREATE , DOES&gt; @ ;
+;
+</samp></pre>
+
+<p>
+<samp>CONSTANT</samp> has two stack descriptions, the "parent description" and the "child description". The "parent description"
+describes the parents expectation when it is executing. The "child descriptor" is expected by the child
+created by the parent. If we consider <samp>CONSTANT</samp> further.
+</p>
+<pre><samp>
+123 CONSTANT #fred
+</samp></pre>
+<p>
+The parent word is <samp>CONSTANT</samp> the child word is <samp>#fred</samp>. The parent word expects a value
+on the stack, the child word puts a value on the stack.
+</p>
+<p>
+Now to consider <samp>DOES&gt;</samp> further.
+<samp>DOES&gt;</samp> has three actions; a compile time action, this happens when the parent is compiled.
+A runtime action, this happens when the parent is executed, and a child's runtime action
+happens when the child is executed.
+</p>
+<p>
+Both parent actions have stack operations that do not interest us. The "runtime" action of the code compiled into the
+child by <samp>DOES&gt;</samp> puts the "data address" of the child onto the stack.
+The code after <samp>DOES&gt;</samp> is then executed as the childs runtime action.
+With this knowledge we can now describe how <samp>CONSTANT</samp> works.
+<samp>CONSTANT</samp> creates the basic child word with <samp>CREATE</samp>, it then places in the data field of the
+new child word the value that is to be retrieved. The code after <samp>DOES&gt;</samp> is the code the child will
+execute when the child is asked to do it's job. In the case of <samp>CONSTANT</samp>, the action is to retrieve from
+the data area the value saved by the parent when the child was created.
+</p>
+<p>
+It really is quite simple, it really is hard to get your head around.
+</p>
+
+<table>
+<tr><th>word</th><th>stack</th><th>Description</th></tr>
+<tr><td><samp><a HREF="./source/compile.html#DOES">DOES&GT;</a></samp></td><td><u>child's runtime</u> -- data_addr</td>
+<td>The code following the <samp>DOES&gt;</samp> is the action to be performed by the child.</td></tr>
+</table>
+
+
+<a name="[]"><h2>Using [ and ]</h2></a>
+<p>
+You use <samp>[</samp> and <samp>]</samp> within colon definitions. If you know all the data at compile time your code
+will run faster if you do the calculation at compile time and just place the result of the calculation on the stack at
+runtime.
+</p>
+<pre> <samp>
+\ a value of pi that has an error of 8.5E-8
+: Fpi [ 355.0 113.0 F/ ] FLITERAL ;
+</samp></pre>
+<p>
+In the code above the calculation <samp>355.0 113.0 F/</samp> is done at compile time; at runtime the result is placed
+in the stack by the code compiled by FLITERAL
+</p>
+<table>
+<tr><th>word</th><th>stack</th><th>Description</th></tr>
+<tr><td><samp><a HREF="./source/compile.html#[">[</a></samp></td><td> -- </td><td>Into interpreting mode</td></tr>
+<tr><td><samp><a HREF="./source/compile.html#]">]</a></samp></td><td> -- </td><td>Into compiling mode</td></tr>
+</table>
+
+<a name="local_variables"><h2>Local_variables (<i>stack frames</i>)</h2></a>
+<ul>
+<li><a href="#local_exit">Exiting words using a <i>stack frame</i></a></li>
+<li><a href="#local_input">Data stack to <i>stack frame</i></a></li>
+<li><a href="#local_output"><i>Stack frame</i> to data stack</a></li>
+<li><a href="#local_data">Local data</a></li>
+<li><a href="#local_defining">Describing the areas.</a></li>
+        <ul>
+        <li><a href="#local_defining_2variable">2variable</a></li>
+        <li><a href="#local_defining_bytes">bytes</a></li>
+        <li><a href="#local_defining_fvariable">fvariable</a></li>
+        <li><a href="#local_defining_value">value</a></li>
+        <li><a href="#local_defining_variable">variable</a></li>
+         </ul>
+</ul>
+<p>
+FORTH is a stack based language. If local variables are properly defined they can be used to remove the "stack noise"
+often seen in FORTH words.
+</p>
+<p>
+The local variable definition describes a data area created on the return stack on word entry,
+the data area is destroyed on word exit. The data area is created as a <i>stack frame</i>, with a reserved register
+containing the <i>stack frame</i> base address. References are an offset from the <i>stack frame</i> base.
+</p>
+<p>
+The stack frame description describes three different stack frame areas.
+</P>
+<ul>
+<li><table><tr><td>Data that is transfered from the data stack to the <i>stack frame</i>.</td><td><samp>{ input_description --</samp></td><tr></table></li>
+<li><table><tr><td>Data that is transfered from the <i>stack frame</i> to the data stack.</td><td><samp>{ ? -- output_description }</samp></td><tr></table></li>
+<li><table><tr><td>An area reserved within the <i>stack frame</i> for local data.</td><td><samp>{ ? -- ? }{ local_description }</samp></td><tr></table></li>
+</ul>
+<p>
+Data stack values transfered to the <i>stack frame</i> are done so on word entry. Data stack values transfered
+from the <i>stack frame</i> to the data stack are done on word exit, be it at the
+<samp>;</samp> or through an <samp>EXIT</samp> word.
+</p>
+<p>
+It is possible to transfer a few top data stack values from the data stack to the <i>stack frame</i> and leave a few
+stack items on the data stack for use within the word as normal data stack items.
+</p>
+<p>
+You can add comments to the <i>stack frame</i>
+description as desired. Try and describe the complete stack effects.
+</p>
+<h5>EXAMPLE</h5>
+<pre><samp>
+\ ( value1 value2 addr -- output )
+: fred { ( value1 value2 ) variable %addr -- variable %output }
+        some_code
+;
+</samp></pre>
+<p>
+When defining a <i>stack frame</i> you use lower case <samp>variable</samp>, upper case <samp>VARIABLE</samp> is an
+ANSI standard word. The ANSI standard has <samp>VARIABLE</samp> returning an address in the "data" area,
+not an address within a <i>stack frame</i>.
+</p>
+<p>
+Many of the local variables words are supported by the cross compiler and have been used extensively in the kernel.
+See <a href="./source/words.html#(words)">(words)</a> for example.
+</p>
+<a name="local_exit"><h3>Exiting words using a <i>stack frame</i></h3></a>
+<p>
+When using a <i>stack frame</i> you can exit a word without cleaning up the return stack.
+The following code for instance will work.
+</p>
+<h5>EXAMPLE</h5>
+<pre><samp>
+\ { } results in the <i>stack frame</i> entry and exit code being compiled. Because no <i>stack frame</i>
+\ is described the stack frame will contain no data.
+: fred { }
+        10 0 DO
+                I 5 = IF
+                        \ We can leave without removing the
+                        \ DO loop return stack data
+                        \ because we have used local variables
+                        EXIT
+                THEN
+                I .
+        LOOP
+;
+</samp></pre>
+<p>
+Using a <i>stack frame</i> as above results in robust code.
+</p>
+<a name="local_input"><h3>Data stack to <i>stack frame</i></h3></a>
+<p>
+A description of the input data that is to be transfered from the data stack to the stack frame
+is placed between <samp>{</samp> and <samp>--</samp>.
+</p>
+<h5>EXAMPLE</h5>
+
+<pre><samp>
+\ the system takes the top data stack item and transfers it to the <i>stack frame</i>;
+\ the code fetches the value, multiplies it by the data stack value left behind and prints the result.
+: *. {  ( data ) variable %data2 -- }
+        %data2 @ * .
+;
+</samp></pre>
+<a name="local_output"><h3><i>Stack frame</i> to data stack</h3></a>
+<p>
+Data that is to be transfered from the <i>stack frame</i> to the data stack on word exit is placed between
+<samp>--</samp> and <samp>}{</samp>, or if no local data area is to be defined, between <samp>--</samp>
+and <samp>}</samp>.
+</p>
+<h5>EXAMPLE</h5>
+<pre><samp>
+\ the system transfers the value from the <i>stack frame</i> to the data stack
+\ on word exit.
+: (*.) { ( data1 data2 ) -- variable %result }
+        * %result !
+;
+
+: *. (*.) . ;
+</samp></pre>
+<a name="local_data"><h3>Local data</h3></a>
+<p>
+The local data area is defined between <samp>}{</samp> and <samp>}</samp>. The local data area is not initialized.
+</p>
+<h5>EXAMPLE local data area</h5>
+<pre><samp>
+: *.  { ( data1 data2 ) --  }{
+       variable %result
+       }
+
+       * %result !
+       %result @ .
+;
+</samp></pre>
+<p>
+It gets better; you can define local constants. This allows you to give a name to  "magic" numbers, without creating
+global constants. We use capital letters for CONSTANT as the child word has the actions specified by the ANSI
+standard.
+</p>
+<h5>EXAMPLE CONSTANT</h5>
+<pre><samp>
+: fred { ( data1 data2 -- result )  }{
+       variable %temp
+       2 CONSTANT #fudge_factor
+       }
+       * %temp !
+       %temp @ #fudge_factor *
+;
+</samp></pre>
+<a name="local_defining"><h3>Describing the areas.</h3></a>
+<p>
+The above three sections described the three stack frame areas, these being an area that is moved from the data
+stack on word entry, an area that is moved to the data stack on word exit, and an area that is used within the
+word. Most of the examples above used <samp>variable</samp> to describe the item. There are many other options.
+</p>
+<a name="local_defining_2variable"><h4>2variable</h4></a>
+<p>
+Creates a data area long enough to store a 2 cell value.
+</p>
+<pre><samp>
+: fred { ( double double -- )  }{
+        2variable %temp
+        }
+        D+ %temp 2!
+        %temp 2@ D.
+;
+</samp></pre>
+
+<a name="local_defining_bytes"><h4>bytes</h4></a>
+<p>
+You can make your data area as long as you desire with the word <samp>bytes</samp>
+</p>
+<h5>EXAMPLE</h5>
+<pre><samp>
+\ now we are really getting into examples that do very little.
+\ Create a 4 byte buffer in the local variable area, erase it, and exit.
+\ The exit will destroy the buffer we  have cleared.
+: fred { ( data1 data2 -- result ) }{
+        4 CONSTANT #temp_buffer_length
+        #temp_buffer_length bytes #temp_buffer
+        }
+        #temp_buffer #temp_buffer_length ERASE
+;
+</samp></pre>
+<a name="local_defining_fvariable"><h4>fvariable</h4></a>
+<p>
+Creates a data area long enough to store a floating point value.
+</p>
+<h5>EXAMPLE</h5>
+<pre><samp>
+: fred { ( float float -- ) }{
+        fvariable %ftemp
+        }
+        F* %ftemp F!
+        %ftemp F@ F.
+
+;
+</samp></pre>
+<a name="local_defining_value"><h4>value</h4></a>
+<p>
+Using value when describing a input item makes a lot of sense. value returns the contents instead of the address.
+If you need to alter the value of a value use <a HREF="./source/objects.html#TO">TO</a>.
+</p>
+<h5>EXAMPLE</h5>
+<pre><samp>
+: fred { value n1 value n2 --  }
+        n1 n2 *
+;
+</samp></pre>
+<p>
+<samp>value</samp> in this situation creates cleaner code. <samp>varaible</samp> creates faster code.
+</p>
+<a name="local_defining_variable"><h4>variable</h4></a>
+<p>
+Creates a data area long enough to store a cell value. This is the word used in many of the examples above.
+</p>
+<h5>EXAMPLE</h5>
+<pre><samp>
+: fred { ( data1 data2 -- ) }{
+        variable %temp
+        }
+        * %temp !
+        %temp @ .
+;
+</samp></pre>
+
+
+<table>
+<tr><th>word</th><th>stack</th><th>Description</th></tr>
+<tr><td><samp><a HREF="./source/local_variables.html#--">--</a></samp></td><td> -- </td>
+         <td>Must be used between <samp>{</samp> and <samp>}</samp>. Stop describing data stack items that are moved
+         to the stack frame and start describing stack items that are moved from the stack frame.</td></tr>
+<tr><td><samp><a HREF="./source/local_variables.html#2variable">2variable</a></samp></td><td><u>parent</u> -- <u>child</u> --addr </td>
+         <td>Must be used between <samp>{</samp> and <samp>}</samp>. The child word is only defined
+         within the : definition.
+         The child word returns the address of a local variable. The local variable is 2 cells long.</td></tr>
+<tr><td><samp><a HREF="./source/local_variables.html#bytes">bytes</a></samp></td><td><u>parent</u> n -- <u>child</u> --addr </td><td>Must be used between <samp>{</samp> and <samp>}</samp>. The child word is only defined within the : definition.
+         The child word returns the address of a local variable. The local variable is n bytes long.</td></tr>
+<tr><td><samp><a HREF="./source/local_variables.html#fvariable">fvariable</a></samp></td><td><u>parent</u> -- <u>child</u> --addr </td>
+         <td>Must be used between <samp>{</samp> and <samp>}</samp>. The child word is only defined
+         within the : definition.
+         The child word returns the address of a local variable. The local variable is long enough to store a float.</td></tr>
+<tr><td><samp><a HREF="./source/local_variables.html#value">value</a></samp></td><td><u>parent</u> x-- <u>child</u> --x</td><td>Must be used between <samp>{</samp> and <samp>}</samp>. The child word is only defined within the : definition.
+         The child word returns the value. To change the value use <a HREF="./source/objects.html#TO">TO</a></td></tr>
+<tr><td><samp><a HREF="./source/local_variables.html#variable">variable</a></samp></td><td><u>parent</u> -- <u>child</u> --addr </td>
+         <td>Must be used between <samp>{</samp> and <samp>}</samp>. The child word is only defined
+         within the : definition.
+         The child word returns the address of a local variable. The local variable is 1 cell long.</td></tr>
+<tr><td><samp><a HREF="./source/local_variables.html#{">{</a></samp></td><td> -- </td>
+           <td>Must be directly after the token used for the words name. For example <samp>: fred {</samp>. Start the description
+            of a stack frame. Data to be moved from the data stack to
+            the stack frame is described first.</td></tr>
+<tr><td><samp><a HREF="./source/local_variables.html#}">}</a></samp></td><td> -- </td>
+           <td>Terminate the description of a stack frame.</td></tr>
+<tr><td><samp><a HREF="./source/local_variables.html#}{">}{</a></samp></td><td> -- </td>
+           <td>Stop describing the data stack items being moved and start describing local variables.</td></tr>
+
+
+</table>
+<a name="pictured_numbers"><h2>pictured number output</h2></a>
+        <ul>
+        <li><a href="#pictured_numbers1">&lt;# and #&gt;</a></li>
+        <li><a href="#pictured_numbers2">[# and #]</a></li>
+        </ul>
+
+<a name="pictured_numbers1"><h3>&lt;# and #&gt;</h3></a>
+
+<p>
+In <a href="./chapter2.html#integer_print">chapter 2</a> we intruduced some basic number output words. The pictured
+number words allow you to roll your own.  Standard pictured number words start with <samp>&lt;#</samp> and end with
+<samp>#&gt;</samp>. <samp>&lt;#</samp> sets up internal data areas for conversion. Words such as <samp>#</samp>
+and <samp>HOLD</samp> use the internal areas. <samp>#&gt;</samp> drops the double number left over from the conversion,
+looks at the internal data areas and returns the base address of the converterd string along with the count.
+</p>
+<p>
+<h5>EXAMPLE</h5>
+<pre><samp>
+: . ( n --)
+        DUP  \ n n(--
+        ABS  \ n +n(--
+        S>D  \ n +double(--
+        &lt;#
+                #S   \ n 0d(--
+                ROT  \ 0d n(--
+                SIGN \ 0d(--
+        #&gt;  \ add n(--
+        TYPE \ (--
+        SPACE
+;
+</samp></pre>
+<p>
+The above example introduced two new kernel words,
+<a HREF="./source/number_output.html#hashS"><samp>#S</samp></a>,
+<a HREF="./source/number_output.html#SIGN"><samp>SIGN</samp></a>,
+<a HREF="./source/input_output.html#TYPE"><samp>TYPE</samp></a> and
+<a HREF="./source/number_output.html#SPACE"><samp>SPACE</samp></a>.
+
+
+
+. Follow the links for a full description.
+</p>
+<p>
+The following example prints a number as a $.c amount.
+</p>
+<pre><samp>
+: '.' ( --) [CHAR] . HOLD ;
+: .$.c ( n --)
+        DUP ABS S>D \ n +double(--
+        &lt;#
+                #   \ n +d1(--
+                #   \ n +d2(--
+                '.' \ n +d2(--
+                #S  \ n 0d(--
+                ROT
+                SIGN
+        #&gt;  \ add n(--
+        TYPE
+        SPACE
+;
+</samp></pre>
+<p>
+The above example introduced the words, <a HREF="./source/more_forth.html#[CHAR]"><samp>[CHAR]</samp></a>,
+<a HREF="./source/number_output.html#hash"><samp>#</samp></a> and
+<a HREF="./source/number_output.html#HOLD"><samp>HOLD</samp></a>, once again follow the links for full documentation.
+
+<a name="pictured_numbers2"><h3>[# and #]</h3></a>
+<p>
+The words &lt;# and #&gt; are not recursive, in other words you cannot use them to generate numbers
+while in the middle of generating a number. This is often required if you are writing debug functions.
+The solution is to use the <b>uCforth</b> words <samp>[#</samp> and <samp>#]</samp>. These two words preserve
+the current picture conversion environment, and require from you the address and length of the buffer to place
+the result in.
+</p>
+<p>
+<pre><samp>
+: debug. ( n --)
+        DUP  \ n n(--
+        ABS  \ n +n(--
+        S>D  \ n +double(--
+        #picture_min get_buffer
+                buffer #picture_min [#
+                        #S   \ n 0d(--
+                        ROT  \ 0d n(--
+                        SIGN \ 0d(--
+                #]  \ add n(--
+                TYPE \ (--
+                SPACE
+        kill_buffer
+;
+</samp></pre>
+<p>
+The above example introduces
+<a HREF="./source/number_output.html#_picture_min"><samp>#picture_min</samp></a>,
+<a HREF="./source/number_output.html#hash]"><samp>#]</samp></a>,
+<a HREF="./source/number_output.html#[hash"><samp>[#</samp></a>,
+<a HREF="./source/heap_control.html#get_buffer"><samp>get_buffer</samp></a> and
+<a HREF="./source/heap_control.html#kill_buffer"><samp>kill_buffer</samp></a>.
+<p>
+<samp>[#</samp> and <samp>#]</samp>keep the previous picture number conversion state on the return
+stack so they must be matched within a colon definiton.
+</p>
+<p>
+The kernel uses <samp>[#</samp> and <samp>#]</samp> whenever possible. That is for all number print
+words that are not required to provide the address of the string. If the address of a string is required
+the address of the pictured number buffer is supplied.
+</p>
+<p>
+Because care has been taken to make as much of the kernel as possible recursive you can
+enter the following and expect a response of 1234.
+</p>
+<samp><i>FORTH &gt;</i><b>1234 0 <# # # # # #></b><img src="./enter.gif" height="9" width="20"></samp><br>
+<samp><i>FORTH &gt;</i><b>TYPE</b><img src="./enter.gif" height="9" width="20"></samp>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+</BODY>
+</HTML>

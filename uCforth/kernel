@@ -1,0 +1,70 @@
+\ sript to cross comile
+\ need to enough dictinary space
+\ and load kernel.hmtl
+
+$100000 $20 - dictionary
+$10000 $20 - ram
+$10000 $20 - data
+
+\ tidy up for reload
+\ ------------------
+
+\ reduce search order
+ONLY FORTH
+
+\ see if empty is defined if so get rid of last cross compile dictionary entries
+defined empty [IF]
+       empty
+[THEN]
+
+\ define a marker so we can get rid of this code on next cross compile
+MARKER empty
+
+\ uClinux and Gforth need different mode values for create file.
+\ uClinux allows you to spec the permission bits.
+: new_file ( $ -- handle --)
+	DUP COUNT DELETE-FILE DROP
+	COUNT R/W S_IRWXU + S_IRWXG + S_IRWXO + CREATE-FILE THROW
+;
+
+</code>
+ram_variable %ucf
+ram_variable %xucf
+ram_variable %up_to
+ram_variable %sm_buffer 4 ram_allot
+
+: ucf_diff ( --)
+	S" ./ucf"  R/O OPEN-FILE $ABORT %ucf !
+	S" ./xucf" R/O OPEN-FILE $ABORT %xucf !
+	0 %up_to !
+	BEGIN
+		%sm_buffer 4 %ucf @ READ-FILE $ABORT 4 <> IF
+			." no more ucf " send %ucf @ CLOSE-FILE $ABORT
+			%xucf @ CLOSE-FILE $ABORT
+			EXIT
+		THEN
+		%sm_buffer @
+		%sm_buffer 4 %xucf @ READ-FILE $ABORT 4 <> IF
+			." no more xucf " send %ucf @ CLOSE-FILE $ABORT
+			%xucf @ CLOSE-FILE $ABORT
+			EXIT
+		THEN
+		%sm_buffer @ 2DUP <> IF
+			%up_to @ .h
+			2DUP
+			SWAP ."  ucf: " .h
+			."  xucf: " .h  CR send KEY DROP
+		THEN
+		2DROP
+		4 %up_to +!
+	AGAIN
+;
+<code>
+\ null word reguired here.
+\ gforth has to define word to convert html character sequences.
+: html_string ( addr n -- n )
+	NIP
+;
+
+include kernel.html
+bFLT ./ucf_lib ./ucf_app ./ucf

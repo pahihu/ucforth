@@ -1,0 +1,2479 @@
+<html>
+<head>
+<title>syscalls.html</title>
+<META NAME="Author" CONTENT="Charles Esson">
+<META NAME="keywords" CONTENT="forth">
+<META NAME="description" CONTENT=" file used to create uCforth">
+<LINK REL=stylesheet HREF="forth.css" TYPE="text/css">
+</head>
+<body>
+<h1>Linux OS interface</h1>
+<a HREF="./license.html">license</a>
+<h2>sys call codes</h2>
+<p>
+The linux syscall jump table is in entry.S.
+</p>
+<p>
+The syscall names are found in: <i>includes/as_m68k/unistd.h</i>.
+</p>
+<p>
+The sys calls are in: uclib/sysdeps/linux/common/syscalls.c
+</p>
+<p>
+The boundary between forth and uClinux is the trap ( where the
+language/OS boundary should be). An example OS trap dispatch table is found in:
+arch/m68knommu/platform/5307/entry.S.
+</p>
+<p>
+The stack save and restore macros are defined in: /include/asm-m68knommu/entry.h
+</p>
+<pre> <code>
+</code> </pre>
+<h2>Sys calls</h2>
+<p>
+This would be better done with defining words for syscalls, but I wanted to keep it
+simple in the development phase.
+</p>
+<p>
+Most of the system calls are documented in section 2 of the man pages.
+</p>
+<h4>__NR_exit 1</h4>
+<p>
+See <i>man 2 _exit</i>
+</p>
+<pre>
+\ when the child function is finished
+uClibc/libc/sysdeps/linux/m68k/clone.S
+\ when main is finished
+uClibc/libc/sysdeps/linux/m68k/crt0.S
+</pre>
+<p>
+Exit returns resources and kills the task. This sys call never returns. <i>status</i> is the value
+returned to the parent task.
+</p>
+<pre> <code>
+CODE _sys_exit  ( int,status -- void,..)
+	S )+ D1 MOV
+	__NR_exit # D0 MOV
+	0 # TRAP
+	D0 S -) MOV
+NEXT
+</code> </pre>
+
+<h4>__NR_fork 2</h4>
+<p>See <i>man 2 fork</i></p>
+<p>
+Fork will only work if the system has a mmu, we need to use vfork.
+</p>
+<p>
+If it did work the pid,t of the child would be returned in the parent thread
+and zero would be returned to the child tread.
+</p>
+<pre> <code>
+: _sys_fork  ( --pid_t,child|0 )
+	TRUE ABORT" Use _sys_vfork"
+; IMMEDIATE
+</code> </pre>
+
+<h4>__NR_read 3</h4>
+<p>See <i>man 2 read</i>
+<p>
+Read count bytes using the file descriptor fd into a buffer starting at buff address.
+</p>
+<p>
+The value returned is the number of bytes read if zero or greater than zero, an error code
+if less than zero. The C code sys calls convert the error codes -1 to -125 to -1 and store
+an error number. We are going to proceed on the assumption that a return value less than 0 is
+an error. There is no global error value. ansi FORTH supports catch and throw a much better
+solution.
+</p>
+<p><i>fd</i> is a value we are given by the OS, and we supply to the OS, we do not
+use it to access anything directly. This value is only seen by the FORTH driver. FORTH
+code uses an object5 reference to perform I/O against. The object reference contains method
+to deal with the needed I/O functions.
+</p>
+<p>
+Count is limited to <i>SSIZE_MAX</i> , which equal <i>INT_MAX</i>
+</p>
+<p>
+Man pages state that zero indicates end of file, value less than requested amount simple
+means enough data was not available. In otherwords, read until you get a return count of
+zero.
+</p>
+<pre> <code>
+CODE _sys_read ( int,fd __pnt_t,buff size_t,count -- ssize_t,number_read)
+	S )+ D3 MOV \ count
+	S )+ D2 MOV \ buff
+	s )+ D1 MOV \ fd
+	__NR_read # D0 MOV
+	0 # TRAP
+	D0 S -) MOV  \ number read
+NEXT
+</code> </pre>
+
+
+<h4>__NR_write 4</h4>
+<p>See <i>man 2 write</i></p>
+<p>
+Write <i>count</i> bytes from <i>buff</i> to file described by <i>fd</i>.</p>
+<p>If returned value is zero nothing was written. If returned value is negative
+there is an error.
+</p>
+<p>fd is something given to us by the OS and used by us to id the file, we
+are not to use it for anything else. This write operation is wrapped in a COLDFORTH
+I/O object. FORTH uses the object to transfer data.
+</p>
+<pre> <code>
+CODE _sys_write ( int,fd __pnt_t,buff size_t,count --ssize_t,number_written)
+	S )+ D3 MOV
+	S )+ D2 MOV
+	S )+ D1 MOV
+	__NR_write # D0 MOV
+	0 # TRAP
+	D0 S -) MOV
+NEXT
+</code> </pre>
+
+<h4>__NR_open 5</h4>
+<p>See <i>man 2 open</i></p>
+<p>
+<i>fn</i> is a null terminated string giving the path name, <i>flags</i> describe
+how the file is to be opened, and <i>mode</i> is the file mode value used
+if the file is created. The constant set starting with <i>O_</i> describe the available
+flags, the flags can be or-ed together. The set of constants starting with <i>S_I</i> can
+be used for setting the mode field. The value returned by open is used to refer to the file.
+_sys_open is used by the FORTH I/O system to set a file descriptor used by the FORTH I/O
+system. Within the forth environment you use the object address to access file data.
+</p>
+<pre> <code>
+CODE _sys_open ( char*,fn int,flags mode_t,mode --int,fd)
+	S )+ D3 MOV \ mode
+	S )+ D2 MOV \ flags
+	S )+ D1 MOV \ fn
+	__NR_open # D0 MOV
+	0 # TRAP
+	D0 S -) MOV  \ fd if positive, error code if negative.
+NEXT
+</code> </pre>
+
+<h4>__NR_close 6</h4>
+<p>
+Close the file referred to by <i>fd</i>. The return value is 0 on success. Return is
+a negative error code if here is a problem.
+</p>
+<pre> <code>
+CODE _sys_close ( int,fd -- int,error)
+	S )+ D1 MOV \ fd
+	__NR_close # D0 MOV
+	0 # TRAP
+	D0 S -) MOV \ zero or negative error_code
+NEXT
+</code> </pre>
+
+<h4>__NR_waitpid 7</h4>
+// Implemented using wait4
+
+<h4>__NR_creat 8</h4>
+<p>See <i>man 2 creat</i></p>
+<p>
+Can use <i>open</i> with the flag <i>O_WRONLY O_CREATE O_TRUBNC OR OR</i>.
+Note the missing e at the end of the create.
+</p>
+<p>
+File is the path as a zero terminate string. mode is a value made up using the <i>S_I</i>
+constants.
+</p>
+<pre> <code>
+CODE _sys_creat ( const_char*,file mode_t,mode --int,fd)
+	S )+ D2 MOV \ mode
+	S )+ D1 MOV \ file
+	__NR_creat # D0 MOV
+	0 # TRAP
+	D0 S -) MOV  \ fd if positive, error if negative
+NEXT
+</code> </pre>
+
+<h4>__NR_link 9</h4>
+<p>See <i>man 2 link</i>
+<p>
+Create a new name for a file. Both names refer to the same file.
+</p>
+<p>
+Paths are suppplied as zero terminated strings.
+</p>
+<pre> <code>
+CODE _sys_link ( const_char*,oldpath const_char*,newpath --int,error)
+	S )+ D2 MOV \ new path
+	S )+ D1 MOV \ oldpath
+	__NR_link # D0 MOV
+	0 # TRAP
+	D0 S -) MOV \ zero if ok, negative error code if failed
+NEXT
+</code> </pre>
+
+<h4>__NR_unlink 10</h4>
+<p>See <i>man 2 unlink</i>
+<p>
+Remove link to file, if only name for file file is removed when last process
+that accesses the file does so no longer.
+</p>
+<pre> <code>
+CODE _sys_unlink ( const_char*,pathname -- int,error)
+	S )+ D1 MOV   \ pathname
+	__NR_unlink # D0 MOV
+	0 # TRAP
+	D0 S -) MOV \ zero or negative error code
+NEXT
+</code> </pre>
+
+<h4>__NR_execve 11</h4>
+<p>See <i>man 2 execve</i></p>
+<p>Execute program. <i>filename</i> contains a binary or a script that starts with
+the line <i>#! interpreter</i>.
+</p>
+<i>argv</i> and <i>envp</i> are an array of pointers that point to null terminated strings.
+These strings are passed into the started application as data on the return stack.</p>
+<p>
+On success this sys call does not return. On failure it returns with an error code.
+</p>
+<pre> <code>
+CODE _sys_execve ( const_char*,filename char*const*,argv char*const*,envp --int,error)
+	S )+ D3 MOV \ envp
+	S )+ D2 MOV \ argv
+	S )+ D1 MOV \ file path
+	__NR_execve # D0 MOV
+	0 # TRAP
+	D0 S -) MOV \ error
+NEXT
+</code> </pre>
+
+<h4>__NR_chdir 12</h4>
+<p>see <i>man 2 chdir</i></p>
+<p>
+The current working directory is changed to path
+</p>
+<p>Return zero on success, negative error code on failure.</p>
+<pre> <code>
+CODE _sys_chdir ( const_char*,path -- int,error)
+	 S )+ D1 MOV
+	 __NR_chdir # D0 MOV
+	 0 # TRAP
+	 D0 S -) MOV
+NEXT
+</code> </pre>
+
+<h4>__NR_time 13</h4>
+<p>See <i>man 2 time</i></p>
+<p>The time in seconds since the start of unix time. If t is non zero the value is stored
+there also.
+</p>
+<pre> <code>
+CODE _sys_time ( time_t *,t --time_t,time)
+	S )+ D1 MOV      \ address where result is to be stored if non zero
+	__NR_time # D0 MOV
+	0 # TRAP
+	D0 S -) MOV      \ the value.
+NEXT
+</code> </pre>
+
+<h4>__NR_mknod 14</h4>
+<p>See <i>man 2 mknod</i></p>
+<p>path is the path of the inode, mode is what form the inode is to take, and dev is the
+major and minor number of the dev. Value return is zero if all is ok and negative if error.
+Look at <i>mkdir</i> and <i>mkfifo</i> instead of usig this.
+</p>
+<pre>
+<code>
+CODE _sys_mknod ( const_char*,path mode_t,mode dev_t,dev --int,error)
+	S )+ D3 MOV \ dev
+	S )+ D2 MOV \ mode
+	S )+ D1 MOV \ path
+	__NR_mknod # D0 MOV
+	0 # TRAP
+	D0 S -) MOV  \ zero or negative error code.
+NEXT
+</code>
+</pre>
+
+<h4>__NR_chmod 15</h4>
+<p>See <i>man 2 chmod</i></p>
+<p>Change the mode of a file. See the <i>S_I</i> constants.</p>
+<p><i>path</i> gives the name of the file,<i>mode</i> gives the new permissions.</p>
+<pre> 
+<code>
+CODE _sys_chmod ( const_char*,path mode_t,mode --int,error)
+	S )+ D2 MOV \ mode
+	S )+ D1 MOV \ path as zero terminated string
+	__NR_chmod # D0 MOV
+	0 # TRAP
+	D0 S -) MOV \ zero if ok, negative error code if failure.
+NEXT
+</code> </pre>
+<h4>__NR_lchown 16</h4>
+<p>See <i>man 2 lchown</i></p>
+<p>Change ownership of file. This is like chown but does not follow symbolic links.</p>
+<pre> <code>
+CODE _sys_lchown ( const_char*,path uid_t,owner gid_t,group --int,error)
+	S )+ D3 MOV \ to group id
+	S )+ D2 MOV \ to user id
+	S )+ D1 MOV \ file path as zero terminated string
+	__NR_lchown # D0 MOV
+	0 # TRAP
+	D0 S -) MOV \ -ve if error, zero if ok
+NEXT
+</code> </pre>
+
+<h4>__NR_break 17</h4>
+<p>
+Not implemented.
+</p>
+
+<h4>__NR_oldstat 18</h4>
+<p>Implemented as sys_stat</p>
+</p>
+
+<h4>__NR_lseek 19</h4>
+<p>See <i>man 2 lseek</i></p>
+<p>
+Reposition the file given by the file descriptor to the given offset. The offset can be used
+in different ways depending on the value of how.
+</p>
+<pre> <code>
+CODE _sys_lseek ( int,fd __off_t,offset, int,how --__off_t,offset)
+	S )+ D3 MOV \ how
+	S )+ D2 MOV \ offset
+	S )+ D1 MOV \ fd
+	__NR_lseek # D0 MOV
+	0 # TRAP
+	D0 S -) MOV \ offset from beginning of file if positive, error if negative.
+NEXT
+</code> </pre>
+
+<h4>__NR_getpid 20</h4>
+<p>See <i>man 2 getpid</i></p>
+<p>
+Get id of process that performed the syscall</p>
+<pre> <code>
+CODE _sys_getpid ( --pid_t,process_id)
+	__NR_getpid # D0 MOV
+	0 # TRAP
+	D0 S -) MOV
+NEXT
+</code> </pre>
+
+<h4>__NR_mount 21</h4>
+<p>See <i>man 2 mount</i></p>
+<pre> <code>
+CODE _sys_mount ( const_char*,source const_char*,target
+		  const_char*,filesystemtype unsigned_long,mountflag
+		  const_void*,data --int,error)
+	S )+ D5 MOV \ data, stuff understood by the file system
+	S )+ D4 MOV \ mountflags see MS_ flags
+	S )+ D3 MOV \ string giving file system type e.g "msdos"
+	S )+ D2 MOV \ mount point
+	S )+ D1 MOV \ stuff to be mounted.
+	__NR_mount # D0 MOV
+	0 # TRAP
+	D0 S -) MOV \ zero on success, -ve error code if failure.
+NEXT
+</code> </pre>
+
+<h4>__NR_umount 22</h4>
+<p>See <i>man 2 umount</i>
+<pre> <code>
+CODE _sys_umount ( const_char*,target --int,error)
+	S )+ D1 MOV               \ zero terminated string giving the mount point
+	__NR_umount # D0 MOV
+	0 # TRAP
+	D0 S -) MOV               \ zero if success, -ve number if failed.
+NEXT
+</code> </pre>
+
+<h4>__NR_setuid 23</h4>
+<p>See <i>man 2 setuid</i></p>
+<p>
+See setuid.c. Sets the user id of the current process ( e.g. root).
+</p>
+<pre> <code>
+CODE _sys_setuid ( uid_t,uid -- int,error)
+	S )+ D1 MOV
+	__NR_umount # D0 MOV
+	0 # TRAP
+	D0 S -) MOV
+NEXT
+</code> </pre>
+
+
+<h4>__NR_getuid 24</h4>
+<p>see <i>man 2 getuid</i></p>
+<p>
+Get the real user id of the current process. The effective
+user id is the id of file being executed.
+</p>
+<pre> <code>
+CODE _sys_getuid ( --uid_t,uid)
+	__nr_getuid # D0 MOV
+	0 # TRAP
+	D0 S -) MOV
+NEXT
+</code> </pre>
+<h4>__NR_stime 25</h4>
+<p>See <i>man 2 stime</i></p>
+<p>
+Set the system time, this is pointed to by the address t. The time is in seconds from
+1970.To set the value you have to be root user. <i>time_t</i> is defined as <i>__kernel_time_t</i>.
+<i>__kernel_time_t</i> is defined as <i>long</i>. The length of <i>long</i> is dependent on
+the processor. For the
+coldfire <i>long</i> is 32 bit.
+</p>
+<pre> <code>
+CODE _sys_stime ( const_time_t*,t --int,error)
+	S )+ D1 MOV
+	__NR_stime # D0 MOV
+	0 # TRAP
+	D0 S -) MOV
+NEXT
+</code> </pre>
+
+<h4> __NR_ptrace 26</h4>
+<p>See <i>man 2 ptrace</i></p>
+<p>
+Can be used by a parent to follow a child using signals. The manual description of return value
+is wrong. If request is PTRACE_SEEK the return value is data. If the data is in the range of
+error number then errno will be set even if it should not be. In other words errno should be
+ignored. The PTRACE constants have not been defined.
+</p>
+<pre> <code>
+CODE _sys_ptrace ( enum__ptrace_request,request pid_t,pid
+		void*,addr void*,data --long,error|data)
+	S )+ D4 MOV
+	S )+ D3 MOV
+	S )+ D2 MOV
+	S )+ D1 MOV
+	__NR_ptrace # D0 MOV
+	0 # TRAP
+	D0 S -) MOV
+NEXT
+</code> </pre>
+
+<h4>__NR_alarm 27</h4>
+<p>See <i>man 2 alarm</i></p>
+<p>
+Send a SIGALRM to process in so many seconds. If previously set return value
+is the number of seconds to when the alarm was, if not previously set the return
+value is zero.
+</p>
+<pre> <code>
+CODE _sys_alarm ( unsigned_int,seconds --int,seconds_prev)
+	S )+ D1 MOV
+	__NR_alarm # D0 MOV
+	0 # TRAP
+	D0 S -) MOV
+NEXT
+</code> </pre>
+
+<h4>__NR_oldfstat 28</h4>
+<p>Not used</h4>
+
+<h4>__NR_pause 29</h4>
+<p>
+Pause until a signal is process. The return value is -EINTR when the event occurs.
+<pre> <code>
+CODE _sys_pause ( --int,code)
+	__NR_pause # D0 MOV
+	0 # TRAP
+	D0 S -) MOV
+NEXT
+</code> </pre>
+
+<h4>__NR_utime 30</h4>
+<p>Changes the access and modification times of a file according to a buffer pointed to by
+times. The buffer contains two time_t values ( 32 bit integers for m68k uClinux,
+time in sec from 1970).
+<pre> <code>
+CODE _sys_utime ( const_char*,file const_struct_utimbuf*,times --int,??)
+	S )+ D2 MOV  \ pointer to times
+	S )+ D1 MOV  \ pointer to file path as null terminated string.
+	__NR_utime # D0 MOV
+	0 # TRAP
+	D0 S -) MOV
+NEXT
+</code> </pre>
+
+<h4>__NR_stty 31</h4>
+<p>Not implemented</p>
+<pre> <code>
+: _sys_stty ( int,__fd __const_struct_sgttyb*,__params --int,??)
+	TRUE ABORT" Not an aption"
+; IMMEDIATE
+</code> </pre>
+
+<h4>__NR_gtty 32</h4>
+<p>Not implemented</p>
+<pre> <code>
+: _sys_gtty ( int,__fd __const_struct_sgttyb*,__params --int,??)
+	TRUE ABORT" Not an aption"
+; IMMEDIATE
+</code> </pre>
+
+<h4>__NR_access 33</h4>
+<p>See <i>man 2 access</i></p>
+<p>
+Return value is zero if access is allowed, the problem as a -ve error if not.
+<p>
+<pre> <code>
+CODE _sys_access ( const_char*,pathname int,mode --int,result)
+	S )+ D2 MOV \ mode R_OK,W_OR,X_OK and F_OK
+	S )+ D1 MOV \ pathname
+	__NR_access # D0 MOV
+	0 # TRAP
+	D0 S -) MOV
+NEXT
+</code> </pre>
+
+<h4>__NR_nice 34</h4>
+<p>See <i>man 2 nice</.i></p>
+<p>
+Change the priority of a process. Return value is zero, or negative on error.
+<p>
+<pre> <code>
+CODE _sys_nice ( int,inc -- int,error)
+	S )+ D1 MOV
+	__NR_nice # D0 MOV
+	0 # TRAP
+	D0 S -) MOV
+NEXT
+</code> </pre>
+
+<h4>__NR_ftime 35</h4>
+<p>Not implemented</p>
+
+<h4>__NR_sync 36</h4>
+<p>see <i>man 2 sync</i></p>
+<p>Write inodes and then buffers to disk.</p>
+<pre> <code>
+CODE _sys_sync ( --)
+	__NR_sync # D0 MOV
+	0 # TRAP
+NEXT
+</code> </pre>
+
+
+<h4>__NR_kill 37</h4>
+<p>See <i>man 2 kill</i></p>
+<p>Send a signal to a process. Call is not well named. Return value is zero on success.</p>
+<pre> <code>
+CODE _sys_kill ( pid_t,pid int,sig --int,error)
+	S )+ D2 MOV \ sig
+	S )+ D1 MOV \ pid
+	__NR_kill # D0 MOV
+	0 # TRAP
+	D0 S -) MOV
+NEXT
+</code> </pre>
+<h4>__NR_rename 38</h4>
+<p>See man 2 rename</i></p>
+<p>Rename a file, return zero if all is ok, negative error if not.</p>
+<pre> <code>
+CODE _sys_rename ( const_char*,oldpath const_char*,newpath--int,error)
+	S )+ D2 MOV \ newpath
+	S )+ D1 MOV \ oldpath
+	__NR_rename # D0 MOV
+	0 # TRAP
+	D0 S -) MOV
+NEXT
+</code> </pre>
+
+<h4>__NR_mkdir 39</h4>
+<p>See <i>man 2 mkdir</i></p>
+<p>
+Make a directory.
+</p>
+<pre> <code>
+CODE _sys_mkdir ( const_char*,pathname  mode_t,mode -- int,error)
+	S )+ D2 MOV
+	S )+ D1 MOV
+	__NR_mkdir # D0 MOV
+	0 # TRAP
+	D0 S -) MOV
+NEXT
+</code> </pre>
+
+<p>See <i>man 2 rmdir</i></p>
+<h4>__NR_rmdir 40</h4>
+<p>Remove a directory, return zero if ok, negative error code if not.</p>
+<pre> <code>
+CODE _sys_rmdir ( const_char*,pathname--int,error)
+	S )+ D1 MOV
+	__NR_rmdir # D0 MOV
+	0 # TRAP
+	D0 S -) MOV
+NEXT
+</code> </pre>
+
+<h4>__NR_dup 41</h4>
+<p>Duplicate the file descriptor into the lowest available descriptor location.Return zero
+on success, negative error number if failed.</p>
+<pre> <code>
+CODE _sys_dup ( int,oldfd --int,error)
+	S )+ D1 MOV
+	__NR_dup # D0 MOV
+	0 # TRAP
+	D0 S -) MOV
+NEXT
+</code> </pre>
+
+<h4>__NR_pipe 42</h4>
+<p>The input value is a pointer to two file descriptors ( two 32 bit integers).
+Two descriptors are returned, 0 for reading 1 for writing.</p>
+<pre> <code>
+CODE _sys_pipe ( int*,filedes --int,error)
+	S )+ D1 MOV
+	__NR_pipe # D0 MOV
+	0 # TRAP
+	D0 S -) MOV
+NEXT
+</code> </pre>
+
+<h4>__NR_times 43</h4>
+<p>See <i>man 2 times</i></p>
+<p>Returns an array of clock tick times. The array has 4 clock_t entries. Entry 0 is
+the time spent in user code, entry 1 is the time spent by the system working for the task.
+Entry 2 is the time used by the children, entry 3 is the system time used by the children.
+</p>
+<p>
+On return a negative value is an error, a positive value is the number of clock_t
+ticks since boot. A value that will overflow with time.
+</p>
+<p>
+clock_t is defined as a long, a long is 32bits.
+<pre> <code>
+CODE _sys_times ( struct_tms*,buf --clock_t,error)
+	S )+ D1 MOV
+	__NR_times # D0 MOV
+	0 # TRAP
+	D0 S -) MOV
+NEXT
+</code> </pre>
+
+<h4>__NR_prof 44</h4>
+<p>Not implemented.</p>
+
+<h4>__NR_brk 45</h4>
+<p>Not used, implemented as sys_brk</p>
+
+
+<h4>__NR_setgid 46</h4>
+<p>see <i>man 2 setgid</i></p>
+<p>Set the group id of the process.</p>
+<p>Return zero on success, -ve value if failure.</p>
+<pre> <code>
+CODE setgid ( gid_t,gid --int,error)
+	S )+ D1 MOV
+	__NR_setgid # D0 MOV
+	0 # TRAP
+	D0 S -) MOV
+NEXT
+</code> </pre>
+
+<h4>__NR_getgid 47</h4>
+<p>See <i>man 2 getgid</i>
+<pre> <code>
+CODE _sys_getgid ( --gid_t,pid)
+	__NR_getpid # D0 MOV
+	0 # TRAP
+	D0 S -) MOV
+NEXT
+</code> </pre>
+
+<h4> __NR_signal 48</h4>
+<p>Not used. Implemented as sys_signal</p>
+
+<h4>__NR_geteuid 49</h4>
+<p>See man 2 geteuid</p>
+<p>Get effective uid.</p>
+<pre> <code>
+CODE _sys_geteuid  ( --uid_t,??)
+	__NR_geteuid # D0 MOV
+	0 # TRAP
+	D0 S -) MOV
+NEXT
+</code> </pre>
+
+<h4>__NR_getegid 50</h4>
+<p>see <i>man 2 getegid</i></p>
+<pre> <code>
+CODE _sys_getegid ( --gid_t,egid)
+	__NR_getegid # D0 MOV
+	0 # TRAP
+	D0 S -) MOV
+NEXT
+</code> </pre>
+
+<h4>__NR_acct 51</h4>
+<p>Turn accounting on</p>
+<p>Value return is zero if all is ok, negative error number otherwise.</p>
+<pre> <code>
+CODE _sys_acct ( const_char*,filename  -- int,error)
+	S )+ D1 MOV
+	__NR_acct # D0 MOV
+	0 # TRAP
+	D0 S -) MOV
+NEXT
+</code> </pre>
+
+<h4>__NR_umount2 52</h4>
+<p>See man 2 umount2</p>
+<p>Mount flags are added.</p>
+<p>Returns zero if all ok, negative error code if not.</p>
+<pre> <code>
+CODE _sys_umount2 ( const_char*,special_file int,flags -- int,error)
+	 S )+ D2 MOV
+	 S )+ D1 MOV
+	 __NR_umount2 # D0 MOV
+	 0 # TRAP
+	 D0 S -) MOV
+NEXT
+</code> </pre>
+<h4>__NR_lock 53</h4>
+<p>Not implemented</p>
+
+<h4>__NR_ioctl 54</h4>
+<p>See <i>man 2 ioct</i>, further reading linux device drivers is required to understand it all.</p>
+
+<p>fd is the file descriptor, cmd is a command code, and arg is a data item pointer. To use
+this system call the relevent driver code has to be studied.
+</p>
+<pre> <code>
+CODE _sys_ioctl ( int,fd int,request void*,arg --int,data|error)
+	S )+ D3 MOV
+	S )+ D2 MOV
+	S )+ D1 MOV
+	__NR_ioctl # D0 MOV
+	0 # TRAP
+	D0 S -) MOV
+NEXT
+</code> </pre>
+
+<h4>__NR_fcntl 55</h4>
+<p>see <i>man 2 fctrl</i> for a complete description.</p>
+<p>file control. See F_ constants for possible commands. The return value is dependent
+on the command.g</p>
+<pre> <code>
+CODE _sys_fcntl ( int,fd int,cmd, long,arg -- int,result)
+	S )+ D3 MOV
+	S )+ D2 MOV
+	S )+ D1 MOV
+	__NR_fcntl # D0 MOV
+	0 # TRAP
+	D0 S -) MOV
+NEXT
+</code> </pre>
+
+<h4>__NR_mpx 56</h4>
+<p>Not implemented</p>
+
+<h4>__NR_setpgid 57</h4>
+<p>See <i>man 2 setpgid</i></p>
+<p>set program group id. Return value is zero if success, negative value if error.</p>
+<pre> <code>
+CODE _sys_setpgid ( pid_t,from pid_t,to -- int,error)
+	S )+ D2 MOV \ to
+	S )+ D1 MOV \ from
+	__NR_mpx # D0 MOV
+	0 # TRAP
+	D0 S -) MOV
+NEXT
+</code> </pre>
+
+<h4>__NR_ulimit 58</h4>
+<p>Not implemented</p>
+
+<h4>__NR_oldolduname 59</h4>
+<p>Not implemented</p>
+
+<h4>__NR_umask 60</h4>
+<p>See <i>man 2 umask</i></p>
+<p>Set the user mask, used by open to set the initial file permissions.
+The previous mask value is returned.</p>
+<pre> <code>
+CODE _sys_umast ( mode_t,mask --mode_t,previous)
+	S )+ D1 MOV
+	__NR_umask # D0 MOV
+	0 # TRAP
+	D0 S -) MOV
+NEXT
+</code> </pre>
+
+<h4>__NR_chroot 61</h4>
+<p>See <i>man 2 chroot</i></p>
+<p>Change the root directory. This is the directory referred to by /.</p>
+<pre>
+<code>
+CODE _sys_chroot ( const_char*,path int,error)
+	S )+ D1 MOV
+	__NR_chroot # D0 MOV
+	0 # TRAP
+	D0 S -) MOV
+NEXT
+</code> </pre>
+
+<h4>__NR_ustat 62</h4>
+<p>Not used, implemented as sys_ustat</p>
+
+<h4>__NR_dup2 63</h4>
+<p>See <i>man 2 dup2</i></p>
+<p>Duplicates the fd as new fd, closing a open file if need be.</p>
+<pre> <code>
+CODE _sys_dup2 ( int,oldfd int,newfd --int,error)
+	S )+ D2 MOV \ new fd
+	S )+ D1 MOV \ old fd
+	__NR_dup2 # D0 MOV
+	0 # TRAP
+	D0 S -) MOV \ error
+NEXT
+</code> </pre>
+
+<h4>__NR_getppid 64</h4>
+<p>man 2 getppid</p>
+<p>get the current process id.</p>
+<pre> <code>
+CODE _sys_getppid ( --pid_t,process_id)
+	__NR_getppid # D0 MOV
+	0 # TRAP
+	D0 S -) MOV
+NEXT
+</code> </pre>
+
+<h4>__NR_getpgrp 65</h4>
+<p>Get the current process group id.</p>
+<pre> <code>
+CODE _sys_getpgrp ( -- pid_t,process_group_id)
+	__NR_getpgrp # D0 MOV
+	0 # TRAP
+	D0 S -) MOV
+NEXT
+</code> </pre>
+
+<h4>__NR_setsid 66</h4>
+<p>See <i>man 2 setsid</i></p>
+<p>Set session id.</p>
+<pre> <code>
+CODE _sys_setsid ( --pid,t,session_id)
+	__NR_setsid # D0 MOV
+	0 # TRAP
+	D0 S -) MOV
+NEXT
+</code> </pre>
+
+<h4>__NR_sigaction 67</h4>
+<p>See <i>man 2 sigaction</i></p>
+<p>Set the signal actions</p>
+<pre> <code>
+CODE _sys_sigaction ( int,signum
+                      const_struct_sigaction*,act
+                      struct_sigaction*,oldact --int,error)
+	S )+ D3 MOV
+	S )+ D2 MOV
+	S )+ D1 MOV
+	__NR_sigaction # D0 MOV
+	0 # TRAP
+	D0 S -) MOV
+NEXT
+</code> </pre>
+
+<h4>__NR_sgetmask 68</h4>
+<p>Not used, implemented as sys_sgetmask.</p>
+
+<h4>__NR_ssetmask 69</h4>
+<p>Not used, implemented as sys_sgetmask.</p>
+
+<h4>__NR_setreuid 70</h4>
+<p>See <i>man 2 setreuid</i></p>
+<p>Set real and effective user id.</p>
+<pre> <code>
+CODE _sys_setreuid ( uid_t,ruid uid_t,euid -- int,error)
+	S )+ D2 MOV
+	S )+ D1 MOV
+	__NR_setreuid # D0 MOV
+	0 # TRAP
+	D0 S -) MOV
+NEXT
+</code> </pre>
+<h4>__NR_setregid 71</h4>
+<p>See <i>man 2 setregid</i></p>
+<p>Set real and effective group id.</p>
+<pre> <code>
+CODE _sys_setregid ( gid_t,rgid gid_t,egid --int,error)
+	S )+ D2 MOV
+	S )+ D1 MOV
+	__NR_setregid # D0 MOV
+	0 # TRAP
+	D0 S -) MOV
+NEXT
+</code> </pre>
+<h4>__NR_sigsuspend 72</h4>
+<p>See <i>man 2 sigsuspend</i></p>
+<p>The man page does not agree with the sys call code. www.infran.ru claims
+the kernel uses a to adjust the stack, b is not used and c is the new signal mask
+the task is suspended until the signal occurs. The call parameters have been
+altered to match the man convention.</p>
+<pre> <code>
+CODE _sys_sigsuspend ( const_sigset_t*,mask -- int,-1)
+	S )+ D3 MOV
+	0 # D2 MOV
+	0 # D1 MOV
+	__NR_sigsuspend # D0 MOV
+	0 # TRAP
+	D0 S -) MOV
+NEXT
+</code> </pre>
+
+<h4>__NR_sigpending 73</h4>
+<p>See <i>man 2 sigpending</i></p>
+<p>Pending signal data is stored in set.</p>
+<pre> <code>
+CODE sigpending ( sigset_t*,set --int,error)
+	S )+ D1 MOV
+	__NR_sigpending # D0 MOV
+	0 # TRAP
+	D0 S -) MOV
+NEXT
+</code> </pre>
+
+<h4>__NR_sethostname 74</h4>
+<p>see <i>man 2 sethostname</i></p>
+<p>Why this sys call uses a string length and all the others use a 
+nullterminated string is beyond me.
+</p>
+<pre> <code>
+CODE _sig_sethostname ( const_char_*,name size_t,len --int,error )
+	S )+ D2 MOV
+	S )+ D1 MOV
+	__NR_sethostname # D0 MOV
+	0 # TRAP
+	D0 S -) MOV
+NEXT
+</code> </pre>
+
+<h4>__NR_setrlimit 75</h4>
+<p>see <i>man 2 setrlimit</i></p>
+<p>Set resource limits. The first item is a code that specs the resource, the second
+is a code that gives a soft and hard limit.
+</p>
+<pre> <code>
+CODE _sys_setrlimit ( int,resource const_struct_rlimit*,rlim --int,error)
+	S )+ D2 MOV
+	S )+ D1 MOV
+	__NR_setrlimit # D0 MOV
+	0 # TRAP
+	D0 S -) MOV
+NEXT
+
+
+</code> </pre>
+<h4>__NR_getrlimit 76</h4>
+<p>See <i>man 2 getrlimits</i></p>
+<pre> <code>
+CODE _sys__getrlimit ( int,resource struct_rlimit*,rlim -- int,error)
+	S )+ D2 MOV
+	S )+ D1 MOV
+	__NR_getrlimit # D0 MOV
+	0 # TRAP
+	D0 S -) MOV
+NEXT
+</code> </pre>
+
+<h4>__NR_getrusage 77</h4>
+<p>See <i>man 2 getrusage</i></p>
+<p>who is a code for self or children, data is returned in supplied structure.</p>
+<pre> <code>
+CODE getrusage ( int,who struct_rusage_*,usage --int,error)
+	S )+ D2 MOV
+	S )+ D1 MOV
+	__NR_getrusage # D0 MOV
+	0 # TRAP
+	D0 S -) MOV
+NEXT
+</code> </pre>
+
+<h4>__NR_gettimeofday 78</h4>
+<p>See <i>man 2 gettimeofday</i></p>
+<pre> <code>
+CODE gettimeofday ( struct_timeval*,tv struct_timezone*,tz --int,error)
+	S )+ D2 MOV
+	S )+ D1 MOV
+	__NR_gettimeofday # D0 MOV
+	0 # TRAP
+	D0 S -) MOV
+NEXT
+</code> </pre>
+
+<h4>__NR_settimeofday 79</h4>
+<p>See <p><i>man 2 settimeofday</i></p>
+<pre> <code>
+CODE settimeofday ( const_struct_timeval*,tv const_struct_timezone*,tz --int,error)
+	S )+ D2 MOV
+	S )+ D1 MOV
+	__NR_settimeofday # D0 MOV
+	0 # TRAP
+	D0 S -) MOV
+NEXT
+</code> </pre>
+
+<h4>__NR_getgroups 80</h4>
+<p>Get supplementary group id's size gives the number.</p>
+<pre> <code>
+CODE _sys_getgroups ( int,size gid_t*,list --int,error)
+	S )+ D2 MOV
+	S )+ D1 MOV
+	__NR_Getgroups # D0 MOV
+	0 # TRAP
+	D0 S -) MOV
+NEXT
+</code> </pre>
+
+<h4>__NR_setgroups 81</h4>
+<p>
+set the supplementary groups.
+</p>
+<pre> <code>
+CODE _sys_setgroups  ( size_t,size const_gid_t*,list int,error)
+	S )+ D2 MOV
+	S )+ D1 MOV
+	__NR_setgroups # D0 MOV
+	0 # TRAP
+	D0 S -) MOV
+NEXT
+</code> </pre>
+
+<h4>__NR_select 82</h4>
+<p>See <i>man 2 select</i></p>
+<p>Wait for some activity on file descriptors.</p>
+<pre> <code>
+CODE _sys_select ( int,n
+                   fd_set*,readfds
+                   fd_set*,writefds
+                   fd_set*,exceptfds
+		   struct_timeval*,timeout -- int,number|data)
+	S )+ D5 MOV
+	S )+ D4 MOV
+	S )+ D3 MOV
+	S )+ D2 MOV
+	S )+ D1 MOV
+	__NR_newselect # D0 MOV
+	0 # TRAP
+	D0 S -) MOV
+NEXT
+</code> </pre>
+
+<h4>__NR_symlink 83</h4>
+<p>See <i>man symlink</i></p>.
+<pre> <code>
+CODE _sys_symlink ( const_char*,oldpath
+                    const_char*,newpath --int,error )
+	S )+ D2 MOV
+	S )+ D1 MOV
+	__NR_symlink # D0 MOV
+	0 # TRAP
+	D0 S -) MOV
+NEXT
+</code> </pre>
+
+<h4>__NR_oldlstat 84</h4>
+<p>Not used, implemented as sys_lstat.</p>
+
+<h4>__NR_readlink 85</h4>
+<p>See <i>man 2 readlink</i></p>
+<p>Symbolic link path into buffer. String is not terminated by null.</p>
+<pre> <code>
+CODE _sys_readlink ( const_char*,path
+                     char*,buf
+                     size_t,bufsiz --int,count)
+	S )+ D3 MOV
+	S )+ D2 MOV
+	S )+ D1 MOV
+	__NR_readlink # D0 MOV
+	0 # TRAP
+	D0 S -) MOV
+NEXT
+</code> </pre>
+
+<h4>__NR_uselib 86</h4>
+<p>See <i>man 2 uselib</i></p>
+<p>
+Use shared library.
+</p>
+<pre> <code>
+CODE uselib ( const_char*,library -- int,error)
+	D1 S -) MOV
+	__NR_uselib # D0 MOV
+	0 # TRAP
+	D0 S -) MOV
+NEXT
+</code> </pre>
+
+<h4>__NR_swapon 87</h4>
+<p>See <i>man 2 swapon</i></p>
+<pre> <code>
+CODE swapon ( const_char*,path int,swapflags -- int,error)
+	S )+ D2 MOV
+	S )+ D1 MOV
+	__NR_swapon # D0 MOV
+	0 # TRAP
+	D0 S -) MOV
+NEXT
+</code> </pre>
+<p>See <i>man 2 reboot</i></p>
+
+<h4>__NR_reboot 88</h4>
+<pre> <code>
+CODE _sys_reboot ( int,magic int,magic2 int,flag --int,flag)
+	S )+ D3 MOV
+	S )+ D2 MOV
+	S )+ D1 MOV
+	__NR_reboot # D0 MOV
+	0 # TRAP
+	D0 S -) MOV
+NEXT
+</code> </pre>
+
+<h4>__NR_readdir 89</h4>
+<p>see <i>man 2 readdir</i></p>
+<p>Superseded by getdents</p>
+
+<h4>__NR_mmap 90</h4>
+<p>see <i>man 2 mmap</i></p>
+<pre> <code>
+CODE _sys_mmap ( unsigned_long*,buffer  -- __ptr_t,address|error)
+	S )+ D1 MOV
+	__NR_mmap # D0 MOV
+	0 # TRAP
+	D0 S -) MOV
+NEXT
+
+
+
+\ forth_mmap has the stack description in an order that
+\ is suitable for direct call to _sys_map
+: forth_mmap ( __off_t,offset
+	int,fd
+        int,flags
+	int,prot
+	size_t,len
+	__ptr_t,addr
+	-- __ptr_t,add )
+
+	@s _sys_mmap
+	>R
+	2DROP 2DROP 2DROP
+	R>
+
+;
+</code> </pre>
+
+<h4>__NR_munmap 91</h4>
+<p>See <i>man 2 munmap</i></p>
+<p>unmap</p>
+<pre> <code>
+CODE _sys_munmap ( void*,start size_t,length --int,error)
+	S )+ D2 MOV
+	S )+ D1 MOV
+	__NR_munmap # D0 MOV
+	0 # TRAP
+	D0 S -) MOV
+NEXT
+</code> </pre>
+
+<h4>__NR_truncate 92</h4>
+<p>Truncate specified file</p>
+<pre> <code>
+CODE _sys_truncate ( const_char*,path __off_t,length --int,error)
+	S )+ D2 MOV
+	S )+ D1 MOV
+	__NR_truncate # D0 MOV
+	0 # TRAP
+	D0 S -) MOV
+NEXT
+</code> </pre>
+
+<h4>__NR_ftruncate 93</h4>
+<p>See <i>man 2 ftruncate</i></p>
+<p>Truncate file pointed to by handle</p>
+<pre> <code>
+CODE _sys_ftruncate ( int,fd
+                      __off_t,length --int,error)
+	S )+ D2 MOV
+	S )+ D1 MOV
+	__NR_ftruncate # D0 MOV
+	0 # TRAP
+	D0 S -) MOV
+NEXT
+</code> </pre>
+
+<h4>__NR_fchmod 94</h4>
+<p>See <i>man 2 fchmod</i></p>
+<pre> <code>
+CODE fchmod ( int,fd mode_t,mode --int,error)
+	 S )+ D2 MOV
+	 S )+ D1 MOV
+	 __NR_fchmod # D0 MOV
+	 0 # TRAP
+	 D0 S -) MOV
+NEXT
+</code> </pre>
+
+<h4>__NR_fchown 95</h4>
+<p>Change owner, follows symbolic links.</p>
+<pre> <code>
+CODE _sys_fchown ( int,fd
+	uid_t,owner
+	gid_t,group --int,error)
+	S )+ D3 MOV
+	S )+ D2 MOV
+	S )+ D1 MOV
+	__NR_fchown # D0 MOV
+	0 # TRAP
+	D0 S -) MOV
+NEXT
+</code> </pre>
+
+<h4>__NR_getpriority 96</h4>
+<p>See <i>man 2 getpriority</i></p>
+<p>A mess, error codes mixed with negative priority values</p>
+<pre> <code>
+CODE _sys_getpriority ( __priority_which_t,which id_t,who --int,data|error)
+	S )+ D2 MOV
+	S )+ D1 MOV
+	__NR_getpriority # D0 MOV
+	0 # TRAP
+	D0 S -) MOV
+NEXT
+</code> </pre>
+
+<h4>__NR_setpriority 97</h4>
+<p>See <i>man 2 setpriority</i></p>
+<pre> <code>
+CODE _sys_setpriority ( __priority_which_t,which id_t,who int,prio --int,error)
+	S )+ D3 MOV
+	S )+ D2 MOV
+	S )+ D1 MOV
+	__NR_setpriority # D0 MOV
+	0 # TRAP
+	D0 S -) MOV
+NEXT
+</code> </pre>
+
+<h4>__NR_profil 98</h4>
+<p>Not implemented.</p>
+
+<h4>__NR_statfs 99</h4>
+<p>File system stats</p>
+<pre> <code>
+CODE _sys_statfs ( const_char*,path struct_statfs*,buf --int,error)
+	S )+ D2 MOV
+	S )+ D1 MOV
+	__NR_statfs # D0 MOV
+	0 # TRAP
+	D0 S -) MOV
+NEXT
+</code>
+</pre>
+<h4>__NR_fstatfs 100</h4>
+<p>See <i>man 2 fstatfs</i></p>
+<pre> <code>
+CODE fstatfs ( int,fd struct_statfs*,buf --int,error)
+	S )+ D2 MOV
+	S )+ D1 MOV
+	__NR_fstatfs # D0 MOV
+	0 # TRAP
+	D0 S -) MOV
+NEXT
+</code> 
+</pre>
+
+<h4>__NR_ioperm 101</h4>
+<p>Only relevent if you have an mmu and ports.</p>
+<pre> <code>
+: _sys_iopen ( unsigned_long,from unsigned_long,num int,turn_on  --int,??)
+	TRUE ABORT" Not relevent"
+; IMMEDIATE
+</code> </pre>
+
+<h4>__NR_socketcall 102</h4>
+<p>See <i>man 2 socketcall</i></p>
+<p>
+Used to access the socket program, this function will hide behind the i/o classes.
+</p>
+<pre> <code>
+CODE _sys_socketcall ( int,call unsigned_long*,args --int,??)
+	S )+ D2 MOV
+	s )+ D1 MOV
+	__NR_socketcall # D0 MOV
+	0 # TRAP
+	D0 S -) MOV
+NEXT
+</code> </pre>
+
+<h4>__NR_syslog 103</h4>
+<p>See <i>man 2 syslog</i></p>
+<p>Controls the printk log.</p>
+<pre> <code>
+CODE _sys_syslog ( int,type char*,buf int,len --int,count|error)
+	S )+ D3 MOV
+	S )+ D2 MOV
+	S )+ D1 MOV
+	__NR_syslog # D0 MOV
+	0 # TRAP
+	D0 S -) MOV
+NEXT
+</code> </pre>
+
+<h4>__NR_setitimer 104</h4>
+<p>
+Each process gets three timers, when it expires a signal is sent.
+</p>
+<p>See <i>man 2 setitimer</i></p>
+<pre> <code>
+CODE _sys_setitimer ( __itimer_which_t,which
+                      const_struct_itimerval*,new
+                      struct_itimerval*,old
+		      --int,error)
+	S )+ D3 MOV
+	S )+ D2 MOV
+	S )+ D1 MOV
+	__NR_setitimer # D0 MOV
+	0 # TRAP
+	D0 S -) MOV
+NEXT
+</code> </pre>
+
+<h4>__NR_getitimer 105</h4>
+<p>See <i>man 2 getitimer</i></p>
+<pre> <code>
+CODE getitimer ( __itimer_which_t,which
+                 struct_itimerval*,value --int,error)
+	S )+ D2 MOV
+	S )+ D1 MOV
+	__NR_getitimer # D0 MOV
+	0 # TRAP
+	D0 S -) MOV
+NEXT
+</code> </pre>
+
+<h4>__NR_stat 106</h4>
+<p>See <i>man 2 stat</i></p>
+<p>Return file stats</p>
+<pre> <code>
+CODE _sys_stat ( const_char*,file_name
+                 struct_stat*,buf --int,error)
+	S )+ D2 MOV
+	S )+ D1 MOV
+	__NR_stat # D0 MOV
+	0 # TRAP
+	D0 S -) MOV
+NEXT
+</code> </pre>
+
+<h4>__NR_lstat 107</h4>
+<p>See <i>man 2 lstat</i></p>
+<p>Large file systems.</p>
+<pre> <code>
+CODE _sys_lstat ( const_char*,file_name
+             struct_stat*,buf --int,error)
+	S )+ D2 MOV
+	S )+ D1 MOV
+	__NR_lstat # D0 MOV
+	0 # TRAP
+	S )+ D0 MOV
+NEXT
+</code> </pre>
+
+<h4>__NR_fstat 108</h4>
+<p>See <i>man 2 fstat</i></p>
+<pre> <code>
+CODE _sys_fstat (  int,fd
+                   struct_stat*,buf --
+                   int,error)
+	S )+ D2 MOV
+	S )+ D1 MOV
+	__NR_fstat # D0 MOV
+	0 # TRAP
+	D0 S -) MOV
+NEXT
+</code> </pre>
+
+<h4>__NR_olduname 109</h4>
+<p>Not implemented</p>
+
+<h4>__NR_iopl 110</h4>
+<p>See <i>man 2 iopl</i></p>
+<p>Increase I/O privilege, not implemented.</p>
+<pre> <code>
+: _sys_iopt ( int,level -- int,error)
+	TRUE ABORT" No need if no MMU"
+; IMMEDIATE
+</code> </pre>
+
+<h4>__NR_vhangup 111</h4>
+<p>See <i>man 2 vhangup</i></p>
+<p>Hangup the tty</p>
+<pre> <code>
+CODE _sys_vhangup ( --int,error)
+	__NR_vhangup # D0 MOV
+	0 # TRAP
+	D0 S -) MOV
+NEXT
+</code> </pre>
+
+<h4>__NR_idle 112</h4>
+<p>Not implemented.</p>
+
+<h4>__NR_vm86old 113</h4>
+<p>Not implemented.</p>
+
+<h4>__NR_wait4 114</h4>
+<p>See <i>man 2 wait4</i></p>
+<p>Wait for child to terminate. <i>pid</i>  gives details of the
+process to wait for. Status gives the exit method. opts gives optional
+wait methods, rusage is filled with accounting data if not null.
+</p>
+<pre> <code>
+CODE _sys_wait4 ( pid_t,pid
+                  int*,status
+                  int,opts
+                  void*,rusage --int,data|error)
+	S )+ D4 MOV
+	S )+ D3 MOV
+	S )+ D2 MOV
+	S )+ D1 MOV
+	__NR_wait4 # D0 MOV
+	0 # TRAP
+	D0 S -) MOV
+NEXT
+</code> </pre>
+
+</h4>__NR_swapoff 115</h4>
+<p>See <i>man 2 swapoff</i></p>
+<pre> <code>
+CODE _sys_swapoff ( const_char*,path int,error)
+	S )+ D1 MOV
+	__NR_swapoff # D0 MOV
+	0 # TRAP
+	D0 S -) MOV
+NEXT
+</code> </pre>
+
+<h4>__NR_sysinfo 116</h4>
+<p>See <i>man 2 sysinfo</i></p>
+<pre> <code>
+CODE _sys_sysinfo ( struct_sysinfo*,info int,error)
+	S )+ D1 MOV
+	__NR_sysinfo # D0 MOV
+	0 # TRAP
+	D0 S -) MOV
+NEXT
+</code> </pre>
+
+<h4>__NR_ipc 117</h4>
+<p>See <i>man 2 ipc</i></p>
+<p>Entry point for ipc calls. Needs to be expanded.</p>
+<pre> <code>
+CODE _sys_ipc ( unsigned_int,call
+                int,first
+                int,second
+                int,third
+                void*,ptr -- int,??)
+	S )+ D5 MOV
+	S )+ D4 MOV
+	S )+ D3 MOV
+	S )+ D2 MOV
+	S )+ D1 MOV
+	__NR_ipc # D0 MOV
+	0 # TRAP
+	D0 S -) MOV
+NEXT
+</code> </pre>
+
+<h4>__NR_fsync 118</h4>
+<p>See <i>man 2 fsync</i></p>
+<pre> <code>
+CODE _sys_fsync (  int,fd --int,error)
+	S )+ D1 MOV
+	__NR_fsync # D0 MOV
+	0 # TRAP
+	D0 S -) MOV
+NEXT
+</code> </pre>
+
+<h4>__NR_sigreturn 119</h4>
+<p>See <i>man 2 sigreturn</i></p>
+<p>Os puts syscall in return stack when calling a signal handler. User
+app should not find this interesting</p>
+
+<h4>__NR_clone 120</h4>
+<p>See <i>man 2 clone</i></p>
+<p>With n mmu ends up calling fork.</p>
+<pre> <code>
+CODE _sys_clone ( int,flags
+                  void*,child_stack -- int,pid)
+	S )+ D2 MOV
+	S )+ D1 MOV
+	0 # TRAP
+	D0 S -) MOV
+NEXT
+</code> </pre>
+
+<h4>__NR_setdomainname 121</h4>
+<p>See <i>man 2 setdomainname</i></p>
+<p>Returned as zero terminated string within len or error.</p>
+<pre> <code>
+CODE _sys_setdomainname ( const_char*,name
+                          size_t,len -- int,error)
+	S )+ D2 MOV
+	S )+ D1 MOV
+	__NR_setdomainname # D0 MOV
+	0 # TRAP
+	D0 S -) MOV
+NEXT
+</code> </pre>
+
+<h4>__NR_uname 122</h4>
+<p>See <i>man 2 uname</i></p>
+<p>Version data current kernel</p>
+<pre> <code>
+CODE _sys_uname ( structutsname*,buf --int,error)
+	S )+ D1 MOV
+	__NR_uname # D0 MOV
+	0 # TRAP
+	D0 S -) MOV
+NEXT
+</code> </pre>
+<h4>__NR_modify_ldt 123</h4>
+<pre>
+<code>
+CODE _sys_cacheflush ( addr scope cache length)
+	S )+ D4 MOV \ length
+	S )+ D3 MOV \ cache
+	S )+ D2 MOV \ scope
+	S )+ D1 MOV \ addr
+	__NR_cacheflush # D0 MOV
+	0 # TRAP
+	D0 S -) MOV
+NEXT
+</code>
+</pre>
+<h4>__NR_adjtimex 124</h4>
+<p>See <i>man 2 adjtimex</i></p>
+<pre> <code>
+CODE _sys_adjtimex ( struct_timex*,buf int,state)
+	S )+ D1 MOV
+	__NR_adjtimex # D0 MOV
+	0 # TRAP
+	D0 S -) MOV
+NEXT
+</code> </pre>
+
+<h4>__NR_mprotect 125</h4>
+<p>See <i>man 2 mprotect</i></p>
+<p>Not much use without mmu</p>
+<pre> <code>
+CODE _sys_mprotect ( void*,addr size_t,len int,prot --int,error)
+	S )+ D2 MOV
+	S )+ D1 MOV
+	__NR_mprotect # D0 MOV
+	0 # TRAP
+	D0 S -) MOV
+NEXT
+</code> </pre>
+
+<h4>__NR_sigprocmask 126</h4>
+<p>See <i>man 2 sigprocmask</i></p>
+<pre> <code>
+CODE sigprocmask ( int,how
+                   const_sigset_t*,set
+                   sigset_t*,oldset --int,error)
+	S )+ D3 MOV
+	S )+ D2 MOV
+	S )+ D1 MOV
+	__NR_sigprocmask # D0 MOV
+	0 # TRAP
+	D0 S -) MOV
+NEXT
+</code> </pre>
+
+<h4>__NR_create_module 127</h4>
+<p>See <i>man 2 create_module</i></p>
+<p>See sysdeps/linux/commom/create_module.c</p>
+<p>
+This may have 5 arguments (for old 2.0 kernels) or 2 arguments
+(for 2.2 and 2.4 kernels). This interface is
+ designed for use with 2.4. So we will use 2.
+</p>
+<p>
+Return value is address, if negative error. So what happens if memory address is negative.
+</p>
+<pre> <code>
+CODE _sys_create_module ( const_char*,name size_t,size -- int,addr)
+	S )+ D2 MOV
+	S )+ D1 MOV
+	__NR_create_module # D0 MOV
+	0 # TRAP
+	D0 S -) MOV
+NEXT
+</code> </pre>
+
+<h4>__NR_init_module 128</h4>
+<p>See <i>man 2 init_module</i></p>
+<pre> <code>
+CODE _sys_init_module ( void *,name void *,image -- int,error)
+	S )+ D2 MOV
+	S )+ D1 MOV
+	__NR_init_module # D0 MOV
+	0 # TRAP
+	D0 S -) MOV
+NEXT
+</code> </pre>
+
+<h4>__NR_delete_module 129</h4>
+<p>See <i>man 2 delete_module</i></p>
+<pre> <code>
+CODE _sys_delete_module (  const_char*,name -- int,error)
+	S )+ D1 MOV
+	__NR_delete_module # D0 MOV
+	0 # TRAP
+	D0 S -) MOV
+NEXT
+</code> </pre>
+
+<h4>__NR_get_kernel_syms 130</h4>
+<p>See <i>man 2 get_kernel_sym</i></p>
+<p>Deprecated by query_module</p>
+<p>Exportable kernel symols and modules.</p>
+<pre> <code>
+CODE _sys_get_kernel_syms ( struct_kernel_sym*,table -- int,number)
+	S )+ D1 MOV
+	__NR_get_kernel_syms # D0 MOV
+	0 # TRAP
+	D0 S -) MOV
+NEXT
+</code> </pre>
+
+<h4>__NR_quotactl 131</h4>
+<p>See <i>man 2 quotactl</i></p>
+<p>Disk quotas</p>
+<pre> <code>
+CODE _sys_quotactl ( int,cmd
+                     const_char*,special
+		     int,id
+		     caddr_t,addr --int,error)
+	S )+ D4 MOV
+	S )+ D3 MOV
+	S )+ D2 MOV
+	S )+ D1 MOV
+	__NR_quotactl # D0 MOV
+	0 # TRAP
+	D0 S -) MOV
+NEXT
+</code> </pre>
+
+<h4>__NR_getpgid 132</h4>
+<p>See <i>man 2 getpgid</i></p>
+<p>Get programme group id.</p>
+<pre> <code>
+CODE  _sys_getpgid ( pid_t,pid -- pid_t,prorgram_group_id|error)
+	S )+ D1 MOV
+	__NR_getpgid # D0 MOV
+	0 # TRAP
+	D0 S -) MOV
+NEXT
+</code> </pre>
+
+<h4>__NR_fchdir 133</h4>
+<p>See <i>man 2 fchdir</i></p>
+<p>Change directory to supplied handle</p>
+<pre> <code>
+CODE _sys_fchdir ( int,fd --int,error)
+	S )+ D1 MOV
+	__NR_fchdir # D0 MOV
+	0 # TRAP
+	D0 S -) MOV
+NEXT
+</code> </pre>
+
+<h4>__NR_bdflush 134</h4>
+<p>See <i>man 2 _bdflush</i></p>
+<p>Used to start and tune the dirty buffer flush daemon.</p>
+<pre> <code>
+CODE _sys_bdflush ( int,__func, long_int,__data --int,error)
+	S )+ D2 MOV
+	S )+ D1 MOV
+	__NR_bdflush # D0 MOV
+	0 # TRAP
+	D0 S -) MOV
+NEXT
+</code> </pre>
+
+<h4>__NR_sysfs 135</h4>
+<p>Not used, implemented as sys_sysfs.</p>
+
+<h4>__NR_personality 136</h4>
+<p>Not used, implemented as sys_personality.</p>
+
+<h4>__NR_afs_syscall 137</h4>
+<p>Not implemented.</p>
+
+<h4>__NR_setfsuid 138</h4>
+<p>See <i>man 2 setfsuid</i></p>
+<p>Set file system uid</p>.
+<pre> <code>
+CODE _sys_setfsuid ( uid_t,uid --int,previous_uid)
+	S )+ D1 MOV
+	__NR_setfsuid # D0 MOV
+	0 # TRAP
+	D0 S -) MOV
+NEXT
+</code> </pre>
+
+<h4>__NR_setfsgid 139</h4>
+<p>See <i>man 2 setfsgid</i></p>
+<pre> <code>
+CODE _sys_setfsgid ( gid_t,gid --int,previous_gid)
+	S )+ D1 MOV
+	__NR_setfsgid # D0 MOV
+	0 # TRAP
+	D0 S -) MOV
+NEXT
+</code> </pre>
+
+<h4>__NR__llseek 140</h4>
+<pre> <code>
+</code> </pre>
+
+<h4>__NR_getdents 141</h4>
+<p>See <i>man 2 getdents</i></p>
+<p>Get directory entries.</p>
+<pre> <code>
+CODE _sys_getdents ( int,fd
+                     char*,dirp
+                     size_t,count --int,error)
+	S )+ D2 MOV
+	S )+ D1 MOV
+	__NR_getdents # D0 MOV
+	0 # TRAP
+	D0 S -) MOV
+NEXT
+</code> </pre>:
+
+<h4>__NR__newselect 142</h4>
+<p>No man page entry</p>
+<pre> <code>
+CODE _sys_newselect ( int,n
+                      fd_set*,readfds
+                      fd_set*,writefds
+                      fd_set*,exceptfds
+		      struct_timeval*,timeout -- int,error)
+	S )+ D5 MOV
+	S )+ D4 MOV
+	S )+ D3 MOV
+	S )+ D2 MOV
+	S )+ D1 MOV
+	__NR_newselect # D0 MOV
+	0 # TRAP
+	D0 S -) MOV
+NEXT
+</code> </pre>
+
+<h4>__NR_flock 143</h4>
+<p>Apply or remove an advisory lock on a file.</p>
+<pre> <code>
+CODE _sys_flock ( int,fd int,operation ---int,error)
+	S )+ D2 MOV
+	S )+ D1 MOV
+	__NR_flock # D0 MOV
+	0 # TRAP
+	D0 S -) MOV
+NEXT
+</code> </pre>
+
+<h4>__NR_msync 144</h4>
+<p>See <i>man 2 msync</i></p>
+<p>Write memory mapped portion of data back to file.</p>
+<pre> <code>
+CODE _sys_libc_msync ( void*,addr size_t,length int,flags --int,flags)
+	S )+ D3 MOV
+	S )+ D2 MOV
+	S )+ D1 MOV
+	__NR_msync # D0 MOV
+	0 # TRAP
+	D0 S -) MOV
+NEXT
+</code> </pre>
+
+<h4>__NR_readv 145</h4>
+<p>See <i>man 2 readv</i></p>
+<p>read vector, that is read into multiple buffers</p>
+<pre> <code>
+CODE _sys_readv ( int,fd
+                  const_struct_iovec*,vector
+                  int,count -- ssize_t,number|error)
+	S )+ D3 MOV
+	S )+ D2 MOV
+	S )+ D1 MOV
+	__NR_readv # D0 MOV
+	0 # TRAP
+	D0 S -) MOV
+NEXT
+</code> </pre>
+
+<h4>__NR_writev 146</h4>
+<p>See <i>man 2 writev</i></p>
+<pre> <code>
+CODE _sys_writev (  int,filedes
+                    const_struct_iovec*,vector
+                    int,count -- ssize_t,bytes)
+	 S )+ D3 MOV
+	 S )+ D2 MOV
+	 S )+ D1 MOV
+	 __NR_writev # D0 MOV
+	 0 # TRAP
+	 D0 S -) MOV
+NEXT
+</code> </pre>
+
+<h4>__NR_getsid 147</h4>
+<p>See <i>man 2 getsid</i></p>
+<p>Get session id.
+<pre> <code>
+CODE _sys_getsid ( pid_t,pid --pid_t,sid)
+	S )+ D1 MOV
+	__NR_setsid # D0 MOV
+	0 # TRAP
+	D0 S -) MOV
+NEXT
+</code> </pre>
+
+<h4>__NR_fdatasync 148</h4>
+<p>See <i>man 2 fdatasync</i></p>
+<pre> <code>
+CODE _sys_fdatasync ( int,fd -- int,error)
+	S )+ D1 MOV
+	__NR_fdatasync # D0 MOV
+	0 # TRAP
+	D0 S -) MOV
+NEXT
+</code> </pre>
+
+<h4>__NR__sysctl 149</h4>
+<p>See <i>man 2 sysctl</i></p>
+<pre> <code>
+CODE _sys_sysctl ( struct_sysctl_args*,args -- int,error)
+	S )+ D1 MOV
+	__NR_sysctl # D0 MOV
+	D0 S -) MOV
+NEXT
+</code> </pre>
+
+<h4>__NR_mlock 150</h4>
+<p>See <i>man 2 mlock</i></p>
+<p>Implemented as sys_mlock.</p>
+<pre> <code>
+: _sys_mlock ( const_void*,addr size_t,len -- int,error)
+	TRUE ABORT" Mo mmu"
+; IMMEDIATE
+</code> </pre>
+
+<h4>__NR_munlock 151</h4>
+<p>See <i>man 2 munlock</i></p>
+<p>Implemented as sys_munlock</p>
+<pre> <code>
+: _sys_munlock ( Const_void*,addr size_t,len -- int,error)
+	TRUE ABORT" No mmu"
+; IMMEDIATE
+</code> </pre>
+
+<h4>__NR_mlockall 152</h4>
+<p>See <i>man 2 mlockall</i></p>
+<p>Implemented as mlockall.</p>
+<pre> <code>
+: _sys_mlockall (  int,flags -- int,error)
+	TRUE ABORT" No mmu"
+; IMMEDIATE
+</code> </pre>
+
+<h4>__NR_munlockall 153</h4>
+<p>See <i>man 2 mlunockall</i></p>
+<p>Implemented as sys_munlockall</p>
+<pre> <code>
+: _sys_mlunockall (  -- int,error)
+	TRUE ABORT" No mmu"
+; IMMEDIATE
+</code> </pre>
+
+<h4>__NR_sched_setparam 154</h4>
+<p>See <i>man 2 sched_setparam</i></p>
+<pre> <code>
+CODE _sys_sched_setparam ( pid_t,pid
+                           const_struct_sched_param*,p -- int,error)
+	S )+ D2 MOV
+	S )+ D1 MOV
+	__NR_sched_setparam # D0 MOV
+	0 # TRAP
+	D0 S )+ MOV
+NEXT
+</code> </pre>
+
+<h4>__NR_sched_getparam 155</h4>
+<p>See <i>man 2 sched_getparam</i></p>
+<pre> <code>
+CODE _sys_sched_getparam ( pid_t,pid 
+                           struct_sched_param*,p -- int,error)
+	S )+ D2 MOV
+	S )+ D1 MOV
+	__NR_sched_getparam # D0 MOV
+	0 # TRAP
+	D0 S -) MOV
+NEXT
+</code> </pre>
+
+<h4>__NR_sched_setscheduler 156</h4>
+<p>See <i>man 2 sched_setscheduler</i></p>
+<pre> <code>
+CODE _sys_sched_setscheduler ( pid_t,pid
+                               int,policy
+                               const_struct_sched_param*,p -- int,error)
+	S )+ D3 MOV
+	S )+ D2 MOV
+	S )+ D1 MOV
+	__NR_sched_setscheduler # D0 MOV
+	0 # TRAP
+	D0 S -) MOV
+NEXT
+</code> </pre>
+
+<h4>__NR_sched_getscheduler 157</h4>
+<p>See <i>man 2 setscheduler</i></p>
+<pre> 
+<code>
+CODE _sys_sched_getscheduler ( pid_t,pid -- int,error)
+	S )+ D1 MOV
+	__NR_sched_getscheduler # D0 MOV
+	0 # TRAP
+	D0 S -) MOV
+NEXT
+</code>
+</pre>
+
+<h4>__NR_sched_yield 158</h4>
+<p>See <i>man 2 sched_yield</i></p>
+<p>Yield to the scheduler</p>
+<pre> 
+<code>
+CODE _sys_sched_yield ( -- int,error)
+	__NR_sched_yield # D0 MOV
+	0 # TRAP
+	D0 S -) MOV
+NEXT
+</code>
+</pre>
+
+<h4>__NR_sched_get_priority_max 159</h4>
+<p>See <i>man 2 sched_get_priority</i></p>
+<pre> <code>
+CODE _sys_sched_get_priority_max ( int,policy -- int,value|error)
+	S )+ D1 MOV
+	__NR_sched_get_priority_max # D0 MOV
+	D0 S -) MOV
+NEXT
+</code> </pre>
+
+<h4>__NR_sched_get_priority_min 160</h4>
+<p>See <i>man 2 get_priority_min</i></p>
+<pre> <code>
+CODE _sys_sched_get_priority_min (  int,policy -- int,error)
+	S )+ D1 MOV
+	__NR_sched_get_priority_min # D0 MOV
+	D0 S -) MOV
+NEXT
+</code> </pre>
+
+<h4>__NR_sched_rr_get_interval 161</h4>
+<p>See <i>man 2 shed_rr_get_interval</i></p>
+<pre> <code>
+CODE _sys_sched_rr_get_interval ( pid_t,pid 
+                                  struct_timespec*,tp -- int,error)
+	S )+ D2 MOV
+	S )+ D1 MOV
+	__NR_sched_rr_get_interval # D0 MOV
+	0 # TRAP
+	S )+ D0 MOV
+NEXT
+</code> </pre>
+
+<h4>__NR_nanosleep 162</h4>
+<p>See <i>man 2 nanosleep</i></p>
+<pre> <code>
+CODE _sys_nanosleep ( const_struct_timespec*,req
+                      struct_timespec*,rem --int,error)
+	S )+ D2 MOV
+	S )+ D1 MOV
+	__NR_nanosleep # D0 MOV
+	0 # TRAP
+	D0 S -) MOV
+NEXT
+</code> </pre>
+<h4>mremap 163</h4>
+<p>See <i>man 2 mremap</i></p>
+<pre> <code>
+: mremap (  __ptr_t,old_address
+              size_t,old_size \
+              size_t,new_size
+              int,may_move --__ptr_t,??)
+	TRUE ABORT" Needs mmu"
+;
+</code> </pre>
+
+<h4>__NR_setresuid 164</h4>
+<p>Not used, implemented as sys_setresuid.</p>
+
+<h4>__NR_getresuid 165</h4>
+<p>Not used, implemented as sys_getresuid.</p>
+
+<h4>__NR_vm86 166</h4>
+<p>Not implemented</p>
+
+<h4>__NR_query_module 167</h4>
+<p>See <i>man 2 query_module</i></p>
+<pre> <code>
+CODE query_module ( const_char*,name
+                    int,which,
+                    void*,buf
+                    size_t,bufsize
+                    size_t*,ret -- int,error)
+	S )+ D5 MOV
+	S )+ D4 MOV
+	S )+ D3 MOV
+	S )+ D2 MOV
+	S )+ D1 MOV
+	__NR_query_module # D0 MOV
+	0 # TRAP
+	D0 S -) MOV
+NEXT
+</code> </pre>
+
+<h4>__NR_poll 168</h4>
+<p>See <i>man 2 poll</i></p>
+<pre> <code>
+CODE poll ( struct_pollfd*,fds
+            unsigned_long_int,nfds
+            int,timeout--int,number_of_events)
+	    S )+ D3 MOV
+	    S )+ D2 MOV
+	    S )+ D1 MOV
+	    __NR_poll # D0 MOV
+	    0 # TRAP
+	    D0 S -) MOV
+NEXT
+</code> </pre>
+
+<h4> __NR_nfsservctl 169</h4>
+<p>See <i>man 2 nfsservctl</i></p>
+<p>Used to control NFS daemon, will not be used in FORTH</p>
+
+<h4>__NR_setresgid 170</h4>
+<p>See <i>man 2 setresgid</i></p>
+<p>Set real effective and saved group id.</p>
+
+<h4>__NR_getresgid 171</h4>
+<p>See <i>man 2 getresgid</i></p>
+<p>Get real effective and saved group id.</p>
+
+<h4>__NR_prctl 172</h4>
+<p>See <i>man 2 prctl</i></p>
+<p>Process control.</p>
+
+<h4>__NR_rt_sigreturn 173</h4>
+<p>No manual entry</p>
+<p>Used by the OS for signal return.</p>
+
+<h4>__NR_rt_sigaction 174</h4>
+<p>No manual entry</p>
+<pre> <code>
+CODE _sys_rt_sigaction ( int,signum
+                         const_struct_sigaction*,act
+                         struct_sigaction*,oldact
+                         size_t,size --int,??)
+	S )+ D4 MOV
+	S )+ D3 MOV
+	S )+ D2 MOV
+	S )+ D1 MOV
+	__NR_rt_sigaction # D0 MOV
+	0 # TRAP
+	D0 S -) MOV
+NEXT
+</code> </pre>
+
+<h4>__NR_rt_sigprocmask 175</h4>
+<p>No manual entry.</p>
+<pre> <code>
+CODE _sys_rt_sigprocmask ( int,how
+                           const_sigset_t*,set
+                           sigset_t*,oldset
+                           size_t,size --int,??)
+	S )+ D4 MOV
+	S )+ D3 MOV
+	S )+ D2 MOV
+	S )+ D1 MOV
+	__NR_rt_sigprocmask # D0 MOV
+	0 # TRAP
+	D0 S -) MOV
+NEXT
+</code> </pre>
+
+<h4>__NR_rt_sigpending 176</h4>
+<p>No manual entry</p>
+<pre> <code>
+CODE _sys_rt_sigpending ( sigset_t*,set
+                          size_t,size
+                          -- int,??)
+	S )+ D2 MOV
+	S )+ D1 MOV
+	__NR_rt_sigpending # D0 MOV
+	0 # TRAP
+	D0 S -) MOV
+NEXT
+</code> </pre>
+
+<h4>__NR_rt_sigtimedwait 177</h4>
+<p>No manual entry</p>
+<pre> <code>
+CODE _sys_rt_sigtimedwait ( const_sigset_t*,set
+                            siginfo_t*,info
+                            const_struct_timespec*,timeout
+                            size_t,setsize --int,??)
+	S )+ D4 MOV
+	S )+ D3 MOV
+	S )+ D2 MOV
+	S )+ D1 MOV
+	__NR_rt_sigtimedwait # D0 MOV
+	0 # TRAP
+	D0 S -) MOV
+NEXT
+</code> </pre>
+
+<h4>__NR_rt_sigqueueinfo 178</h4>
+<p>No manual entry</p>
+
+<h4>__NR_rt_sigsuspend179</h4>
+<p>No manual entry</p>
+<pre> <code>
+CODE _sys_rt_sigsuspend ( const_sigset_t*,mask
+                          size_t,size --int,??)
+	S )+ D2 MOV
+	S )+ D1 MOV
+	__NR_rt_sigsuspend # D0 MOV
+	0 # TRAP
+	D0 S -) MOV
+NEXT
+</code> </pre>
+
+<h4>__NR_pread 180</h4>
+<p>See <i>man 2 pread</i></p>
+<pre> <code>
+CODE _sys_pread ( int,fd  void*,buff size_t,count off_t,offset -- ssize_t,count|error)
+	S )+ D3 MOV
+	S )+ D2 MOV
+	S )+ D1 MOV
+	__NR_pread # D0 MOV
+	0 # TRAP
+	D0 S -) MOV
+NEXT
+</code> </pre>
+<h4>__NR_pwrite 181</h4>
+<p>See <i>man 2 pwrite</i></p>
+<pre> <code>
+CODE _pwrite ( int,fd const_void*,buff size_t,count off_t,offset --int,count|error)
+	S )+ D3 MOV
+	S )+ D2 MOV
+	S )+ D1 MOV
+	__NR_pwrite # D0 MOV
+	0 # TRAP
+	D0 S -) MOV
+NEXT
+</code> </pre>
+<h4>__NR_chown 182</h4>
+<p>See <i>man 2 change owner</i></p>
+<pre> <code>
+CODE _sys_chown ( const_char*,path
+                  uid_t,owner
+		  gid_t,group --int,error)
+	S )+ D3 MOV
+	S )+ D2 MOV
+	S )+ D1 MOV
+	__NR_chown # D0 MOV
+	0 # TRAP
+	D0 S -) MOV
+NEXT
+</code> </pre>
+
+<h4>__NR_getcwd 183</h4>
+<p>No manual entry</p>
+<p>See libc/sysdeps/linux/common/getcwd.c</p>
+<pre>
+<code>
+CODE _sys_getcwd ( char*,buff unsigned_ling,size -- error)
+	S )+ D2 MOV
+	S )+ D1 MOV
+	__NR_getcwd # D0 MOV
+	0 # TRAP
+	D0 S -) MOV
+NEXT
+</code>
+</pre>
+<h4>__NR_capget 184</h4>
+<p>See <i>man 2 capget</i></p>
+<p>Get root capabilities</p>
+<pre> <code>
+CODE _sys_capget ( void*,header void*,data --int,error)
+	S )+ D2 MOV
+	S )+ D1 MOV
+	__NR_getcwd # D0 MOV
+	0 # TRAP
+	D0 S -) MOV
+NEXT
+</code> </pre>
+<h4>__NR_capset 185</h4>
+<p>See <i>man 2 capset</i></p>
+<p>Set root capabilities</p>
+<pre> <code>
+CODE _sys_capset ( void*,header const_void*,data --int,??)
+	 S )+ D2 MOV
+	 S )+ D1 MOV
+	 __NR_capset # D0 MOV
+	 0 # TRAP
+	 D0 S -) MOV
+NEXT
+</code> </pre>
+<h4>__NR_sigaltstack 186</h4>
+<p>See <i>man 2 sigaltstack</i></p>
+<pre> <code>
+CODE _sys_sigaltstack ( const_struct_sigaltstack*,ss
+                        struct_sigaltstack*,oss--int,error)
+	S )+ D2 MOV
+	S )+ D1 MOV
+	__NR_sigaltstack # D0 MOV
+	0 # TRAP
+	D0 S -) MOV
+NEXT
+</code> </pre>
+
+<h4>__NR_sendfile 187</h4>
+<p>See <i>man 2 sendfile</i></p>
+<p>send from one file to another.</p>
+<pre> <code>
+CODE _sys_sendfile ( int,out_fd
+                     int,in_fd
+                     __off_t *,offset
+                     size_t,count --ssize_t,error)
+	S )+ D3 MOV
+	S )+ D2 MOV
+	S )+ D1 MOV
+	__NR_sendfile # D0 MOV
+	D0 S -) MOV
+NEXT
+</code> </pre>
+
+<h4>__NR_getpmsg 188</h4>
+<p>Not implemented, no man entry</p>
+
+<h4>__NR_putpmsg 189</h4>
+<p>Not implemented, no man entry</p>
+
+<h4>__NR_vfork 190</h4>
+<p>See <i>man 2 vfork</i></p>
+<p>See sysdeps/linux/<arch>vfork.[cS] for architecture specific implementation...</p>
+<pre> <code>
+CODE _sys_vfork ( --int,pid)
+	__NR_vfork # D0 MOV
+	0 # TRAP
+	D0 S -) MOV
+NEXT
+</code>
+</pre>
+<h4>__NR_ugetrlimit 191</h4>
+<p>Not in man</p>
+<p>SuS compliant getrlimit.</p>
+<pre> <code>
+CODE _sys_ugetrlimit ( enum___rlimit_resource,resource
+                       struct_rlimit*,rlim -- int,??)
+	S )+ D2 MOV
+	S )+ D1 MOV
+	__NR_ugetrlimit # D0 MOV
+	0 # TRAP
+	D0 S -) MOV
+NEXT
+</code> </pre>
+
+<h4>__NR_mmap2 192</h4>
+<p>See <i>man 2 mmap2</i></p>
+<p>Map file or device into memory. Returned value is in page size offset,
+bit of a fudge really, but does deal with mmap problem, that is the address
+can only be in the positive number range, that is only half of the available
+address range can be used, and memory must be in low address space.</p>
+
+<h4>__NR_truncate64 193</h4>
+<p>Not in manual</p>
+<p>See libc/sysdeps/linux/common/truncate64.c</h4>
+
+<h4>__NR_ftruncate64 194</h4>
+<p>Not in manual</p>
+<p>See libc/sysdeps/linux/common/ftruncate64.c</h4>
+<h4>__NR_stat64 195</h4>
+<p>Not in manual</p>
+<pre> <code>
+CODE _sys_stat64 ( const_char*,file_name
+                   struct_stat64*,buf-- int,??)
+	S )+ D2 MOV
+	S )+ D1 MOV
+	__NR_stat64 # D0 MOV
+	D0 S -) MOV
+NEXT
+</code> </pre>
+<h4>__NR_lstat64 196</h4>
+<p>Not in manual</p>
+<pre> <code>
+CODE _sys_lstat64 ( const_char*,file_name struct_stat64*,buf --int,??)
+	S )+ D2 MOV
+	S )+ D1 MOV
+	__NR_lstat64 # D0 MOV
+	0 # TRAP
+	D0 S -) MOV
+NEXT
+</code> </pre>
+
+<h4>__NR_fstat64 197</h4>
+<p>Not in manual</p>
+<pre> <code>
+CODE _sys_fstat64 ( int,filedes
+                    struct_stat64*,buf --int,??)
+	S )+ D2 MOV
+	S )+ D1 MOV
+	__NR_fstat64 # D0 MOV
+	0 # TRAP
+	D0 S -) MOV
+NEXT
+</code> </pre>
+<h4>__NR_lchown32 198</h4>
+<p>Not in manual</p>
+
+<h4>__NR_getuid32 199</h4>
+<p>Not in manual</p>
+
+<h4>__NR_getgid32 200</h4>
+<p>Not in manual</p>
+
+<h4>__NR_geteuid32 201</h4>
+<p>Not in manual</p>
+
+<h4>__NR_getegid32 202</h4>
+<p>Not in manual</p>
+
+<h4>__NR_setreuid32 203</h4>
+<p>Not in manual</p>
+
+<h4>__NR_setregid32 204</h4>
+<p>Not in manual</p>
+
+<h4>__NR_getgroups32 205</h4>
+<p>Not in manual</p>
+
+<h4>__NR_setgroups32 206</h4>
+<p>Not in manual</p>
+
+<h4>__NR_fchown32 207</h4>
+<p>Not in manual</p>
+
+<h4>__NR_setresuid32 208</h4>
+<p>Not in manual</p>
+
+<h4>__NR_getresuid32 209</h4>
+<p>Not in manual</p>
+
+<h4>__NR_setresgid32 210</h4>
+<p>Not in manual</p>
+
+<h4>__NR_getresgid32 211</h4>
+<p>Not in manual</p>
+
+<h4>__NR_chown32 212</h4>
+<p>Not in manual</p>
+
+<h4>__NR_setuid32 213</h4>
+<p>Not in manual</p>
+
+<h4>__NR_setgid32 214</h4>
+<p>Not in manual</p>
+
+<h4>__NR_setfsuid32 215</h4>
+<p>Not in manual</p>
+
+<h4>__NR_setfsgid32 216</h4>
+<p>Not in manual</p>
+
+<h4>__NR_pivot_root 217</h4>
+<p>See <i>man 2 pivot_root</i></p>
+<pre> <code>
+CODE pivot_root ( const_char*,new_root
+                  const_char*,put_old --int,??)
+	S )+ D2 MOV
+	S )+ D1 MOV
+	__NR_pivot_root # D0 MOV
+	D0 S -) MOV
+NEXT
+</code> </pre>
+
+<h4>__NR_mincore 218</h4>
+<p>Not implemented, not in manual.</p>
+
+<h4>__NR_madvise 219</h4>
+<p>Not implemented.</p>
+<p>See <i>man 2 madadvise</i></p>
+
+<h4>__NR_getdents64 220</h4>
+<p>Not in manual</p>
+<pre> <code>
+CODE _sys_getdents64 ( int,fd
+                       char*,dirp
+                       size_t,count --int,??)
+	S )+ D3 MOV
+	S )+ D2 MOV
+	S )+ D1 MOV
+	__NR_getdents64 # D0 MOV
+	D0 S -) MOV
+NEXT
+</code> </pre>
+
+<h4>__NR_fcntl64 221</h4>
+<p>Not in man</p>
+<pre> <code>
+CODE _sys_fcntl64 ( int,fd
+                    int,cmd
+                    long,arg --int,??)
+	S )+ D3 MOV
+	S )+ D2 MOV
+	S )+ D1 MOV
+	__NR_fcntl64 # D0 MOV
+	0 # TRAP
+	D0 S -) MOV
+NEXT
+</code> </pre>
+
+<h4>__NR_security 223</h4>
+<p>Syscall for security modules.</p>
+
+<h4>__NR_gettid	 224</h4>
+
+<h4>__NR_readahead 225</h4>
+
+</body>
+</html>

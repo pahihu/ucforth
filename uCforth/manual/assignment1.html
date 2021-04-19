@@ -1,0 +1,73 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+<HEAD>
+<TITLE>COLDFORTH chapter 7</TITLE>
+        <META NAME="AUTHOR" CONTENT="Charles Esson">
+        <META NAME="keywords" CONTENT="COLDFORTH">
+        <LINK REL=stylesheet HREF="forth.css" TYPE="text/css">
+
+</HEAD>
+<BODY bgcolor=#ffffff>
+<ul>
+<h1>COLDFORTH MANUAL CHAPTER assignment 1</h1>
+<h3>Question 1</h3>
+<p>
+Create the words, .bin, .dec, and .hex. These words pint the top stack item without removing it.
+</p>
+<p>
+Write a word that takes the top stack item, prints it out as a binary, decimal and then hex number.
+After the printout has finished the number should be gone.
+</p>
+<h3>Question 2</h3>
+<p>
+Using AND OR and INVERT define XOR.
+</p>
+<h3>Question 3</h3>
+Suppose a,b,c and d are on the stack in that order create words that will return true if:
+<pre>
+a=b and c=d
+a=b or c=d
+a=b xor c=d
+a>b and a>c and a>d
+</pre>
+<p>
+The person with the shortest answer gets the surprise prize.
+</p>
+<h3>Question 4</h3>
+<p>
+Write the word <samp>graph</samp> to graph n numbers, the word has the following stack description.
+</p>
+<samp><pre>
+: graph (  value1 value2 ... value n --)
+ .....
+;
+</pre></samp>
+<p>
+Where n is the number of values to be graphed, and value1 to value are the values to be graphed.
+</p>
+<p>
+If you enter: 1 2 3 4 3 5 graph, you should get the output.
+</p>
+<samp><pre>
+XXX
+XXXX
+XXX
+XX
+X
+</samp></pre>
+<h3>Question 5</h3>
+<p>
+The formula for converting Fahrenheit to Celsius is:
+</p>
+<pre>
+        C = 5*( F-32)/9
+</pre>
+<p>
+Create a word that displays two columns of figures with conversions every 10 degrees from 0 degrees to 200 degrees
+</p>
+</body>
+
+</html>
+
+
+

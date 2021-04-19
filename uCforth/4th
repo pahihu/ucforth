@@ -1,0 +1,10 @@
+#!./ucf_app
+\ system will not exit
+' QUIT %abort !
+
+\ If you like "ok" uncomment following line.
+\ ok
+\ Describe desired environment here
+$1000 dictionary
+$1000 ram
+$1000 data

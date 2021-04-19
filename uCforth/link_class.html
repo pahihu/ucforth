@@ -1,0 +1,73 @@
+<html>
+<head>
+<title>link_class.html</title>
+<META NAME="Author" CONTENT="Charles Esson">
+<META NAME="keywords" CONTENT="forth">
+<META NAME="description" CONTENT=" file used to generate uCFORTH">
+<LINK REL=stylesheet HREF="forth.css" TYPE="text/css">
+</head>
+
+<body>
+<h3>link_class</h3>
+<a HREF="./license.html">license</a>
+<p>
+This class allows the creation of a linked list of objects.
+</p>
+<pre> 
+<code>
+	\ base_class
+	\ 	:construct
+	\ 	:destruct
+	\ 	:print
+	\	 	link_class
+	\			:link
+
+\ class start
+\ ---------------------------------------------
+base_class class
+		protected
+		\ normally :construct gets overridden
+		\ and a different head used
+		double% instance_variable %%object_link
+                public
+
+		m: ( --)
+			\ the forward link can have a value when linked in
+			\ the back link cannot.
+			0 %%object_link CELL+ !
+		; overrides :construct
+
+		m: ( --)
+			%%object_link  CELL+ @ IF
+				%%object_link unlink_double
+			THEN
+		; overrides :destruct
+
+		m: ( head --)
+			%%object_link SWAP link_double
+		; method :link
+
+</code>
+</pre>
+<a name="link_to_object"></a>
+<pre>
+<code>
+
+		: link>object ( addr --obj)
+			[ %%object_link ]T LITERAL
+			-
+		;
+
+
+		m: ( indent --)
+			CR DUP SPACES
+			." link_object | " ." Object: " this .h
+			send
+			DROP
+		; overrides :print
+
+	end_class link_class
+</code>
+</pre>
+</body>
+</html>

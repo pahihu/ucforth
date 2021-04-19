@@ -1,0 +1,785 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+<HEAD>
+<TITLE>COLDFORTH chapter 6</TITLE>
+        <META NAME="AUTHOR" CONTENT="Charles Esson">
+        <META NAME="keywords" CONTENT="COLDFORTH">
+        <LINK REL=stylesheet HREF="forth.css" TYPE="text/css">
+
+</HEAD>
+<BODY bgcolor=#ffffff>
+<ul>
+<h1>COLDFORTH MANUAL CHAPTER 6 Objects</h1>
+<li><a href="#terms">terms</a></li>
+        <ul>
+        <li><a href="#class">class</a></li>
+        <li><a href="#selector">selector</a></li>
+        <li><a href="#method">method</a></li>
+        <li><a href="#this">this</a></li>
+        <li><a href="#object">object</a></li>
+        <li><a href="#messages">message</a></li>
+        <li><a href="#multiple_inheritance">multiple inheritance</a></li>
+        <li><a href="#interface">interface</a></li>
+        </ul>
+<li><a href="#construct"><samp>:construct</samp></a></li>
+<li><a href="#destruct"><samp>:destruct</samp></a></li>
+<li><a href="#object_pointing">Vectored objects</a></li>
+<li><a href="#instance_variable">instance_variables</a></li>
+<li><a href="#class_binding">class binding</a></li>
+<li><a href="#public">public and private</a></li>
+<li><a href="#base_class"><samp>base_class</samp></a></li>
+<li><a href="#string_class"><samp>string_class</samp></a></li>
+<li><a href="#link_class"><samp>link_class</samp></a></li>
+</ul>
+<p>
+For the serious developer understanding objects is very important
+as the entire COLDFORTH I/O subsystem is object based.
+</p>
+<p>
+Here we are going to try and remove the mysteries surrounding object programming. It
+seems to be an area of computing science that has been twisted by jargon used to market instead of
+inform. The <a href="./source/objects.html">code</a> that implements objects describes how things are done.
+</p>
+<p>
+An array contains data. You can go a little further and have a data structure that contains data and
+execution tokens. Execution tokens were covered in <a href="./chapter3.html#execution_token">chapter 3</a>.
+The next step is object programming. <b>An object contain data and access to the functions required to
+manipulate the data</b>. Nothing more and nothing less.
+</p>
+<p>
+You can't have an object unless you have defined a class. The class is the factory, objects are the
+products. Different factories produce different objects. When you build a new factory
+you make a copy of an old one and extend it. Obviously you pick an old factory that nearly does
+the job you want.
+</p>
+<p>
+If you have the address of the array, you have access to the data, what functions can be used
+against that data is something that has to be documented else where. If you have the address of an object
+you have the data and the address of methods that can be used with the data.
+</p>
+<p>
+It is a pretty powerful concept. Traditional programming languages give you a fixed set of general operations.
+You then go about making specific functions to do your job. Object programming allows you to make
+functions that deal with different sorts of data. As an example the <b>COLDFORTH</b> base_class has a print method
+called <samp>:print</samp>.
+When you define a new class you can <b>override</b> the <samp>:print</samp> method to suit your needs.
+Code that uses <samp>:print</samp> will use your new method for objects based on your new class.
+Or in other words when you write a new class,  you create a <samp>:print</samp> method
+that prints out relevant information, then code that invokes the <samp>:print</samp> method
+such as <samp>.obj</samp> will then print relevant information.  You have in effect extended
+<samp>.obj</samp> to suit your needs.
+</p>
+<p>
+<samp>:print</samp> is in effect a new general purpose operator that will work against many different types of data.
+</p>
+<a name="terms"><h3>terms</h3></a>
+<ul>
+<li><a href="#class">class</a></li>
+<li><a href="#selector">selector</a></li>
+<li><a href="#method">method</a></li>
+<li><a href="#this">this</a></li>
+<li><a href="#object">object</a></li>
+<li><a href="#messages">message</a></li>
+<li><a href="#multiple_inheritance">multiple inheritance</a></li>
+<li><a href="#interface">interface</a></li>
+</ul>
+<p>
+Now we need to define our terms.
+</p>
+
+<a name="class"><h4>class</h4></a>
+
+<p>
+A class describes the data and methods that make up an object. A class on it own is nothing.
+you have to create an object using the class for it to be useful. Each time you create an object
+you create a new data area. The data area will be structured so method calls will use the methods defined in the class
+from which the object was derived.
+</p>
+<p>
+Classes are derived from a parent classes. You derive the new class from the
+parent class that best suits you needs. The kernel offers three general purpose classes,
+<a href="./source/objects.html#object">base_class</a>,
+<a href="./source/link_class.html">link_class</a> and
+<a href="./source/string_class.html">string_class</a>.
+
+These will be described later in this chapter.
+There is also a class defined for the creation of
+new <a href="./source/io_common.html">device driver</a> classes
+, and another for the definition of
+new
+<a href="./source/terminal_class.html">terminal driver</a>
+classes. These and other classes are described in chapter 7.
+</p>
+<p>
+Go back far enough and all classes are derived from <samp>base_class</samp>.
+</p>
+<p>
+An interesting class is <a href="./source/objects.html#value_class"><samp>value_class</samp></a>, it is the class
+used by <a href="./source/objects.html#VALUE"><samp>VALUE</samp></a> to create value objects.
+Using a class and having <samp>VALUE</samp> create an object
+provides a structure that allows
+<a href="./source/objects.html#TO"><samp>TO</samp></a> ,
+<a href="./source/objects.html#+to"><samp>+to</samp></a> and
+<a href="./source/objects.html#&of"><samp>&of</samp></a>
+to be extended to new data types in a structured manner.
+This is seen in the local variable code that extends the functionality  by deriving
+<a href="./source/local_variables.html#class_local_value"><samp>class_local_value</samp></a> from value_class.
+</p>
+<p>
+We  have just stated that the base class defines a method called <samp>:print</samp>,
+and that <samp>VALUE</samp> creates an object. The following code gets the object address
+and uses the :print method.
+<pre><samp>
+VALUE fred
+' fred >BODY @ .obj
+</samp></pre>
+
+<p>
+The following examples shows the basic structure used to create a class.
+</p>
+
+<h5>EXAMPLE</h5>
+<pre><samp>
+	base_class class
+
+        .............
+
+	end_class link_class
+</samp></pre>
+<p>
+In the above example the parent class is <samp>base_class</samp>. The new class is <samp>link_class</samp>
+</p>
+<a name="selector"><h4>selector</h4></a>
+<p>
+If you want to be pedantic, you use a selector to invoke a method. Lets not be pedantic, methods have names and
+you use the methods name to invoke it.
+</p>
+<p>
+<b>COLDFORTH</b> allows you to define your selectors and then use <samp>overrides</samp>
+to create the methods. <b>This is not recommended</b>. Create methods not selectors, if the method is being defined
+in a class that you expect to be used as the base for other classes and you expect the method to be overridden then
+make the initial method perform nothing more than a stack tidy up or an abort.
+</p>
+
+<a name="method"><h4>method</h4></a>
+<p>
+The functions that are called through an object are no longer called functions, they are called methods.
+</p>
+<p>
+By convention method names should start with :, for example <samp>:print</samp>, <samp>:construct</samp>.
+As method names are not ansi standard words, methods names should start with a : and should continue
+with lower case names.
+</p>
+<p>
+A method always gets called through an object. In FORTH this point is clear, the top
+stack item has to be a object address when invoking a method. Remember a class has no data area, calling
+a method through a class has no meaning, you always call a method through an object. When you call the
+method, the data area the method is using is that of the calling object. To understand object
+programming you have to get clear in your mind this concept, and the difference between classes and objects.
+Classes are the factory, objects are the product.
+</p>
+<p>
+You can <a href="#class_binding"><samp>bind</samp></a> to a method in a particular class at compile time, and then call that method with
+an object of that class, or derived from that class at runtime, this is covered later.
+</p>
+<p>
+When defining a class, methods defined in the parent class can be overridden, or new methods can be added.
+</p>
+<h5>Creating a new method</h5>
+<pre><samp>
+	base_class class
+
+        .............
+		m: ( --addr )
+			_%linked_objects
+		; method :list_head
+        ............
+
+	end_class link_class
+</samp></pre>
+<p>
+Be vary careful not to use <samp>method</samp> with the same name as a previously named method.
+</p>
+<h5>EXAMPLE</h5>
+<pre> <samp>
+\ <b>this is valid as :print is defined in the base_class</b>
+base_class class
+        m: ( offset --)
+                CR SPACES
+                ." fred_object | " ." Object: " this .h
+        ; <b>overrides</b> :print
+end_class fred_class
+
+\ <b>this is nonsense as :print is being defined again.</b>
+base_class class
+        m:
+                CR SPACES
+                ." fred_object | " ." Object: " this .h
+        ; <b>method</b> :print
+end_class fred_class
+</samp></pre>
+
+<h5>EXAMPLE overriding a method</h5>
+<pre><samp>
+	base_class
+
+        .............
+
+		m: ( indent --)
+			CR DUP SPACES
+			." link_object | " ." Object: " this .h
+			CR DUP SPACES ." Linked_objects: " this :number_of_links .h
+			this :list_head @ BEGIN
+				DUP
+			WHILE
+				OVER 4+ OVER link>object DUP this <> IF
+					:print
+				ELSE
+					2DROP
+				THEN
+                                @
+			REPEAT
+			2DROP
+			send
+		; overrides :print
+
+        .............
+
+	end_class link_class
+</samp></pre>
+<p>
+In the above example <samp>:print</samp> has been overridden so it prints information that is important when looking at
+a linked_object.
+</p>
+<p>
+How <samp>:print</samp> is used can be seen by looking at <a href="./source/objects.html#.obj">.obj</a>
+</p>
+<p>
+An end_class child word ( for example <samp>link_class</samp>)returns the data field address of the class. The word <samp>class</samp> sets the system up so a class
+compile can start and puts on the stack the alignment and length of the object created by the parent class.
+Remember a class  extends the parent class with new methods, or overrides methods in the parent class.
+<samp>instance_variable</samp> can extend the size of the object created by the new class.
+<samp>end_class</samp> finishes of the new class and stores how long an object of the new class has to be.
+</p>
+<a name="this"><h4>this</h4></a>
+<p>
+As we have mentioned, a method can only be invoked through an object.
+When a method is invoked a register preserved as the object base pointer is set to the object base.
+The old object pointer is saved on the return stack.
+</p>
+<p>
+Within a method you can get the base address of the object with the word <samp>this</samp>. The
+use of this word can be seen in the following example.
+</p>
+<pre><samp>
+                m: ( --)
+			%%object_link <b>this</b> :list_head link_double
+			\ something to indicate that it is unset
+			\ has to be eight bytes.
+			S" -notset-" %%cleanup_link SWAP MOVE
+		; overrides :construct
+</samp></pre>
+<p>
+In the above code <samp>:construct</samp> calls another method within the object to get the
+list head.
+</p>
+<p>
+If <samp>this</samp> is used in a FORTH word, then that word can only be called from a method. Using
+<samp>this</samp> only makes sense if the object pointer register has been set, the object pointer address
+is set by calling a method through an object.
+</p>
+<a name="object"><h4>object</h4></a>
+
+<p>
+An object has an address; if you have the object address you get access to the objects methods. The object comes
+with it own data, but that is a side issue, you can only get access to and manipulate the data through methods.
+</p>
+<p>
+Objects can be created from buffers obtained from the heap
+( see <a href="./chapter5.html">chapter 5</a> for a heap discussion).
+You need a class to create an object.
+</p>
+<h5>EXAMPLE</h5>
+<pre><samp>
+\ create an object on the heap.
+link_class heap_object
+\ use a method
+zero OVER :print
+\ destroy the object
+heap_object_free
+</samp></pre>
+<p>
+You can also create an object in the dictionary. <samp><a href="./source/objects.html#VALUE">VALUE</a></samp> does this.
+</p>
+<pre><samp>
+\ create the object in the dictionary
+link_class dictionary_object fred
+\ use a method in the object
+zero fred :print
+</samp></pre>
+<p>
+Dictionary objects are created at compile time and exist for the duration; destruction is not an option.
+</p>
+<a name="messages"><h4>message</h4></a>
+
+<p>
+You often have people talking about sending object messages; this is nonsense. A message has a structure determined by
+the sender. A windowing environment will send a window a message if the mouse moves into a window, out of the window,
+clicks, etc. The format of the message is determined by the windowing system. If your lucky you will be
+looking after the window using a OO based language and one of the methods will be able to look
+after mouse messages received. A method needs
+to be called with the correct parameters just as a function does. You invoke a method through an object, you
+make sure you have the required stack parameters before invoking a method, and you use up the
+returned stack parameters.
+</p>
+<a name="#multiple_inheritance"><h4>multiple inheritance</h4></a>
+
+<p>
+If implemented multiple inheritance allows you to take the methods and data area definition
+from two different classes; place them in a new class and use them as one.
+<b>COLDFORTH</b> does not support multiple inheritance, it does support an <samp>interface</samp>.
+</p>
+<a name="interface"><h4>interface</h4></a>
+<p>
+Allows a class to inherit a block of selectors from multiple sources ( but not the data areas).
+You cannot derive an object directly
+from an interface. An interface is a block of selectors that can be added to a class and if required
+the method can be overridden in the class.
+I think you can make a big enough mess without using interfaces. If used it is another concept that you
+and your code maintainer have to understand. Think carefully before using an <samp>interface</samp>.
+Also take a look at <a href="#object_pointing">vectored objects</a>.
+</p>
+<a name="construct"><h3>:construct</h3></a>
+<p>
+When the system creates an object it obtains a memory area big enough for the object, puts in place the
+basic structure needed to call methods and transfers control to the objects <samp>:construct</samp> method.
+The <samp>:construct</samp> method is responsible for getting the objects data area in order. If the object
+has to be linked into a list, it is the <samp>:construct</samp> method that must do it.
+If a instance variables have to be be preset, do it in the <samp>:construct</samp> method.
+</p>
+<p>
+When you define a class you derive it from a parent class. The system does not call the parent
+<samp>:construct</samp> methods, the child's <samp>:construct</samp> method must do so.
+</p>
+<p>
+Don't copy the parents construct code into the child unless you have to, always call the parents <samp>:construct</samp>
+method if you can. If the parents code gets altered slightly your derived code will then still work.
+</p>
+<h5>EXAMPLE</h5>
+<p>
+This construct method is from the <samp>parented_class</samp>. The <samp>parented_class</samp> is
+derived from the <samp>cleanup_class</samp>. The code <samp>this [parent] :construct</samp>
+calls the <samp>cleanup_class</samp> <samp>:construct</samp> method.
+</p>
+<pre><samp>
+		m: ( parent_instance --)
+			%%parent_instance !
+			zero %%name> !
+			this [parent] :construct
+		; overrides :construct
+</samp></pre>
+<a name="destruct"><h3>:destruct</h3></a>
+<p>
+If you link an object into a list it is nice to unlink it before returning the buffer back to the
+central pool.
+</p>
+<p>
+When you use <samp>heap_object_free</samp> it calls the objects <samp>:destruct</samp> method before
+returning the buffer back to the system.
+</p>
+<h5>EXAMPLE</h5>
+<p>
+This example comes from <samp>parented_class</samp>, note we call the parents <samp>:destruct</samp> method.
+Also note that we set the instance variable <samp>%%name</samp> to zero in the <samp>:construct</samp> method above.
+If a name gets set <samp>%%name</samp> will be non zero. The <samp>:destruct</samp> method returns the
+buffer used to store the name if <samp>%%name</samp> is non zero.
+</p>
+<pre><samp>
+		m: ( --)
+			%%name> @ ?DUP IF
+				kill_free_buffer
+			THEN
+			\ does the unlinking
+			this [parent] :destruct
+		; overrides :destruct
+</samp></pre>
+
+<a name="object_pointing"><h3>Vectored objects</h3></a>
+<p>
+Most OO languages offer multiple inheritance or interfaces. These concepts allow one to tie the methods and/or instance variables
+from two different sources into one. Having taken the step you are left with a 1 to 1 relationship between the two sources.
+Sometimes this is acceptable, but often it is not. I will try and explain using a <b>COLDFORTH</b> example.
+</p>
+<p>
+All <b>COLDFORTH</b> i/o is done through objects. There are two concepts that need to be dealt with, the terminal driver
+( ws60, ANSI), and the device driver. If you plug a ws60 into a serial port, the serial port still has to send serial data,
+ however the string of characters required to <samp>tab</samp> the cursor is different to that required if
+you have a <samp>ANSI</samp> terminal connected.
+</p>
+<p>
+If the device driver was derived from two classes, one that described the generic driver and
+another that described generic terminals, yes we would have had a chance to use multiple inheritance or
+interfaces, but no we would not have had what we wanted. The opened device would have been tied to a particular
+terminal type.
+</p>
+<p>
+The solution is to store the terminal object in a device driver instance variable, and add access methods to
+the device driver, the access methods invoking the methods of the stored object.
+</p>
+<p>
+As an example we will follow <samp>tab</samp>.
+</p>
+<p>
+<samp>tab</samp> is defined in <a href="./source/input_output.html#tab">input_output.html</a>. <samp>'output_file</samp>
+is a user variable that has stored the object address of the I/O device we are sending output data to. <samp>tab</samp>
+gets the object and invokes the <samp>:tab</samp> method.
+</p>
+<pre><samp>
+: tab 'output_file @ :tab ;
+</samp></pre>
+<p>
+<samp>:tab</samp> is defined in <a href="./source/io_common.html#tab">io_common.html</a>. The <samp>io_common</samp>
+class is the base class from which all i/o drivers are derived. Note that we call the <samp>::tab</samp>
+method with the device drivers object address on the stack.
+</p>
+<pre><samp>
+		m: ( -- )
+			this %%terminal @ ::tab
+		; method :tab
+</samp></pre>
+<p>
+<samp>::tab</samp> is defined in <a href="./source/terminal_class.html#tab">terminal_class.html</a>. The
+definition gives an acceptable default version. That is a version that requires no addition control codes.
+Note that this is called with the device drivers object address on the stack, and the device driver is used to
+output the data.
+</p>
+<pre><samp>
+                CREATE _blank  BL 8 RSHIFT tw,
+		m: { ( line char ) variable %object -- }
+			%%character_max @ MIN
+			SWAP %%line_max @ MIN
+			%%line @ MIN DUP
+			%%line @ ?DO
+				%object @ this ::cr
+			LOOP
+			SWAP
+			%%character @ MIN DUP
+			%%character @ ?DO
+				_blank 1 %object @ ':write @execute
+			LOOP
+			%%character !
+			%%line !
+		; method ::tab
+</samp></pre>
+<p>
+<samp>ansi</samp> is a terminal driver. The code for <samp>ansi</samp> is defined in
+<a href="./source/ansi.html#ansi">ansi.html</a>. ansi overrides the ::tab code as follows.
+</p>
+<pre><samp>
+		| : _nnn { ( n ) variable %handle -- }
+			BASE @ >R DECIMAL
+			1+
+			zero #$buffer get_buffer
+			buffer #$buffer [# # # # #]  %handle @ :write
+			kill_buffer
+			R> BASE !
+		;
+
+		| : _control_char_write { ( char handle)  -- }{
+			variable %char_buffer }
+			SWAP %char_buffer C!
+			%char_buffer 01 ROT :write
+		;
+
+		m: { ( lin col) variable %handle -- }
+
+			%%character_max @ MIN
+			SWAP %%line_max @ MIN
+			SWAP
+
+			2DUP
+			%handle @ _$csi _write_string
+			SWAP %handle @  _nnn
+			$3B %handle @ _control_char_write
+			%handle @ _nnn
+			$48 %handle @ _control_char_write
+			%%character !
+			%%line !
+		; overrides ::tab
+</samp></pre>
+<p>
+The word ansi calls the driver method :!terminal as follows.
+</p>
+<pre><samp>
+: ansi
+	ansi_class 'output_file @ :!terminal
+;
+
+</samp></pre>
+<p>
+A class name returns an address, that name can be passed into code for object creation. The code
+for <samp>:!terminal</samp> is defined in <a href="./source/io_common.html#!terminal">io_common.html</a>
+</p>
+<pre><samp>
+		m: ( class --)
+			%%terminal @
+			heap_object_free
+			heap_object %%terminal !
+		; method :!terminal
+</samp></pre>
+<a name="instance_variable"><h3>instance_variables</h3></a>
+
+<p>
+Instance variable names by convention should start with
+<samp>%%</samp>, and as they are not ansi standard words they should continue with lower case names.
+</p>
+
+<p>
+<samp>class</samp> puts on the stack the alignment and length of the
+object created by the parent object, that instance_variables add to this, and that end_class saves off
+the alignment and length needed by the new class.
+</p>
+<p>
+<samp>instance_variable</samp> is used in the form.
+</p>
+<pre><samp>
+field_type instance_variable name
+</samp></pre>
+<p>
+Valid field types are:
+<table>
+<tr><th>field_name</th><th>example</th><th>field length</th></tr>
+<tr><td>byte%</td><td>byte% instance_variable %%fred</td><td>1</td></tr>
+<tr><td>word%</td><td>word% instance_variable %%fred</td><td>2</td></tr>
+<tr><td>cell%</td><td>cell% instance_variable %%fred</td><td>4</td></tr>
+<tr><td>char%</td><td>char% instance_variable %%fred</td><td>1</td></tr>
+<tr><td>double%</td><td>double% instance_variable %%fred</td><td>8</td></tr>
+<tr><td>bytes%</td><td>n bytes% instance_variable %%fred</td><td>n</td></tr>
+</table>
+<p>
+<samp>field_type</samp> puts on the stack two values. The field length and the field alignment.
+</p>
+<h5>EXAMPLE</h5>
+<pre><samp>
+base_class class
+        cell%     instance_variable %%a_variable
+
+        ................
+
+end_class new_class
+</samp></pre>
+<p>
+If you look at most OO languages they can decide if the data should be public, protected, friend or foe.
+<b>COLDFORTH</b> is not confused. <samp>instance_variables</samp>  only have class scope, if you want access to
+data outside a class you have to define a method to get at it. Strict enforcement of basic OO Principles brings a lot of advantages. As data access is through
+methods, nice behavior is simple to enforce, changed behavior simple to implement.
+</p>
+<a name="class_binding"><h3>class binding</h3></a>
+
+<p>
+If invoking a method at runtime is fast ( and it is) class binding can be used to introduce bugs and little
+more.
+</p>
+<p>
+Lets use the <samp>string_class</samp>  and <samp>:print</samp> to demonstrate class binding.
+If you create a string object and then invoke
+the <samp>:print</samp> you will invoke the <samp>string_class</samp> <samp>:print</samp> method.
+</p>
+<pre><samp>
+CREATE fred ," fred"
+fred COUNT string_class dictionary_object fred_string
+0 fred_string :print
+</samp></pre>
+<p>
+The following code will invoke the <samp>base_class</samp> version of <samp>:print</samp>.
+</p>
+<pre><samp>
+0 fred_string bind base_class :print
+</samp></pre>
+<p>
+You can also pull the same trick in a colon word using <samp>[bind]</samp>.
+</p>
+<pre><send>
+: base_print ( offset object ) [bind] base_class :print ;
+</send></pre>
+<p>
+The potential for error should be obvious. A programmer overrides <samp>:print</samp> because
+something has changed, lurking in the application is a word that uses <samp>:print</samp> from past generations.
+</p>
+<a name="public"><h3>public and private</h3></a>
+<p>
+Instance variables can only be private, forth words that use <samp>this</samp> should be private,
+and methods can be public or private.
+</p>
+<p>
+Within a class you switch between public and private with the words <samp>public</samp> and <samp>private</samp>.
+</p>
+<h5>EXAMPLE</H5>
+<pre><samp>
+base_class class
+        \ this is private
+        cell% instance_variable %%fred
+
+        \ these are public
+        : fred ( --) ..... ;
+        :m ( --)
+                ...........
+        ; method :fred
+
+
+        <b>private</b>
+
+        \ these are private
+        : fred1 ( --) ............ ;
+
+        :m ( --)
+                .................
+        ; method :fred1
+
+        <b>public</b>
+
+        \ public again
+        : fred2 ( --)
+                ...........
+        ;
+        :m ( --)
+                .............
+        ; method :fred2
+        \ have to end in public
+end_class fred_class
+</samp></pre>
+<p>
+Private words are stored in class vocabularies, you can get access to the private vocabularies
+with the word <a href="./source/objects.html#look"><samp>look</samp></a>.
+</p>
+<a name="base_class"><h3>base_class</h3>
+<p>
+The base class is called <samp>base_class</samp>. <samp>base_class</samp> has three methods,
+<samp>:construct</samp>, <samp>:destruct</samp> and <samp>:print</samp>.
+</p>
+<a name="string_class"><h3>string_class</h3></a>
+
+<p>
+A HTML server has to be able to support very long stringS. The standard <b>COLDFORTH</b> string words only support
+256 character strings. To deal with this the
+<a href="./source/string_class.html">string_class</a> was introduced. This section covers it use.
+</p>
+<a name="string_class_construct"><h4>constructing a string</h4></a>
+<p>
+You use the standard object construction words.  The construct word expects
+you to provide the address of a string and the string count.
+</p>
+<h5>EXAMPLE</h5>
+<p>
+To create a string from free buffer.
+</p>
+<pre><samp>
+CREATE $default ," default"
+$default COUNT string_class heap_object
+</pre></samp>
+<p>
+this code will return the address of the new object
+</p>
+<p>
+You can create the object in the dictionary, this is the thing to do if the object has
+to exist while the program exists. The actual string is still stored in a free buffer.
+</p>
+<h5>EXAMPLE</h5>
+<pre><samp>
+CREATE $default ," default"
+$default COUNT string_class dictionary_object fred
+</samp></pre>
+<p>
+The object is stored in the dictionary, the string is saved int a free buffer.
+If you create the object with a null string no free buffer is allocated.
+</p>
+<h5>EXAMPLE</h5>
+<pre><samp>
+0 0 string_class dictionary_object fred1
+</samp></pre>
+<p>
+Once created you can call the following methods
+</p>
+<table>
+<tr><th>method</th><th>stack</th><th>operation</th></tr>
+<tr><td><a href="./source/string_class.html#string@"><samp>:string@</samp></a></td><td>object--addr n</td><td>Return string address and count.</td></tr>
+<tr><td><a href="./source/string_class.html#string!"><samp>:string!</samp></a></td><td>addr n object--</td><td>Replace current string data with new data</td></tr>
+<tr><td><a href="./source/string_class.html#string_delete"><samp>:string_delete</samp></a></td><td>offset n object --</td>
+                 <td>delete n characters of string data from the offset.</td></tr>
+<tr><td><a href="./source/string_class.html#string_insert"><samp>:string_insert</samp></a></td><td>addr n offset object --</td>
+                <td>Insert the string described by addr and n into the
+                  string at offset.</td></tr>
+<tr><td><a href="./source/string_class.html#string+"><samp>:string+</samp></a></td><td>add n object --</td><td>Add the address of the string described by addr and n to the
+                  end of the string.</td></tr>
+
+</table>
+<p>
+This small set of methods is large enough to build all string manipulation words.
+</p>
+<a name="link_class"><h3>link_class</h3></a>
+<p>
+The linked object class is the one to use if you want to link objects together. To understand this class
+you you have to focus on <samp>overrides</samp>. This class gets it head through the method <samp>:list_head</samp>.
+The <samp>:construct</samp> method uses the <samp>:list_head</samp> method to get the list head that the object is to be
+linked into.
+</p>
+<p>
+Child classes override the link list head by overriding :list_head.
+</p>
+<p>
+<samp>link_class</samp> defines <a href="./source/link_class.html#link_to_object">link&gt;object</a> to
+convert the link list address to an object base. Once you have the
+object base you can call any method in the object.
+</p>
+<p>
+<a href="./source/tcp/proto.html#dot_protocols"><samp>.protocols</samp></a> is an example of a word
+that uses a linked list of objects. In this example each protocol class defines a <samp>:print</samp> method that
+details the protocol, .protocol traces down the linked list of protocol objects calling the <samp>:print</print>
+methods.
+</p>
+<h5>EXAMPLE</h5>
+<pre><samp>
+\ long winded way to print the numbers 3 2 and 1
+ram_variable %number_list
+link_class class
+        cell% instance_variable %%number
+
+        m: ( n --)
+                %%number !
+                this [parent] :construct
+        ; overrides :construct
+
+        m: ( --)
+                %number_list
+        ; overrides :list_head
+
+        m: ( offset --)
+                DROP
+                %%number @ .
+        ; overrides :print
+end_class number_class
+
+1 number_class heap_object DROP
+2 number_class heap_object DROP
+3 number_class heap_object DROP
+
+: .number_class
+        %number_list
+        BEGIN
+                @ DUP
+        WHILE
+                zero OVER link>object :print
+        REPEAT
+        DROP
+;
+
+.number_class
+
+</samp></pre>
+
+</body>
+
+</html>
+
+
+

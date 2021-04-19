@@ -1,0 +1,211 @@
+<html>
+<head>
+<title>value.html</title>
+<META NAME="Author" CONTENT="Charles Esson">
+<META NAME="keywords" CONTENT="forth">
+<META NAME="description" CONTENT=" file used to create uCforth">
+<LINK REL=stylesheet HREF="forth.css" TYPE="text/css">
+</head>
+<body>
+<h1>VALUE</h1>
+<a HREF="./license.html">license</a>
+<p>
+<a name="value_class"></a>
+<p>
+Well we have our base object, now we can deal with value.
+</p>
+<pre>
+<code>
+base_class class
+	cell% instance_variable value_data
+
+	m:  \ compile time ( --xt)
+		\ runtime ( x -- )
+		value_data ! ; overrides :construct
+\ <a name="data"></a>
+	m:  ( --data)
+		value_data @ ; method @data
+\ <a name="!data"></a>
+	m: ( data--)
+		value_data ! ; method !data
+\ <a name="&data"></a>
+	m:  ( --addr)
+		value_data ; method &data
+\ <a name="+data"></a>
+	m: ( n --)
+		value_data @ + value_data ! ; method +data
+\ <a name="[@data]"></a>
+	m:  ( --data)
+		ghost_assembler_also
+		 value_data AB S -) MOV
+		ghost_previous
+	; method [@data]
+\ <a name="[!data]"></a>
+	\ [to]
+	m: ( data --)
+		ghost_assembler_also
+		S )+ value_data AB MOV
+		ghost_previous
+	; method [!data]
+\ <a name="[&data]"></a>
+	\ [&of]
+	m:  ( --addr)
+		ghost_assembler_also
+		value_data AB S -) LEA
+		ghost_previous
+	; method [&data]
+\ <a name="[+data]"></a>
+	\ [+to]
+	m: ( n --)
+		ghost_assembler_also
+		value_data AB D0 MOV
+		S )+ D0 ADD
+		D0 value_data AB MOV
+		ghost_previous
+	; method [+data]
+
+	\ print
+	m: ( indent--)
+		CR DUP SPACES ." class_value : object: " this .h
+		DUP SPACES  ." data: " this @data .h
+		DROP send
+	; overrides :print
+
+end_class class_value
+</code>
+</pre>
+
+<p>
+And what we have been working for.
+</p>
+<a name="VALUE"></a>
+<h5>6.2.2405 VALUE</h5>
+
+<p>
+CORE EXT
+</p>
+
+<p>
+( x "name" -- )
+</p>
+
+<p>
+Skip leading space delimiters. Parse name delimited by a space.
+Create a definition for name with the execution semantics defined
+below, with an initial value equal to x.
+</p>
+
+<p>
+name is referred to as a value.
+</p>
+
+<p>
+        name Execution: ( -- x )
+</p>
+<p>
+Place x on the stack. The value of x is that given when name was created,
+until the phrase x TO name is executed, causing a new value of x to be
+associated with name.
+</p>
+<pre>
+<code>
+	\ unfortunately VALUE's child must return the value.
+	: VALUE  \ parent  ( x "name" --)
+	         \ child   ( -- x)
+		class_value  dictionary_new   \ object(--
+		CREATE
+		IMMEDIATE
+		,
+		DOES>
+			@                 \ object(--
+			STATE @ IF
+				[@data]
+			ELSE
+				@data
+			THEN
+		;
+</code>
+</pre>
+<a name="TO"></a>
+<h5>6.2.2295 TO</h5>
+<p>
+CORE EXT
+</p>
+<p>
+Interpretation: ( x "name" -- )
+</p>
+<p>
+Skip leading spaces and parse name delimited by a space. Store x in name.
+An ambiguous condition exists if name was not defined by VALUE.
+</p>
+<p>
+Compilation: ( "name" -- )
+</p>
+<p>
+Skip leading spaces and parse name delimited by a space.
+Append the run-time semantics given below to the current definition. An
+ambiguous condition exists if name was not defined by VALUE.
+</p>
+<p>
+Run-time: ( x -- )
+</p>
+<p>
+Store x in name.
+</p>
+<p>
+Note: An ambiguous condition exists if either POSTPONE or [COMPILE] is applied to TO.
+</p>
+<p>
+Typical use: x TO name
+</p>
+<pre>
+<code>
+	: TO
+		_defined  \ 0 | xt -1 | xt 1
+		0= ?token
+		>BODY @ \ the object
+		STATE @ IF
+			[!data]
+		ELSE
+			!data
+		THEN
+	; IMMEDIATE
+</code>
+</pre>
+<a name="+to"></a>
+<p>
+No system is complete without a few non standard words.
+</p>
+<pre>
+<code>
+	: +to
+		_defined  \ 0 | xt -1 | xt 1
+		0= ?token
+		>BODY @ \ the object
+		STATE @ IF
+			[+data]
+		ELSE
+			+data
+		THEN
+	; IMMEDIATE
+</code>
+</pre>
+<a name="&of"></a>
+<pre>
+<code>
+	: &of
+		_defined  \ 0 | xt -1 | xt 1
+		0= ?token
+		>BODY @ \ the object
+		STATE @ IF
+			[&data]
+		ELSE
+			&data
+		THEN
+	; IMMEDIATE
+
+
+</code>
+</pre>
+</body>
+</html>

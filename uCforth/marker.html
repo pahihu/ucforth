@@ -1,0 +1,241 @@
+<html>
+<head>
+<title>marker.html</title>
+<META NAME="Author" CONTENT="Charles Esson">
+<META NAME="keywords" CONTENT="forth">
+<META NAME="description" CONTENT=" used to generate uCforth">
+<LINK REL=stylesheet HREF="forth.css" TYPE="text/css">
+</head>
+
+<body>
+
+<h3>marker</h3>
+<a HREF="./license.html">license</a>
+<p>
+Used in empty to remove items in the about to be zapped dictionary from
+lists.
+</p>
+	<pre> <code>
+		\ we need to keep the pointer
+	: _empty_single_linked { variable %new_here variable %head -- }
+		%head @ BEGIN
+			DUP @
+		WHILE
+			DUP @ %new_here @ HERE WITHIN IF
+				DUP @ @ OVER !
+			ELSE
+				@
+			THEN
+		REPEAT
+		DROP
+	;
+
+	\ we need to keep the pointer
+	: _DP_empty_single_linked ( new_head head --)
+		DP_data_ref
+		_empty_single_linked
+	;
+
+
+	\ the address of the record is enough to unlink.
+	: _DP_empty_double_linked { variable %new_here variable %head -- }
+		%head @ DP_data_ref %head !
+		%head @ BEGIN
+			DUP
+		WHILE
+			DUP %new_here HERE WITHIN IF
+				DUP unlink_double
+			ELSE
+				@
+			THEN
+		REPEAT
+		DROP
+	;
+
+
+	: _empty_wordlist  { variable %new_here variable %wid -- }
+		%wid @ _#wid_heads +
+		%wid @ _#wid_count + @ zero DO
+			%new_here OVER _empty_single_linked
+			CELL+
+		LOOP
+		DROP
+	;
+
+	: _DP_empty_wordlist  { variable %new_here variable %wid -- }
+		%wid @ DP_data_ref %wid !
+		%wid @ _#wid_heads +
+		%wid @ _#wid_count + @ zero DO
+			%new_here OVER _empty_single_linked
+			CELL+
+		LOOP
+		DROP
+	;
+
+
+
+	| : _unknown_code  ( link --)
+		DROP TRUE ABORT" link list head contains an Unknown code"
+	;
+
+	0 _#DP_single_linked_list ??=
+	1 _#DP_double_linked_list ??=
+	2 _#word_list          ??=
+	3 _#DP_word_list       ??=
+
+
+
+
+        | CREATE _unlink_table
+		5 t,
+		' _DP_empty_single_linked ref,
+		' _DP_empty_double_linked ref,
+		' _empty_wordlist      ref,
+		' _DP_empty_wordlist   ref,
+		' _unknown_code        ref,
+
+	\ First we remove new list heads, they describe stuff that is completely
+	\ contained in the area being removed.
+	\ Remember this is a lists of lists.
+	\ arranged
+	\ --------
+	\ pointer
+	\ list
+	\ method
+	\ --------
+	\ The pointer comes first as that is what the application deals with. The link
+	\ and method are for us.
+
+	: remove_forgotten_lists ( %new_here  -- )
+		%lists_head
+		_empty_single_linked
+	;
+
+
+	: empty_lists { variable %new_here  -- }
+		%new_here @ remove_forgotten_lists
+		\ those that a left need a little more consideration
+		%lists_head
+		BEGIN
+			@ DUP													\ link+1 link+1 (--
+		WHILE
+			%new_here @ OVER [ _#lh_user_pointer _#lh_init_link - ]T LITERAL + @
+			jump [ _#lh_link_type _#lh_init_link - ]T LITERAL  + @ _unlink_table vector
+		REPEAT
+		DROP
+	;
+
+
+
+
+	\ describe the data area of marker.
+	\ %fast is a problem as it belong to all threads
+	\ not just us. We are going to assume we compile
+	\ from one task not multiples.
+    zero
+	| DUP CONSTANT _#marked_here             CELL+
+	| DUP CONSTANT _#marked_ram              CELL+
+	| DUP CONSTANT _#marked_data             CELL+
+	| DUP CONSTANT _#marked_ref             CELL+
+	| DUP CONSTANT _#markef_fast             CELL+
+
+	| DUP CONSTANT _#marked_create           CELL+
+	| DUP CONSTANT _#marked_abort            CELL+
+
+	| DUP CONSTANT _#marked_current          _#current_vocs CELLS +
+	| DUP CONSTANT _#marked_searched_number  CELL+
+	\ the number saved depends on the depth of the search order.
+	| DUP CONSTANT _#marked_context
+	DROP
+</code>
+</pre>
+<a name="MARKER"></a>
+<h5>ANS 6.2.1850 MARKER</h5>
+<p>( " =spaces=name" -- )</p>
+<p>
+Skip leading space delimiters. Parse name delimited by a space.
+Create a definition for name with the execution semantics defined below.
+</p>
+<p>name Execution: ( -- )</p>
+<p>
+Restore all dictionary allocation and search order pointers to the state
+they had just prior to the definition of name. Remove the definition of
+name and all subsequent definitions. Restoration of any structures
+still existing that could refer to deleted definitions or deallocated
+data space is not necessarily provided.
+No other contextual information such as numeric base is affected.
+</p>
+<pre> 
+<code>
+	: MARKER ( --)
+		HERE
+		CREATE
+		,   \ value obtained before CREATE, so child will disappear when executed.
+		%ram @ ,
+		%data @ ,
+		%ref @ ,
+		%fast @ ,
+
+		%create @ ,
+		%abort @ ,
+  		\ save current
+		%current _#current_vocs zero DO
+			DUP @ , CELL+
+		LOOP
+		DROP
+
+		\ save context
+		GET-ORDER \ widn ... wid1 n(--
+		DUP , zero DO , LOOP
+
+		DOES>
+			\ neat hay local variable in does> part
+ 			{ variable %pfa -- }
+			%pfa @ _#marked_here + @                 \ 'h(--about to  empty lists
+			empty_lists
+			\ reclaim used memory areas
+			%pfa @ _#marked_ram + @ DUP %ram @ OVER - \ rbase rbase rnumber(--about to erase ram
+			ERASE   \ marked_'r(--
+			%ram !
+
+			%pfa @ _#marked_data + @ DUP %data @ OVER - \ fbase fbase fnumber(--about to erase mram
+			ERASE   \ marked_'f(--
+			%data !
+
+			%pfa @ _#marked_create + @ %create !
+			%pfa @ _#marked_abort + @ %abort !
+
+			\ about to fix up search order
+			\ restore current to value before marker
+
+			%pfa @ _#marked_current +
+			_#current_vocs zero DO
+				DUP @ %current I CELLS + !
+				CELL+
+			LOOP
+			DROP
+
+			\ Restore search order prior to marker
+			%pfa @ _#marked_searched_number + DUP @  \ base number(--
+			>R                                        \ base(--
+			R@ CELLS +                                \ end (--
+			R@ zero
+			DO
+				DUP @ SWAP                            \ ... wid end(--
+				cell-
+			LOOP
+			DROP                                      \ widn ... wid1(--
+			R>
+			\  widn .... wid1 n(-- search order"
+			SET-ORDER
+			\ erase dictionary last as it destroys marker data.
+			%pfa @ _#marked_here + @ DUP HERE OVER  - \ hbase hbase hnumber(--about to erase dict
+
+			ERASE   \ marked_'h(--
+			%here !
+	;
+</code>
+</pre>
+
+</body>
+</html>

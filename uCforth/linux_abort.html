@@ -1,0 +1,438 @@
+<html>
+<head>
+<title>linux_abort.html</title>
+<META NAME="Author" CONTENT="Charles Esson">
+<META NAME="keywords" CONTENT="forth">
+<META NAME="description" CONTENT=" used to generate uCforth">
+<LINK REL=stylesheet HREF="forth.css" TYPE="text/css">
+</head>
+<body>
+<a HREF="./license.html">license</a>
+<h2>Error codes</h2>
+<p>
+The error codes are found in <i>include/asm/errno.h</i>
+</p>
+
+<pre> 
+<code>
+host&forth
+001 CONSTANT EPERM                     \ Operation not permitted
+002 CONSTANT ENOENT                    \ No such file or directory
+003 CONSTANT ESRCH                     \  No such process
+004 CONSTANT EINTR                     \ Interrupted system call
+005 CONSTANT EIO                       \ I/O error
+006 CONSTANT ENXIO                     \ No such device or address
+007 CONSTANT E2BIG                     \ Arg list too long
+008 CONSTANT ENOEXEC                   \ Exec format error
+009 CONSTANT EBADF                     \ Bad file number
+010 CONSTANT ECHILD                    \ No child processes
+011 CONSTANT EAGAIN                    \ Try again
+012 CONSTANT ENOMEM                    \ Out of memory
+013 CONSTANT EACCES                    \ Permission denied
+014 CONSTANT EFAULT                    \ Bad address
+015 CONSTANT ENOTBLK                   \ Block device required
+016 CONSTANT EBUSY                     \ Device or resource busy
+017 CONSTANT EEXIST                    \ File exists
+018 CONSTANT EXDEV                     \ Cross-device link
+019 CONSTANT ENODEV                    \ No such device
+020 CONSTANT ENOTDIR                   \ Not a directory
+021 CONSTANT EISDIR                    \ Is a directory
+022 CONSTANT EINVAL                    \ Invalid argument
+023 CONSTANT ENFILE                    \ File table overflow
+024 CONSTANT EMFILE                    \ Too many open files
+025 CONSTANT ENOTTY                    \ Not a typewriter
+026 CONSTANT ETXTBSY                   \ Text file busy
+027 CONSTANT EFBIG                     \ File too large
+028 CONSTANT ENOSPC                    \ No space left on device
+029 CONSTANT ESPIPE                    \ Illegal seek
+030 CONSTANT EROFS                     \ Read-only file system
+031 CONSTANT EMLINK                    \ Too many links
+032 CONSTANT EPIPE                     \ Broken pipe
+033 CONSTANT EDOM                      \ Math argument out of domain of func
+034 CONSTANT ERANGE                    \ Math result not representable
+035 CONSTANT EDEADLK                   \ Resource deadlock would occur
+036 CONSTANT ENAMETOOLONG              \ File name too long
+037 CONSTANT ENOLCK                    \ No record locks available
+038 CONSTANT ENOSYS                    \ Function not implemented
+039 CONSTANT ENOTEMPTY                 \ Directory not empty
+040 CONSTANT ELOOP                     \ Too many symbolic links encountered
+EAGAIN  CONSTANT EWOULDBLOCK            \ Operation would block
+042 CONSTANT ENOMSG                    \ No message of desired type
+043 CONSTANT EIDRM                     \ Identifier removed
+044 CONSTANT ECHRNG                    \ Channel number out of range
+045 CONSTANT EL2NSYNC                  \ Level 2 not synchronized
+046 CONSTANT EL3HLT                    \ Level 3 halted
+047 CONSTANT EL3RST                    \ Level 3 reset
+048 CONSTANT ELNRNG                    \ Link number out of range
+049 CONSTANT EUNATCH                   \ Protocol driver not attached
+050 CONSTANT ENOCSI                    \ No CSI structure available
+051 CONSTANT EL2HLT                    \ Level 2 halted
+052 CONSTANT EBADE                     \ Invalid exchange
+053 CONSTANT EBADR                     \ Invalid request descriptor
+054 CONSTANT EXFULL                    \ Exchange full
+055 CONSTANT ENOANO                    \ No anode
+056 CONSTANT EBADRQC                   \ Invalid request code
+057 CONSTANT EBADSLT                   \ Invalid slot
+
+EDEADLK CONSTANT EDEADLOCK
+
+059 CONSTANT EBFONT                    \ Bad font file format
+060 CONSTANT ENOSTR                    \ Device not a stream
+061 CONSTANT ENODATA                   \ No data available
+062 CONSTANT ETIME                     \ Timer expired
+063 CONSTANT ENOSR                     \ Out of streams resources
+064 CONSTANT ENONET                    \ Machine is not on the network
+065 CONSTANT ENOPKG                    \ Package not installed
+066 CONSTANT EREMOTE                   \ Object is remote
+067 CONSTANT ENOLINK                   \ Link has been severed
+068 CONSTANT EADV                      \ Advertise error
+069 CONSTANT ESRMNT                    \ Srmount error
+070 CONSTANT ECOMM                     \ Communication error on send
+071 CONSTANT EPROTO                    \ Protocol error
+072 CONSTANT EMULTIHOP                 \ Multihop attempted
+073 CONSTANT EDOTDOT                   \ RFS specific error
+074 CONSTANT EBADMSG                   \ Not a data message
+075 CONSTANT EOVERFLOW                 \ Value too large for 000 CONSTANTd data type
+076 CONSTANT ENOTUNIQ                  \ Name not unique on network
+077 CONSTANT EBADFD                    \ File descriptor in bad state
+078 CONSTANT EREMCHG                   \ Remote address changed
+079 CONSTANT ELIBACC                   \ Can not access a needed shared library
+080 CONSTANT ELIBBAD                   \ Accessing a corrupted shared library
+081 CONSTANT ELIBSCN                   \ .lib section in a.out corrupted
+082 CONSTANT ELIBMAX                   \ Attempting to link in too many shared libraries
+083 CONSTANT ELIBEXEC                  \ Cannot exec a shared library directly
+084 CONSTANT EILSEQ                    \ Illegal byte sequence
+085 CONSTANT ERESTART                  \ Interrupted system call should be restarted
+086 CONSTANT ESTRPIPE                  \ Streams pipe error
+087 CONSTANT EUSERS                    \ Too many users
+088 CONSTANT ENOTSOCK                  \ Socket operation on non-socket
+089 CONSTANT EDESTADDRREQ              \ Destination address required
+090 CONSTANT EMSGSIZE                  \ Message too long
+091 CONSTANT EPROTOTYPE                \ Protocol wrong type for socket
+092 CONSTANT ENOPROTOOPT               \ Protocol not available
+093 CONSTANT EPROTONOSUPPORT           \ Protocol not supported
+094 CONSTANT ESOCKTNOSUPPORT           \ Socket type not supported
+095 CONSTANT EOPNOTSUPP                \ Operation not supported on transport endpoint
+096 CONSTANT EPFNOSUPPORT              \ Protocol family not supported
+097 CONSTANT EAFNOSUPPORT              \ Address family not supported by protocol
+098 CONSTANT EADDRINUSE                \ Address already in use
+099 CONSTANT EADDRNOTAVAIL             \ Cannot assign requested address
+100 CONSTANT ENETDOWN                  \ Network is down
+101 CONSTANT ENETUNREACH               \ Network is unreachable
+102 CONSTANT ENETRESET                 \ Network dropped connection because of reset
+103 CONSTANT ECONNABORTED              \ Software caused connection abort
+104 CONSTANT ECONNRESET                \ Connection reset by peer
+105 CONSTANT ENOBUFS                   \ No buffer space available
+106 CONSTANT EISCONN                   \ Transport endpoint is already connected
+107 CONSTANT ENOTCONN                  \ Transport endpoint is not connected
+108 CONSTANT ESHUTDOWN                 \ Cannot send after transport endpoint shutdown
+109 CONSTANT ETOOMANYREFS              \ Too many references: cannot splice
+110 CONSTANT ETIMEDOUT                 \ Connection timed out
+111 CONSTANT ECONNREFUSED              \ Connection refused
+112 CONSTANT EHOSTDOWN                 \ Host is down
+113 CONSTANT EHOSTUNREACH              \ No route to host
+114 CONSTANT EALREADY                  \ Operation already in progress
+115 CONSTANT EINPROGRESS               \ Operation now in progress
+116 CONSTANT ESTALE                    \ Stale NFS file handle
+117 CONSTANT EUCLEAN                   \ Structure needs cleaning
+118 CONSTANT ENOTNAM                   \ Not a XENIX named type file
+119 CONSTANT ENAVAIL                   \ No XENIX semaphores available
+120 CONSTANT EISNAM                    \ Is a named type file
+121 CONSTANT EREMOTEIO                 \ Remote I/O error
+122 CONSTANT EDQUOT                    \ Quota exceeded
+
+123 CONSTANT ENOMEDIUM                 \ No medium found
+124 CONSTANT EMEDIUMTYPE               \ Wrong medium type
+</code>
+</pre>
+<h3>the strings</h3>
+<pre>
+<code>
+CREATE $EPERM                     ," Operation not permitted"
+CREATE $ENOENT                    ," No such file or directory"
+CREATE $ESRCH                     ,"  No such process"
+CREATE $EINTR                     ," Interrupted system call"
+CREATE $EIO                       ," I/O error"
+CREATE $ENXIO                     ," No such device or address"
+CREATE $E2BIG                     ," Arg list too long"
+CREATE $ENOEXEC                   ," Exec format error"
+CREATE $EBADF                     ," Bad file number"
+CREATE $ECHILD                    ," No child processes"
+CREATE $EAGAIN                    ," Try again"
+CREATE $ENOMEM                    ," Out of memory"
+CREATE $EACCES                    ," Permission denied"
+CREATE $EFAULT                    ," Bad address"
+CREATE $ENOTBLK                   ," Block device required"
+CREATE $EBUSY                     ," Device or resource busy"
+CREATE $EEXIST                    ," File exists"
+CREATE $EXDEV                     ," Cross-device link"
+CREATE $ENODEV                    ," No such device"
+CREATE $ENOTDIR                   ," Not a directory"
+CREATE $EISDIR                    ," Is a directory"
+CREATE $EINVAL                    ," Invalid argument"
+CREATE $ENFILE                    ," File table overflow"
+CREATE $EMFILE                    ," Too many open files"
+CREATE $ENOTTY                    ," Not a typewriter"
+CREATE $ETXTBSY                   ," Text file busy"
+CREATE $EFBIG                     ," File too large"
+CREATE $ENOSPC                    ," No space left on device"
+CREATE $ESPIPE                    ," Illegal seek"
+CREATE $EROFS                     ," Read-only file system"
+CREATE $EMLINK                    ," Too many links"
+CREATE $EPIPE                     ," Broken pipe"
+CREATE $EDOM                      ," Math argument out of domain of func"
+CREATE $ERANGE                    ," Math result not representable"
+CREATE $EDEADLK                   ," Resource deadlock would occur"
+CREATE $ENAMETOOLONG              ," File name too long"
+CREATE $ENOLCK                    ," No record locks available"
+CREATE $ENOSYS                    ," Function not implemented"
+CREATE $ENOTEMPTY                 ," Directory not empty"
+CREATE $ELOOP                     ," Too many symbolic links encountered"
+CREATE $ENOMSG                    ," No message of desired type"
+CREATE $EIDRM                     ," Identifier removed"
+CREATE $ECHRNG                    ," Channel number out of range"
+CREATE $EL2NSYNC                  ," Level 2 not synchronized"
+CREATE $EL3HLT                    ," Level 3 halted"
+CREATE $EL3RST                    ," Level 3 reset"
+CREATE $ELNRNG                    ," Link number out of range"
+CREATE $EUNATCH                   ," Protocol driver not attached"
+CREATE $ENOCSI                    ," No CSI structure available"
+CREATE $EL2HLT                    ," Level 2 halted"
+CREATE $EBADE                     ," Invalid exchange"
+CREATE $EBADR                     ," Invalid request descriptor"
+CREATE $EXFULL                    ," Exchange full"
+CREATE $ENOANO                    ," No anode"
+CREATE $EBADRQC                   ," Invalid request code"
+CREATE $EBADSLT                   ," Invalid slot"
+CREATE $EBFONT                    ," Bad font file format"
+CREATE $ENOSTR                    ," Device not a stream"
+CREATE $ENODATA                   ," No data available"
+CREATE $ETIME                     ," Timer expired"
+CREATE $ENOSR                     ," Out of streams resources"
+CREATE $ENONET                    ," Machine is not on the network"
+CREATE $ENOPKG                    ," Package not installed"
+CREATE $EREMOTE                   ," Object is remote"
+CREATE $ENOLINK                   ," Link has been severed"
+CREATE $EADV                      ," Advertise error"
+CREATE $ESRMNT                    ," Srmount error"
+CREATE $ECOMM                     ," Communication error on send"
+CREATE $EPROTO                    ," Protocol error"
+CREATE $EMULTIHOP                 ," Multihop attempted"
+CREATE $EDOTDOT                   ," RFS specific error"
+CREATE $EBADMSG                   ," Not a data message"
+CREATE $EOVERFLOW                 ," Value too large for defined data type"
+CREATE $ENOTUNIQ                  ," Name not unique on network"
+CREATE $EBADFD                    ," File descriptor in bad state"
+CREATE $EREMCHG                   ," Remote address changed"
+CREATE $ELIBACC                   ," Can not access a needed shared library"
+CREATE $ELIBBAD                   ," Accessing a corrupted shared library"
+CREATE $ELIBSCN                   ," .lib section in a.out corrupted"
+CREATE $ELIBMAX                   ," Attempting to link in too many shared libraries"
+CREATE $ELIBEXEC                  ," Cannot exec a shared library directly"
+CREATE $EILSEQ                    ," Illegal byte sequence"
+CREATE $ERESTART                  ," Interrupted system call should be restarted"
+CREATE $ESTRPIPE                  ," Streams pipe error"
+CREATE $EUSERS                    ," Too many users"
+CREATE $ENOTSOCK                  ," Socket operation on non-socket"
+CREATE $EDESTADDRREQ              ," Destination address required"
+CREATE $EMSGSIZE                  ," Message too long"
+CREATE $EPROTOTYPE                ," Protocol wrong type for socket"
+CREATE $ENOPROTOOPT               ," Protocol not available"
+CREATE $EPROTONOSUPPORT           ," Protocol not supported"
+CREATE $ESOCKTNOSUPPORT           ," Socket type not supported"
+CREATE $EOPNOTSUPP                ," Operation not supported on transport endpoint"
+CREATE $EPFNOSUPPORT              ," Protocol family not supported"
+CREATE $EAFNOSUPPORT              ," Address family not supported by protocol"
+CREATE $EADDRINUSE                ," Address already in use"
+CREATE $EADDRNOTAVAIL             ," Cannot assign requested address"
+CREATE $ENETDOWN                  ," Network is down"
+CREATE $ENETUNREACH               ," Network is unreachable"
+CREATE $ENETRESET                 ," Network dropped connection because of reset"
+CREATE $ECONNABORTED              ," Software caused connection abort"
+CREATE $ECONNRESET                ," Connection reset by peer"
+CREATE $ENOBUFS                   ," No buffer space available"
+CREATE $EISCONN                   ," Transport endpoint is already connected"
+CREATE $ENOTCONN                  ," Transport endpoint is not connected"
+CREATE $ESHUTDOWN                 ," Cannot send after transport endpoint shutdown"
+CREATE $ETOOMANYREFS              ," Too many references: cannot splice"
+CREATE $ETIMEDOUT                 ," Connection timed out"
+CREATE $ECONNREFUSED              ," Connection refused"
+CREATE $EHOSTDOWN                 ," Host is down"
+CREATE $EHOSTUNREACH              ," No route to host"
+CREATE $EALREADY                  ," Operation already in progress"
+CREATE $EINPROGRESS               ," Operation now in progress"
+CREATE $ESTALE                    ," Stale NFS file handle"
+CREATE $EUCLEAN                   ," Structure needs cleaning"
+CREATE $ENOTNAM                   ," Not a XENIX named type file"
+CREATE $ENAVAIL                   ," No XENIX semaphores available"
+CREATE $EISNAM                    ," Is a named type file"
+CREATE $EREMOTEIO                 ," Remote I/O error"
+CREATE $EDQUOT                    ," Quota exceeded"
+CREATE $ENOMEDIUM                 ," No medium found"
+CREATE $EMEDIUMTYPE               ," Wrong medium type"
+CREATE $out_of_range              ," Error code out of range"
+</code>
+</pre>
+<h3>Table of strings</h3>
+<pre>
+<code>
+CREATE linux_error_strings
+0 t,
+HERE
+
+$EPERM ref,                     \ Operation not permitted
+$ENOENT ref,                    \ No such file or directory
+$ESRCH ref,                     \  No such process
+$EINTR ref,                     \ Interrupted system call
+$EIO ref,                       \ I/O error
+$ENXIO ref,                     \ No such device or address
+$E2BIG ref,                     \ Arg list too long
+$ENOEXEC ref,                   \ Exec format error
+$EBADF ref,                     \ Bad file number
+$ECHILD ref,                    \ No child processes
+$EAGAIN ref,                    \ Try again
+$ENOMEM ref,                    \ Out of memory
+$EACCES ref,                    \ Permission denied
+$EFAULT ref,                    \ Bad address
+$ENOTBLK ref,                   \ Block device required
+$EBUSY ref,                     \ Device or resource busy
+$EEXIST ref,                    \ File exists
+$EXDEV ref,                     \ Cross-device link
+$ENODEV ref,                    \ No such device
+$ENOTDIR ref,                   \ Not a directory
+$EISDIR ref,                    \ Is a directory
+$EINVAL ref,                    \ Invalid argument
+$ENFILE ref,                    \ File table overflow
+$EMFILE ref,                    \ Too many open files
+$ENOTTY ref,                    \ Not a typewriter
+$ETXTBSY ref,                   \ Text file busy
+$EFBIG ref,                     \ File too large
+$ENOSPC ref,                    \ No space left on device
+$ESPIPE ref,                    \ Illegal seek
+$EROFS ref,                     \ Read-only file system
+$EMLINK ref,                    \ Too many links
+$EPIPE ref,                     \ Broken pipe
+$EDOM ref,                      \ Math argument out of domain of func
+$ERANGE ref,                    \ Math result not representable
+$EDEADLK ref,                   \ Resource deadlock would occur
+$ENAMETOOLONG ref,              \ File name too long
+$ENOLCK ref,                    \ No record locks available
+$ENOSYS ref,                    \ Function not implemented
+$ENOTEMPTY ref,                 \ Directory not empty
+$ELOOP ref,                     \ Too many symbolic links encountered
+$EAGAIN ref,                    \ Operation would block
+$ENOMSG ref,                    \ No message of desired type
+$EIDRM ref,                     \ Identifier removed
+$ECHRNG ref,                    \ Channel number out of range
+$EL2NSYNC ref,                  \ Level 2 not synchronized
+$EL3HLT ref,                    \ Level 3 halted
+$EL3RST ref,                    \ Level 3 reset
+$ELNRNG ref,                    \ Link number out of range
+$EUNATCH ref,                   \ Protocol driver not attached
+$ENOCSI ref,                    \ No CSI structure available
+$EL2HLT ref,                    \ Level 2 halted
+$EBADE ref,                     \ Invalid exchange
+$EBADR ref,                     \ Invalid request descriptor
+$EXFULL ref,                    \ Exchange full
+$ENOANO ref,                    \ No anode
+$EBADRQC ref,                   \ Invalid request code
+$EBADSLT ref,                   \ Invalid slot
+$EDEADLK ref,
+$EBFONT ref,                    \ Bad font file format
+$ENOSTR ref,                    \ Device not a stream
+$ENODATA ref,                   \ No data available
+$ETIME ref,                     \ Timer expired
+$ENOSR ref,                     \ Out of streams resources
+$ENONET ref,                    \ Machine is not on the network
+$ENOPKG ref,                    \ Package not installed
+$EREMOTE ref,                   \ Object is remote
+$ENOLINK ref,                   \ Link has been severed
+$EADV ref,                      \ Advertise error
+$ESRMNT ref,                    \ Srmount error
+$ECOMM ref,                     \ Communication error on send
+$EPROTO ref,                    \ Protocol error
+$EMULTIHOP ref,                 \ Multihop attempted
+$EDOTDOT ref,                   \ RFS specific error
+$EBADMSG ref,                   \ Not a data message
+$EOVERFLOW ref,                 \ Value too large for 000 CONSTANTd data type
+$ENOTUNIQ ref,                  \ Name not unique on network
+$EBADFD ref,                    \ File descriptor in bad state
+$EREMCHG ref,                   \ Remote address changed
+$ELIBACC ref,                   \ Can not access a needed shared library
+$ELIBBAD ref,                   \ Accessing a corrupted shared library
+$ELIBSCN ref,                   \ .lib section in a.out corrupted
+$ELIBMAX ref,                   \ Attempting to link in too many shared libraries
+$ELIBEXEC ref,                  \ Cannot exec a shared library directly
+$EILSEQ ref,                    \ Illegal byte sequence
+$ERESTART ref,                  \ Interrupted system call should be restarted
+$ESTRPIPE ref,                  \ Streams pipe error
+$EUSERS ref,                    \ Too many users
+$ENOTSOCK ref,                  \ Socket operation on non-socket
+$EDESTADDRREQ ref,              \ Destination address required
+$EMSGSIZE ref,                  \ Message too long
+$EPROTOTYPE ref,                \ Protocol wrong type for socket
+$ENOPROTOOPT ref,               \ Protocol not available
+$EPROTONOSUPPORT ref,           \ Protocol not supported
+$ESOCKTNOSUPPORT ref,           \ Socket type not supported
+$EOPNOTSUPP ref,                \ Operation not supported on transport endpoint
+$EPFNOSUPPORT ref,              \ Protocol family not supported
+$EAFNOSUPPORT ref,              \ Address family not supported by protocol
+$EADDRINUSE ref,                \ Address already in use
+$EADDRNOTAVAIL ref,             \ Cannot assign requested address
+$ENETDOWN ref,                  \ Network is down
+$ENETUNREACH ref,               \ Network is unreachable
+$ENETRESET ref,                 \ Network dropped connection because of reset
+$ECONNABORTED ref,              \ Software caused connection abort
+$ECONNRESET ref,                \ Connection reset by peer
+$ENOBUFS ref,                   \ No buffer space available
+$EISCONN ref,                   \ Transport endpoint is already connected
+$ENOTCONN ref,                  \ Transport endpoint is not connected
+$ESHUTDOWN ref,                 \ Cannot send after transport endpoint shutdown
+$ETOOMANYREFS ref,              \ Too many references: cannot splice
+$ETIMEDOUT ref,                 \ Connection timed out
+$ECONNREFUSED ref,              \ Connection refused
+$EHOSTDOWN ref,                 \ Host is down
+$EHOSTUNREACH ref,              \ No route to host
+$EALREADY ref,                  \ Operation already in progress
+$EINPROGRESS ref,               \ Operation now in progress
+$ESTALE ref,                    \ Stale NFS file handle
+$EUCLEAN ref,                   \ Structure needs cleaning
+$ENOTNAM ref,                   \ Not a XENIX named type file
+$ENAVAIL ref,                   \ No XENIX semaphores available
+$EISNAM ref,                    \ Is a named type file
+$EREMOTEIO ref,                 \ Remote I/O error
+$EDQUOT ref,                    \ Quota exceeded
+$ENOMEDIUM ref,                 \ No medium found
+$EMEDIUMTYPE ref,               \ Wrong medium type
+$out_of_range ref,              \ last error string
+
+\ patch in count
+HERE SWAP - 4/ linux_error_strings t!
+
+: linux_code$ ( code -- $)
+	\ codes start at -1 so count cell is skipped
+	NEGATE linux_error_strings @ MIN
+	CELLS linux_error_strings + @
+;
+</code>
+</pre>
+<p>
+If value is negative an abort occures
+after code is converted to a string.
+</p>
+<pre>
+<code>
+: linux_abort ( value -- )
+	DUP 0&lt; IF
+		linux_code$ $abort
+	ELSE
+		DROP
+	THEN
+;
+
+' linux_abort (linux_abort) t!
+</code>
+</pre>
+
+</body>
+</html>

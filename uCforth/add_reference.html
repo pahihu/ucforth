@@ -1,0 +1,41 @@
+<html>
+<head>
+<title>add_reference.html</title>
+<META NAME="Author" CONTENT="Charles Esson">
+<META NAME="keywords" CONTENT="forth">
+<META NAME="description" CONTENT=" file used to generate uCforth">
+<LINK REL=stylesheet HREF="forth.css" TYPE="text/css">
+</head>
+<body>
+<h3>add_reference</h3>
+<p>
+When you compile code into an application you create the relocation references so the
+compiled code can be turned into an binary application.
+</p>
+<pre>
+<code>
+\ assume a little room required.
+| $3F0 CONSTANT #ref_min
+\ We could speed this up be allocating bigger chunks when the
+\ table needs to expand. This implementation is simple and to the point.
+: add_reference ( addr --)
+	%ref_base @ IF
+		%ref_base @ %ref @ %ref_base @ - DUP >R CELL+ RESIZE THROW
+		\ addr(--
+		DUP %ref_base ! R> + %ref !
+	ELSE
+		\ first time through
+		#ref_min ALLOCATE THROW
+		DUP %ref_base ! %ref !
+	THEN
+	%ref @ !
+	cell %ref +!
+;
+
+: recover_reference ( --)
+	%ref @ cell - %ref_base @ MAX %ref !
+;
+</code>
+</pre>
+</body>
+</html>

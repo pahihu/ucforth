@@ -1,0 +1,108 @@
+<html>
+<head>
+<title>htmltags.html</title>
+<META NAME="Author" CONTENT="Charles Esson">
+<META NAME="keywords" CONTENT="forth">
+<META NAME="description" CONTENT=" used to generate uCforth">
+<LINK REL=stylesheet HREF="forth.css" TYPE="text/css">
+</head>
+
+<body>
+<h3>html tags</h3>
+<a HREF="./license.html">license</a>
+<pre>
+<code>
+CREATE _/html ," &lt;/html&gt;"
+CREATE _code  ," &lt;code&gt;"
+CREATE __code ," &lt;/HTML&gt;"
+CREATE __/html ," &lt;CODE&gt;"
+
+: exit_string? ( addr count -- flag)
+	2DUP  _/html COUNT COMPARE
+	0= IF
+		2DROP
+		TRUE
+		EXIT
+	THEN
+	2DUP  _code COUNT COMPARE
+	0= IF
+		2DROP
+		TRUE
+		EXIT
+	THEN
+	2DUP  __/html COUNT COMPARE
+	0= IF
+		2DROP
+		TRUE
+		EXIT
+	THEN
+	2DUP  __code COUNT COMPARE
+	0= IF
+		2DROP
+		TRUE
+		EXIT
+	THEN
+	2DROP
+	FALSE
+;
+	: &lt;html&gt;  ( -- )
+		BEGIN
+			BEGIN
+				BL (word) DUP
+			WHILE
+				exit_string? IF
+					EXIT
+				THEN
+			REPEAT
+			2DROP
+		REFILL 0= UNTIL
+	;  IMMEDIATE
+
+
+	: &lt;/code&gt;  ( -- )
+		BEGIN
+			BEGIN
+				BL (word) DUP
+			WHILE
+				exit_string? IF
+					EXIT
+				THEN
+			REPEAT
+			2DROP
+		REFILL 0= UNTIL
+	;  IMMEDIATE
+
+
+	: &lt;!DOCTYPE  ( -- )
+		BEGIN
+			[CHAR] ) (word) 2DROP TIB  &gt;IN @ + 1- C@ [CHAR] &gt; = IF
+				EXIT
+			THEN
+			REFILL 0=
+		UNTIL
+	;  IMMEDIATE
+
+
+        \ &lt; stuff&gt;name &lt;/a&gt; is treated as name.
+
+        \ so hyper links can be added directly to forth code
+ 	: &lt;a  ( -- )
+                [CHAR] > PARSE 2DROP
+	;  IMMEDIATE
+
+        \ so hyper links can be added directly to forth code
+ 	: &lt;A  ( -- )
+                [CHAR] > PARSE 2DROP
+	;  IMMEDIATE
+
+         \ so hyper links can be added directly to forth code
+ 	: &lt;/A&gt; ( -- )
+	;  IMMEDIATE
+
+         \ so hyper links can be added directly to forth code
+ 	: &lt;/a&gt; ( -- )
+	;  IMMEDIATE
+</code>
+</pre>
+</body>
+</html>

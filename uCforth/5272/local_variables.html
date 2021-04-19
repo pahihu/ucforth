@@ -1,0 +1,695 @@
+<html>
+<head>
+<title>local_variables.html</title>
+<META NAME="Author" CONTENT="Charles Esson">
+<META NAME="keywords" CONTENT="forth">
+<META NAME="description" CONTENT=" uCforth uses this file to generate uCforth">
+<LINK REL=stylesheet HREF="forth.css" TYPE="text/css">
+</head>
+
+<body>
+
+<h3>Local variables</h3>
+<a HREF="./license.html">license</a>
+<pre>
+<code>
+assembler&host&forth
+HERE
+2 LP) A0 LEA
+DUP HERE - ??4 ALLOT tw@ CONSTANT #nnn_lp)_a0_lea
+
+\ it compiles down to less code
+HERE
+LP ) A0 LEA
+DUP HERE - ??2 ALLOT tw@ CONSTANT #0_lp)_a0_lea
+
+
+HERE
+A0 S -) MOV
+DUP HERE - ??2 ALLOT tw@ CONSTANT #a0_s_-)_mov
+HERE
+S )+ A0 ) MOV
+DUP HERE - ??2 ALLOT tw@ CONSTANT #s_)+_a0_)_mov
+HERE
+A0 ) D0 MOV
+DUP HERE - ??2 ALLOT tw@ CONSTANT #a0_)_d0_mov
+HERE
+S )+ D0 ADD
+DUP HERE - ??2 ALLOT tw@ CONSTANT #s_)+_d0_add
+HERE
+D0 A0 ) MOV
+DUP HERE - ??2 ALLOT tw@ CONSTANT #d0_a0_)_mov
+host&forth
+
+	\ not linked into vocabularies.
+	\ Heads erased when selected
+	: &local ( -- addr)
+		%local_wid [  _#wid_heads #local_threads CELLS + ]T LITERAL ERASE
+		#local_threads %local_wid _#wid_count + !
+		last_definition  %local_wid _#wid_name + !
+		%local_wid %current !
+	;
+
+	$800 CONSTANT #local_size_min
+
+	: local_dictionary   ( --)
+
+		%local_in @ ABORT" Entering -local- from -local- "
+		TRUE %local_in !
+
+		%here @  %local_old_here !
+		%here_top @ %local_old_top !
+
+		%local_base @ ?DUP IF
+			%local_size @ #local_size_min MAX RESIZE THROW
+		ELSE
+			%local_size @ #local_size_min MAX ALLOCATE THROW
+		THEN
+		\ addr (--
+		DUP %local_base !
+		DUP buffer_size + %local_top !
+		%local_top @ %here_top !
+		%local_base @ %here !
+		ALSO &local
+		DEFINITIONS
+	;
+
+	\ set to zero so abort doesn't have horrible side effects.
+	: exit_local_dictionary
+			%local_old_here @ %here !
+			%local_old_top @ %here_top !
+			FALSE %local_in !
+	;
+
+	: nnn_lp)_a0_lea ( n -)
+		?DUP IF
+			#nnn_lp)_a0_lea w,
+					w,
+		ELSE
+			#0_lp)_a0_lea w,
+		THEN
+	;
+
+
+	\ define the local-input words
+	ghost_also
+    	&local_input
+	ghost_definitions
+	\ a variable returns an address
+	: variable   \ parent ( --)
+				\ child STATE=0 ( -- offset)
+				\ child STATE=1 ( -- address)
+		CREATE	\ header in local dictionary
+		IMMEDIATE \ mark new word as immediate
+		_%local_input_bytes @ CELL+ cell_aligned _%local_input_bytes !
+		_%local_input_bytes @ ,
+		DOES>
+			.S ." in local variable" send
+			                   \ offset relative to	 LP
+			@                  \ value stored in pfa
+			_%local_output_bytes @ +
+			_%local_data_bytes @ + NEGATE
+			STATE @ IF \ compile
+				.S ." compiling local input" send
+				\ stick with the opcodes it is faster
+				nnn_lp)_a0_lea
+				#a0_s_-)_mov    w,
+			THEN
+	;
+
+	: structure \ parent ( align size--)
+	            \ child STATE=0 ( -- offset)
+	            \ child STATE=1 ( -- address)
+		CREATE	\ header in local dictionary
+		IMMEDIATE \ mark new word as immediate
+
+		_%local_input_bytes @ + SWAP _n_align  _%local_input_bytes !
+		_%local_input_bytes @ ,
+		DOES>
+		          \ offset relative to	 LP
+			@ \ value stored in pfa
+			_%local_output_bytes @ +
+			_%local_data_bytes @ + NEGATE
+			STATE @ IF \ compile
+				nnn_lp)_a0_lea
+				#a0_s_-)_mov    w,
+			THEN
+	;
+
+
+
+	\ a 2variable returns an address
+	: 2variable   \ parent ( --)
+	              \ child STATE=0 ( -- offset)
+	              \ child STATE=1 ( -- address)
+		CREATE	\ header in local dictionary
+		IMMEDIATE \ mark new word as immediate
+
+		_%local_input_bytes @  2 CELLS + cell_aligned _%local_input_bytes !
+		_%local_input_bytes @ ,
+		DOES>
+			  \ offset relative to	 LP
+			@ \ value stored in pfa
+			_%local_output_bytes @ +
+			_%local_data_bytes @ + NEGATE
+			STATE @ IF \ compile
+				#nnn_lp)_a0_lea
+				#a0_s_-)_mov    w,
+			THEN
+		;
+
+	: fvariable
+		2variable
+	;
+
+	\ returns an address
+	: bytes   \ parent ( n--)
+	          \ child STATE=0 ( -- offset)
+	          \ child STATE=1 ( -- address)
+		CREATE	\ header in local dictionary
+		IMMEDIATE \ mark new word as immediate
+
+		_%local_input_bytes @ +   \ note that the area isn't ALIGNED this
+		                          \ this is the programmers responsibility.
+		_%local_input_bytes !
+		_%local_input_bytes @ ,
+		DOES>
+			  \ offset relative to	 LP
+			@ \ value stored in pfa
+			_%local_output_bytes @ +
+			_%local_data_bytes @ + NEGATE
+			STATE @ IF \ compile
+				#nnn_lp)_a0_lea
+				#a0_s_-)_mov    w,
+			THEN
+		;
+
+	class_value class
+
+		m:  ( ??--)
+			TRUE ABORT" Not in interpretive state" ;
+
+		DUP overrides @data
+		DUP overrides !data
+		DUP overrides &data
+		DUP overrides +data
+		DROP
+
+		\ Can only be used in a method as this has to be set.
+		: _input_data_offset
+				value_data @
+				_%local_output_bytes @ +
+				_%local_data_bytes @ + NEGATE
+		;
+
+
+		m:  ( --data)
+			_input_data_offset
+			nnn_lp)_a0_lea
+			#a0_s_-)_mov       w,
+		; overrides [@data]
+
+		\ [to]
+		m: ( data --)
+			_input_data_offset
+			nnn_lp)_a0_lea
+			#s_)+_a0_)_mov w,
+		; overrides [!data]
+
+		\ [&of]
+		m:  ( --addr)
+			_input_data_offset
+			nnn_lp)_a0_lea
+			#a0_s_-)_mov       w,
+		; overrides [&data]
+
+		\ [+to]
+		m: ( n --)
+			_input_data_offset
+			nnn_lp)_a0_lea
+			#a0_)_d0_mov       w,
+			#s_)+_d0_add       w,
+			#d0_a0_)_mov       w,
+		; overrides [+data]
+
+		\ print
+		m: ( indent --)
+			DUP this [parent] :print
+			DUP SPACES ." address: " _input_data_offset @lp +  .h
+			DROP send
+		; overrides :print
+	end_class class_input_value
+
+	\ returns a value, has no meaning in interpretive mode.
+	: value   \ parent ( n--)
+	          \ child STATE=1 ( -- value)
+		_%local_input_bytes @  CELL+  cell_aligned \ note that the area isn't ALIGNED this
+		                                           \ this is the programmers responsibility.
+		_%local_input_bytes !
+		_%local_input_bytes @
+		class_input_value dictionary_new           \ object(--
+		CREATE	                                   \ header in local dictionary
+		IMMEDIATE                                  \ mark new word as immediate
+		,                                          \ the object must be placed here as it is where TO etc expect to find it
+		DOES>
+			@                                  \ object(--
+			STATE @ IF
+				[@data]
+			ELSE
+				@data
+			THEN
+	;
+
+ghost_previous_definitions
+ghost_previous
+
+\ define the local_output words
+ghost_also
+&local_output
+ghost_definitions
+	\ a variable returns an address
+	: variable  \ parent ( --)
+	            \ child STATE=0 ( -- offset)
+	            \ child STATE=1 ( -- address)
+		CREATE    \ header in local dictionary
+		IMMEDIATE \ mark new word as immediate
+
+		_%local_output_bytes @  CELL+ cell_aligned _%local_output_bytes !
+		_%local_output_bytes @ ,
+		DOES>
+		                 \ offset relative to	 LP
+			@ NEGATE \ value stored in pfa
+			STATE @ IF \ compile
+				nnn_lp)_a0_lea
+				#a0_s_-)_mov    w,
+			THEN
+	;
+
+	: structure  \ parent ( align size --)
+	             \ child STATE=0 ( -- offset)
+	             \ child STATE=1 ( -- address)
+		CREATE    \ header in local dictionary
+		IMMEDIATE \ mark new word as immediate
+
+		_%local_output_bytes @  + SWAP _n_align _%local_output_bytes !
+		_%local_output_bytes @ ,
+		DOES>
+			\ offset relative to	 LP
+			@ NEGATE \ value stored in pfa
+			STATE @ IF \ compile
+				nnn_lp)_a0_lea
+				#a0_s_-)_mov    w,
+			THEN
+	;
+
+	\ a 2variable returns an address
+	: 2variable  \ parent ( --)
+	             \ child STATE=0 ( -- offset)
+	             \ child STATE=1 ( -- address)
+		CREATE	        \ header in local dictionary
+		IMMEDIATE       \ mark new word as immediate
+
+		_%local_output_bytes @ 2 CELLS + cell_aligned _%local_output_bytes !
+		_%local_output_bytes @ ,
+		DOES>
+			\ offset relative to	 LP
+			@ NEGATE \ value stored in pfa
+			STATE @ IF \ compile
+				nnn_lp)_a0_lea
+				#a0_s_-)_mov    w,
+			THEN
+	;
+
+	: fvariable
+		2variable
+	;
+
+	: bytes  \ parent ( --)
+	         \ child STATE=0 ( -- offset)
+	         \ child STATE=1 ( -- address)
+		CREATE    \ header in local dictionary
+		IMMEDIATE \ mark new word as immediate
+
+		_%local_output_bytes @ + _%local_output_bytes !
+		_%local_output_bytes @ ,
+		DOES>
+			         \ offset relative to	 LP
+			@ NEGATE \ value stored in pfa
+			STATE @ IF         \ compile
+				nnn_lp)_a0_lea
+				#a0_s_-)_mov    w,
+			THEN
+	;
+
+	class_value class
+
+		m:  ( ??--)
+			TRUE ABORT" Not in interpretive state" ;
+
+		DUP overrides @data
+		DUP overrides !data
+		DUP overrides &data
+		DUP overrides +data
+		DROP
+
+		\ Can only be used in a method as this has to be set.
+		: _output_data_offset
+				value_data @ NEGATE
+		;
+
+
+		m:  ( --data)
+			_output_data_offset
+			nnn_lp)_a0_lea
+			#a0_s_-)_mov        w,
+		; overrides [@data]
+
+		\ [to]
+		m: ( data --)
+			_output_data_offset
+			nnn_lp)_a0_lea
+			#s_)+_a0_)_mov      w,
+		; overrides [!data]
+
+		\ [&of]
+		m:  ( --addr)
+			_output_data_offset
+			nnn_lp)_a0_lea
+			#a0_s_-)_mov        w,
+		; overrides [&data]
+
+		\ [+to]
+		m: ( n --)
+			_output_data_offset
+			#nnn_lp)_a0_lea
+			#a0_)_d0_mov        w,
+			#s_)+_d0_add        w,
+			#d0_a0_)_mov        w,
+		; overrides [+data]
+
+		\ print
+		m: ( indent--)
+			DUP this [parent] :print
+			DUP SPACES ." address: " _output_data_offset @lp +  .h
+			DROP send
+		; overrides :print
+	end_class class_output_value
+
+	\ returns a value, has no meaning in interpretive mode.
+	: value   \ parent ( n--)
+	          \ child STATE=1 ( -- value)
+		_%local_output_bytes @  CELL+ cell_aligned  \ note that the area isn't ALIGNED this
+		                                            \ this is the programmers responsibility.
+		_%local_output_bytes !
+		_%local_output_bytes @
+		class_output_value dictionary_new           \ object(--
+		CREATE	\ header in local dictionary
+		IMMEDIATE \ mark new word as immediate
+		,         \ the object must be placed here as it is where TO etc expect to find it
+		DOES>
+			@                                   \ object(--
+			STATE @ IF
+				[@data]
+			ELSE
+				@data
+			THEN
+	;
+
+ghost_previous_definitions
+ghost_previous
+
+\ define the local_data words
+ghost_also
+&local_data
+ghost_definitions
+
+</code>
+</pre>
+<a name="variable"></a>
+<pre>
+<code>
+	: variable   \ parent ( --)
+	             \ child state=0 ( -- offset)
+	             \ child state=1 ( -- address)
+		CREATE    \ header in local dictionary
+		IMMEDIATE \ mark new word as immediate
+		_%local_data_bytes @  CELL+ cell_aligned _%local_data_bytes !
+		_%local_data_bytes @ ,
+		DOES>
+		          \ offset relative to	 LP
+			@ \ value stored in pfa
+			_%local_output_bytes @ + NEGATE
+			STATE @ IF \ compile
+				nnn_lp)_a0_lea
+				#a0_s_-)_mov    w,
+			THEN
+		;
+
+</code>
+</pre>
+        <a name="structure"></a>
+<pre>
+<code>
+
+	: structure \ parent ( align size --)
+	            \ child state=0 ( -- offset)
+	            \ child state=1 ( -- address)
+		CREATE    \ header in local dictionary
+		IMMEDIATE \ mark new word as immediate
+		_%local_data_bytes @  + SWAP _n_align _%local_data_bytes !
+		_%local_data_bytes @ ,
+		DOES>
+			  \ offset relative to	 LP
+			@ \ value stored in pfa
+			_%local_output_bytes @ + NEGATE
+			STATE @ IF \ compile
+				nnn_lp)_a0_lea
+				#a0_s_-)_mov    w,
+			THEN
+	;
+ </code>
+ </pre>
+ <a name="2variable"></a>
+ <pre>
+ <code>
+	: 2variable   \ parent ( --)
+	              \ child state=0 ( -- offset)
+	              \ child state=1 ( -- address)
+		CREATE    \ header in local dictionary
+		IMMEDIATE \ mark new word as immediate
+		_%local_data_bytes @  2 CELLS + cell_aligned _%local_data_bytes !
+		_%local_data_bytes @ ,
+		DOES>
+			  \ offset relative to	 LP
+			@ \ value stored in pfa
+			_%local_output_bytes @ + NEGATE
+			STATE @ IF \ compile
+				nnn_lp)_a0_lea
+				#a0_s_-)_mov    w,
+			THEN
+	;
+</code>
+</pre>
+<a name="fvariable"></a>
+<pre>
+<code>
+	: fvariable
+		2variable
+	;
+</code>
+</pre>
+<a name="bytes"></a>
+<pre>
+<code>
+
+	: bytes   \ parent ( --)
+				\ child state=0 ( -- offset)
+				\ child state=1 ( -- address)
+		CREATE	\ header in local dictionary
+		IMMEDIATE \ mark new word as immediate
+		_%local_data_bytes @ + _%local_data_bytes !
+		_%local_data_bytes @ ,
+		DOES>
+			\ offset relative to	 LP
+			@ \ value stored in pfa
+			_%local_output_bytes @ + NEGATE
+			STATE @ IF \ compile
+				nnn_lp)_a0_lea
+				#a0_s_-)_mov    w,
+			THEN
+	;
+</code>
+</pre>
+<a name="class_local_value"></a>
+<pre>
+<code>
+	class_value class
+
+		m:  ( ??--)
+			TRUE ABORT" Not in interpretive state" ;
+
+		DUP overrides @data
+		DUP overrides !data
+		DUP overrides &data
+		DUP overrides +data
+		DROP
+
+		\ Can only be used in a method as this has to be set.
+		: _local_data_offset
+			value_data @
+			_%local_output_bytes @ + NEGATE
+		;
+
+
+		m:  ( --data)
+			_local_data_offset
+			nnn_lp)_a0_lea
+			#a0_s_-)_mov       w,
+		; overrides [@data]
+
+		\ [to]
+		m: ( data --)
+			_local_data_offset
+			nnn_lp)_a0_lea
+			#s_)+_a0_)_mov     w,
+		; overrides [!data]
+
+		\ [&of]
+		m:  ( --addr)
+			_local_data_offset
+			nnn_lp)_a0_lea
+			_local_data_offset w,
+			#a0_s_-)_mov       w,
+		; overrides [&data]
+
+		\ [+to]
+		m: ( n --)
+			_local_data_offset
+			nnn_lp)_a0_lea     w,
+			#a0_)_d0_mov       w,
+			#s_)+_d0_add       w,
+			#d0_a0_)_mov       w,
+		; overrides [+data]
+
+		\ print
+		m: ( offset --)
+			DUP this [parent] :print
+			DUP SPACES ." address: " _local_data_offset @lp +  .h
+			DROP send
+		; overrides :print
+
+	end_class class_local_value
+
+</code>
+</pre>
+        <a name="value"></a>
+<pre>
+<code>
+
+	\ returns a value, has no meaning in interpretive mode.
+	: value   \ parent ( n--)
+	          \ child STATE=1 ( -- value)
+		_%local_data_bytes @  CELL+ cell_aligned
+		_%local_data_bytes !
+		_%local_data_bytes @
+		class_local_value dictionary_new \ object(--
+		CREATE	\ header in local dictionary
+		IMMEDIATE \ mark new word as immediate
+		,         \ the object must be placed here as it is where TO etc expect to find it
+		DOES>
+			@                 \ object(--
+			STATE @ IF
+				[@data]
+			ELSE
+				@data
+			THEN
+		;
+
+	ghost_previous_definitions
+	ghost_previous
+ </code>
+ </pre>
+ <a name="{"></a>
+ <pre>
+ <code>
+
+\ enter local variables
+: {  ( --)
+
+	\ preserve system state that needs preserving
+	%last @  %local_old_last !
+
+	\ ; EXIT etc will now compile in relevent code.
+	TRUE %local_use !
+	
+	zero  _%local_input_bytes !
+	zero  _%local_output_bytes !
+	zero  _%local_data_bytes !
+
+	POSTPONE [
+	local_dictionary
+	\ not that because we didn't do an also &local is no longer in the search order
+	&local_input
+	; IMMEDIATE
+
+ </code>
+ </pre>
+ <a name="--"></a>
+ <pre>
+ <code>
+
+\ switch from input to output
+: --
+	&local_output
+;
+
+</code>
+</pre>
+<a name="}{"></a>
+<pre>
+<code>
+
+\ switch from output, or input to data
+: }{
+	&local_data
+;
+</code>
+</pre>
+<a name="}"></a>
+<pre>
+<code>
+	\ switch back to normal
+	: }
+		%local_old_last @ %last !
+		\ back to the normal dictionary
+		exit_local_dictionary
+
+		ghost_assembler
+		_%local_input_bytes @
+		_%local_output_bytes @ +
+		_%local_data_bytes @ +  NEGATE
+		LP # LINK
+		ghost_forth
+		_%local_input_bytes @ IF
+			ghost_assembler
+			_%local_input_bytes @ 4 / #  D0 MOV
+			R A0 MOV
+			BEGIN
+				S )+ A0 )+ MOV
+				1 # D0 SUB
+			EQ UNTIL
+			ghost_forth
+		THEN
+		\ We add &local to the search order.
+		\ This has to be allowed for on exit
+		\ If %local_use is set the system will assume &local
+		\ has been added to search order and must be removed.
+		\ word input stack setup
+		&local
+		]
+	;
+
+</code>
+</pre>
+</body>
+</html>

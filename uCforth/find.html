@@ -1,0 +1,289 @@
+<html>
+<head>
+<title>find.html</title>
+<META NAME="Author" CONTENT="Charles Esson">
+<META NAME="keywords" CONTENT="forth">
+<META NAME="description" CONTENT=" used to generate uCforth">
+<LINK REL=stylesheet HREF="forth.css" TYPE="text/css">
+</head>
+
+<body>
+<h3>find</h3>
+<a HREF="./license.html">license</a>
+<h5>hash ( c-addr u wid --thread )</h5>
+
+<p>
+Given the address of a character string,
+the number of characters and the <i>wid</i> return the address
+of the thread that should contain the word.
+</p>
+
+
+<pre> 
+<code>
+\ used later when searching multiple wid's
+: _select_thread ( wid checksum --list)
+	OVER
+	_#wid_count + @                     \ wid hash count(--
+	1- AND                                \ wid list (--
+	CELLS  _#wid_heads + +               \ list(--
+;
+
+: _hash ( c-addr u wid -- checksum list)
+	-rot checksum \ wid checksum(--
+	TUCK
+	_select_thread
+;
+</code>
+</pre>
+
+<a name="search_thread"></a>
+<h5>search_thread ( c-addr u head -- 0 | xt 1 | xt -1 )</h5>
+<p>
+Find the definition identified by the string c-addr u in the thread
+identified by head. If the definition is not found, return zero.
+If the definition is found, return its execution token xt and one (1)
+if the definition is immediate, minus-one (-1) otherwise.
+</p>
+
+
+<pre>
+<code>
+
+
+
+0  CONSTANT _#not_found
+1  CONSTANT _#immediate
+-1 CONSTANT _#otherwise
+
+: _search_thread ( c-addr u checksum thread -- 0 | xt 1 | xt -1 )
+	>R                             \ c-addr u checksum(--
+	BEGIN
+		R> @ >R
+		R@
+	WHILE
+		R@ [ _#head_hash _#head_link - ]T LITERAL + @
+		OVER = IF  \ c-addr u checksum(--
+			R@                         \ c-addr u checksum lfa (--
+			lfa>nfa                    \ c-addr u checksum nfa (--
+			C@                         \ c-addr u checksum u1 (--
+			DUP _#smudge_bit AND not IF    \ smudge bit not set
+				\ c-addr u checksum u1(--
+				NIP _#name_count_bits AND
+				\ if we get here we have a system error if
+				\ the strings don't match
+				\ c-addr u u1(--
+				OVER = IF
+					\ c-addr u(--
+					\ strings match
+					R@ lfa>nfa      \ c-addr u addr (--
+					name_count \ c-addr u c-addr u c-addr1 u1(--
+					COMPARE not IF         \ we have a match
+						R@ lfa>nfa C@ _#immediate_bit AND IF
+							R> lfa>xt _#immediate
+						ELSE
+							R> lfa>xt _#otherwise
+						THEN
+						EXIT
+					THEN
+				THEN
+				\ different stack different path
+				TRUE ABORT" Checksum match, string miss match."
+			THEN
+			\ c-addr u checksum u1(--
+			DROP
+		THEN
+	REPEAT
+	r>drop
+	2DROP
+	DROP
+	_#not_found
+;
+</code> 
+</pre>
+
+<a name="SEARCH-WORDLIST"></a>
+<h5>ANS 16.6.1.2192 SEARCH-WORDLIST</h5>
+<p>( c-addr u wid -- 0 | xt 1 | xt -1 )</p>
+<p>
+Find the definition identified by the string c-addr u in the word-list
+identified by wid. If the definition is not found, return zero.
+If the definition is found, return its execution token xt and one (1)
+if the definition is immediate, minus-one (-1) otherwise.
+</p>
+<p>
+The string argument to SEARCH-WORDLIST is represented by c-addr u,
+rather than by just c-addr as with FIND. The committee wishes to
+establish c-addr u as the preferred representation of a string on
+the stack, and has adopted that representation for all new functions
+that accept string arguments. While this decision may cause the
+implementation of SEARCH-WORDLIST to be somewhat more difficult in
+existing systems, the committee feels that the additional difficulty
+is minor.
+</p>
+<p>
+When SEARCH-WORDLIST fails to find the word, it does not return
+the string, as does FIND. This is in accordance with the general
+principle that Forth words consume their arguments.
+</p>
+<p>
+<strong>uCforth</strong>
+No truncated names here. The head is the name string with no
+truncation
+</p>
+
+<pre>
+<code>
+: SEARCH-WORDLIST ( c-addr u wid -- 0 | xt 1 | xt -1 )
+	>R 2DUP R>                    \ c-addr u c-addr u wid (--
+	_hash                          \ c-addr u checksum thread (--
+	_search_thread
+;
+</code>
+</pre>
+
+
+
+<a name="FIND"></a>
+<h5>FIND</h5>
+<p>ANS 6.1.1550 FIND</p>
+<p>( c-addr -- c-addr 0  |  xt 1  |  xt -1 )</p>
+<p>
+Find the definition named in the counted string at c-addr.
+If the definition is not found, return c-addr and zero.
+If the definition is found, return its execution token xt.
+If the definition is immediate, also return one (1), otherwise
+also return minus-one (-1). For a given string, the values
+returned by FIND while compiling may differ from those returned
+while not compiling.
+</p>
+<p>
+One of the more difficult issues which the Committee took on was the
+problem of divorcing the specification of implementation mechanisms
+from the specification of the Forth language. Three basic implementation
+approaches can be quickly enumerated:
+</p>
+<p>
+<dl>
+<dt>1) Threaded code mechanisms.
+<dd>These are the traditional approaches to
+	implementing Forth, but other techniques may be used.
+<dt>2) Subroutine threading with macro-expansion (code copying).
+<dd>Short routines,
+	like the code for DUP, are copied into a definition rather than compiling a
+	JSR reference.
+
+<dt>3) Native coding with optimization.
+<dd>This may include stack optimization
+(replacing such phrases as SWAP ROT + with one or two machine instructions,
+for example), parallelization (the trend in the newer RISC chips is to
+have several functional subunits which can execute in parallel), and so on.
+</dl>
+<p>
+The initial requirement (inherited from Forth-83) that compilation addresses
+be compiled into the dictionary disallowed type 2 and type 3 implementations.
+</p>
+<p>
+Type 3 mechanisms and optimizations of type 2 implementations were
+hampered by the explicit specification of immediacy or non-immediacy
+of all standard words. POSTPONE allowed de-specification of immediacy
+or non-immediacy for all but a few Forth words whose behavior must be
+STATE-independent.
+</p>
+<p>
+One type 3 implementation, Charles Moore's cmForth, has both compiling
+and interpreting versions of many Forth words. At the present, this
+appears to be a common approach for type 3 implementations. The Committee
+felt that this implementation approach must be allowed. Consequently,
+it is possible that words without interpretation semantics can be found
+only during compilation, and other words may exist in two versions: a
+compiling version and an interpreting version. Hence the values returned
+by FIND may depend on STATE, and ' and ['] may be unable to find words
+without interpretation semantics.
+</p>
+<p>
+Complete search for a string. We only checksum once.
+</p>
+<pre>
+<code>
+: _sfind  ( addr n -- 0 | at 1 | xt -1 )
+	2DUP checksum
+	\ addr n checksum(--
+	%context_count @ zero ?DO
+		3dup 				        \ addr n checksum addr n checksum(--
+		I CELLS %context + @		        \ addr n checksum addr n checksum wid(--
+		\ addr n checksum addr n checksum wid
+		OVER _select_thread
+		\ addr n checksum addr n checksum thread
+		_search_thread
+		\ addr n checksum xt code(--
+		\ addr n checksum 0(--
+		?DUP IF					\ addr n checksum xt 1 | addr n xt -1 (--
+			2>R DROP 2DROP 2R> UNLOOP EXIT	\ xt 1 | xt -1 (--
+		THEN					\ addr n checksum(--
+	LOOP
+	2DROP
+	DROP
+	zero
+;
+</code>
+</pre>
+<p>
+I want speed, things go faster if we convert everything to lower case and only
+search once.
+</p>
+<pre>
+<code>
+: alphi? ( char -- flag)
+	DUP [CHAR] A &lt; IF
+		DROP FALSE EXIT
+	THEN
+	DUP [CHAR] z &gt; IF
+		DROP FALSE EXIT
+	THEN
+	DUP
+	\ char char(--
+	[CHAR] Z &gt; OVER [CHAR] a &lt; AND IF
+		DROP FALSE EXIT
+	THEN
+	DROP TRUE
+;
+
+: Slowercase ( addr n --)
+	zero ?DO
+		DUP C@ DUP alphi? IF
+			$20 OR OVER C!
+		ELSE
+			DROP
+		THEN
+		1 CHARS +
+	LOOP
+	DROP
+;
+
+
+
+: Sfind  ( addr n -- 0 | xt 1 | xt -1 )
+	\ The supplied string should not be altered.
+	DUP get_buffer  \ addr n (--
+	\ n addr n(--
+	TUCK
+	buffer SWAP MOVE \ n(--
+	buffer SWAP      \ add n(--
+	2DUP Slowercase
+	_sfind
+	kill_buffer
+;
+
+: FIND  ( $ -- $ 0 | xt 1 | xt -1 )
+	DUP COUNT Sfind DUP IF
+		ROT DROP
+	THEN
+;
+
+</code>
+</pre>
+
+</body>
+</html>
+

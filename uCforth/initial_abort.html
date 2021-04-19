@@ -1,0 +1,78 @@
+<html>
+<head>
+<title>initial_abort.html</title>
+<META NAME="Author" CONTENT="Charles Esson">
+<META NAME="keywords" CONTENT="forth">
+<META NAME="description" CONTENT=" uCforth uses this file to generate uCforth">
+<LINK REL=stylesheet HREF="forth.css" TYPE="text/css">
+</head>
+
+<body>
+<a HREF="./license.html">license</a>
+<p>
+This is created before we know how to abort so we can
+include abort in some of the early code.
+</p>
+
+<p>
+handler contains a return stack address, it is the address where the last CATCH
+stack frame was created. On an abort the address is used to retry the CATCH
+context.
+</p>
+<pre>
+<code>
+
+CREATE ($abort)
+	\ patched address has to be translated.
+	0 ref,
+
+| : $abort  ( $ --)
+	($abort) @execute
+;
+
+\ will abort if number negative
+\ negative number will be converted to
+\ a string and $abort called.
+CREATE (linux_abort)
+	0 ref,
+
+| : linux_abort ( num --)
+	(linux_abort) @execute
+;
+
+\ the 2+ is to include the count
+: skip_string ( addr -- addr )
+	DUP C@ 2 + -2 AND +
+;
+</code>
+</pre>
+<p>The return address points to a count string.
+If we are to abort the address becomes the string
+address. If we are continue the return address
+has to be modified.
+</p>
+<pre>
+<code>
+: abort_runtime" ( flag --)
+	IF
+		\ abort has to occur, return address points to string)
+		R> $abort
+	ELSE
+		\ we have to skip the string
+		R> skip_string >R
+	THEN
+;
+
+
+forth&host : abort", ( xha --)
+	host&forth
+	code,
+	,"
+;
+
+' abort_runtime" forth&host ' abort", host&forth ghost_word ABORT"
+
+</code>
+</pre>
+</body>
+</html>

@@ -1,0 +1,413 @@
+<html>
+<head>
+<title>linux_env.html</title>
+<META NAME="Author" CONTENT="Charles Esson">
+<META NAME="keywords" CONTENT="forth">
+<META NAME="description" CONTENT=" uCforth uses this file to generate uCforth">
+<LINK REL=stylesheet HREF="forth.css" TYPE="text/css">
+</head>
+<body>
+<h3>linux environment</h3>
+<p>
+On startup you have to deal with the arguments and you need support words for the
+environment. This file deal with these issues.
+</p>
+<p>
+Linux calls us with lots of stuff, the return stack is supplied with data arranged.
+</p>
+<pre>
+argument_count
+argument pointer to array of pointers
+env pointer to array of pointers
+first argument pointer - points to file name
+second argument pointer - first string after file name
+etc.
+null
+first env name pointer
+second env name pointer
+etc.
+null
+</pre>
+<pre>
+<code>
+zero
+DUP CONSTANT #argc CELL+
+DUP CONSTANT #argp CELL+
+DUP CONSTANT #envp CELL+
+DROP
+
+\ work out the length of a zero terminated string.
+: ZtoS ( addr -- addr cont )
+	zero
+	BEGIN
+		2DUP CHARS + C@
+	WHILE
+		1 +
+	REPEAT
+;
+\ type a zero terminated string
+: Ztype ( addr --)
+	ZtoS
+	\ addr chars
+	TYPE
+;
+
+
+</code>
+</pre>
+<h3>The &argument vocabulary</h3>
+<p>
+The &argument vocabulary takes a pointer to a string. The pointer is in an array. The word returns
+the address after the last string used.
+</p>
+<pre>
+<code>
+</code>
+</pre>
+<a name="dictionary">
+<pre>
+<code>
+\ used to create a dictionary
+: dictionary ( n--)
+	\ can be set in three places when invoked
+	\ in the script
+	\ from the prompt.
+	\ If done multiple times we would like the memory back
+	%here_base @ IF
+		0 %here !
+		0 %here_top !
+		%here_base @ 0 %here_base ! FREE $abort
+		\ Can't do this if compilation has started.
+		\ References are only used if binary image is created.
+		\ Don't worry about it too much
+		%ref_base @ %ref !
+	THEN
+	\ if zero we simple wanted the buffer returned.
+	DUP not IF
+		DROP
+		EXIT
+	THEN
+	DUP ALLOCATE \ n addr ior
+	$abort
+	2DUP SWAP ERASE
+	\ make the data area the new dictionary
+	DUP %here !
+	DUP %here_base !
+	+ %here_top !
+;
+</code>
+</pre>
+<a name="data">
+<pre>
+<code>
+\ used to create a data area
+: data ( n--)
+	\ can be set in three places when invoked
+	\ in the script
+	\ from the prompt.
+	\ If done multiple times we would like the memory back
+	%data_base @ IF
+		0 %data_top !
+		0 %data !
+		%data_base @ 0 %data_base ! FREE $abort
+		\ Can't do this if compilation has started.
+		\ References are only used if binary image is created.
+		\ Don't worry about it too much
+		%ref_base @ %ref !
+	THEN
+	\ if zero we simple wanted the buffer returned.
+	DUP not IF
+		DROP
+		EXIT
+	THEN
+	DUP ALLOCATE \ n addr ior
+	$abort
+	2DUP SWAP ERASE
+	\ make the data area the new dictionary
+	DUP %data !
+	DUP %data_base !
+	+ %data_top !
+;
+</code>
+</pre>
+<a name="ram">
+<pre>
+<code>
+\ used to create a ram area
+: ram ( n--)
+	\ can be set in three places when invoked
+	\ in the script
+	\ from the prompt.
+
+	\ If done multiple times we would like the memory back
+	%ram_base @ IF
+		0 %ram_top !
+		0 %ram !
+		%ram_base @ 0 %ram_base ! FREE $abort
+		\ Can't do this if compilation has started.
+		\ References are only used if binary image is created.
+		\ Don't worry about it too much
+		%ref_base @ %ref !
+	THEN
+	\ if zero we simple wanted the buffer returned.
+	DUP not IF
+		DROP
+		EXIT
+	THEN
+	DUP ALLOCATE \ n addr ior
+	$abort
+	2DUP SWAP ERASE
+	\ make the data area the new dictionary
+	DUP %ram !
+	DUP %ram_base !
+	+ %ram_top !
+;
+
+vocabulary &argument
+ghost_also
+&argument
+ghost_definitions
+: .note ( --)
+	." Words that consume startup arguments. The words take a character" CR
+	." string pointer address, if arguments are used the pointer is" CR
+	." moved forward" CR
+;
+
+: --help ( addr -- addr )
+	." --help             This message." CR
+	." -h                 This message." CR
+	." --login            Stay in forth." CR
+	." -                  Stay in forth." CR
+	." -data        nnn   Length of data area required." CR
+	." -dictionary  nnn   Length of dictionary required." CR
+	." -ram         nnn   Length of ram area required." CR
+
+;
+
+: -h --help ;
+</code>
+</pre>
+<p>
+If an execution token address is put into %abort it will be executed after
+the file being interpreted is done. The file bing interpreted may set
+to any desired value.
+Remember the - words are executed before the input file is interpreted.
+Also remember that there is nothing the - words can do that can be done from
+a file. This is just to keep unix heads happy.
+</p>
+<pre>
+<code>
+: --login ( addr -- addr)
+	['] QUIT %abort !
+;
+
+: - ( addr -- addr )
+	['] QUIT %abort !
+;
+
+</code>
+</pre>
+<a name="-dictionary">
+<p>
+Address points to nnn as a zero terminated string.
+we need to convert to number, then allocate the desired memory
+from the heap and make it the dictionary.
+</p>
+<pre>
+<code>
+: -dictionary ( addr -- addr)
+	DUP @ ZtoS
+	\ addr addr n (--
+	\ Number can be #123 or $234  etc
+	DEPTH >R
+	Snumber \ this will abort if conversion fails
+	\ make sure Snumber produced a single cell number.
+	R> DEPTH <> ABORT" Single cell number required"
+	\ addr n
+	dictionary
+	CELL+
+;
+</code>
+</pre>
+<a name="-data">
+<pre>
+<code>
+: -data ( addr -- addr)
+	DUP @ ZtoS
+	\ addr addr n (--
+	\ Number can be #123 or $234  etc
+	DEPTH >R
+	Snumber \ this will abort if conversion fails
+	\ make sure Snumber produced a single cell number.
+	R> DEPTH <> ABORT" Single cell number required"
+	\ addr n
+	data
+	CELL+
+;
+</code>
+</pre>
+<a name="-ram">
+<pre>
+<code>
+: -ram ( addr -- addr)
+	DUP @ ZtoS
+	\ addr addr n (--
+	\ Number can be #123 or $234  etc
+	DEPTH >R
+	Snumber \ this will abort if conversion fails
+	\ make sure Snumber produced a single cell number.
+	R> DEPTH <> ABORT" Single cell number required"
+	\ addr n
+	ram
+	CELL+
+;
+ghost_previous_definitions
+ghost_previous
+</code>
+</pre>
+<p>
+You have to admit FORTH is a wonderfull language.
+Unix flags added. User can add further flags by adding words to the &argument vocabulary. No fuss
+just works.
+Keeps with the unix way. The - modifiers come first followed by the file to load.
+If we end up with a non zero parameter that is not consumed by the flags then it is
+a script file and the word returns true, with addr pointing to cell that points to
+the string.
+</p>
+<pre>
+<code>
+
+\ If the flags consume all entries then the word returns false.
+: use_flag_args ( addr --addr TRUE|FALSE)
+
+	ALSO &argument
+
+	BEGIN
+		DUP @
+	WHILE
+		DUP @ ZtoS
+		Sfind IF
+			\ arg xt (--
+			SWAP CELL+
+			SWAP EXECUTE
+		ELSE
+			PREVIOUS
+			TRUE
+			EXIT
+		THEN
+	REPEAT
+	DROP
+	FALSE
+
+	PREVIOUS
+
+;
+
+: open_arg_file ( addr -- handle ior )
+	@ ZtoS R/O OPEN-FILE
+;
+</code>
+</pre>
+<p>
+If the file starts with #! interpretor name is on first line.
+skip first line and interpret the rest of the file.
+</p>
+<pre>
+<code>
+| : use_script { variable %handle (  --) }
+	.S ." in use_script" send
+	#$buffer get_buffer
+	buffer #$buffer %handle @ READ-LINE
+	.S ." n flag ior(--done READ-LINE" send
+	\ n flag ior(--
+	$abort
+		\ n flag(--
+	IF
+		2 > IF \ at least two characters
+			buffer C@ [CHAR] # = buffer 1 CHARS + C@ [CHAR] ! = AND not IF
+				\ interpreter name not on first line.
+				\ reposition back at start of file.
+				0 S>D %handle @ REPOSITION-FILE
+			THEN
+		THEN
+	THEN
+	kill_buffer
+	.S ." (-- about to INCLUDE-FILE" send
+	%handle @ INCLUDE-FILE
+	\ needed because next action might be _sys_exit.
+	\ data buffered in application will never be seen
+	send
+;
+
+: sys_error_exit ( --)
+	1 _sys_exit
+;
+
+: sys_clean_exit
+	0 _sys_exit
+;
+</code>
+</pre>
+<p>
+We get here via an ABORT, the ABORT sets up the forth environment.
+See startup.html, this will accept:
+</p>
+<pre>
+[file] [script] [flags]
+[file] [flags] [script] [flags]
+</pre>
+<pre>
+<code>
+: use_args ( -- )
+	.S ." (--In use_args" send
+	\ if the flags or script do not set %abort
+	\ we exit. If %abort is change we execute
+	\ ABORT, this will clean up the forth environment
+	\ and execute the word whose xt is stored in %abort
+	['] sys_error_exit %abort !
+
+	DECIMAL
+	ONLY
+	FORTH
+	DEFINITIONS
+
+	_%return_stack_end @ #argp + @
+	\ the first string is the file being execute.
+	CELL+
+	.S ." start_arg_list(--" send
+	use_flag_args IF
+		\ we have what may be a file but there may be args after.
+		\ This happens if from script contain interpretor name on first line
+		DUP >R
+		\ we will now only accept flags
+		CELL+ use_flag_args ABORT" Command line wrong"
+		R>
+		\ addr(--
+		.S ." addr(--about to open_arg_file" send
+		open_arg_file $abort
+		.S ." handle(--done open_arg_file" send
+		\ handle(--
+		>R
+		R@ use_script
+		.S ." (--after use script" send
+		R>
+		CLOSE-FILE $abort
+		.S ." (--done using the startup script" send
+	THEN
+	'restart @ IF
+		.S ." (-- 'restart set, about to abort into 'restart word" send
+		'restart @ %abort !
+		\ set up the environment
+		\ and execute the %abort word.
+		\ Note the output will now become the
+		\ unix abort output.
+		ABORT
+	THEN
+	sys_clean_exit
+;
+
+
+</code>
+</pre>
+</body>
+</html>

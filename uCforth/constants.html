@@ -1,0 +1,76 @@
+<html>
+<head>
+<title>constants.html</title>
+<META NAME="Author" CONTENT="Charles Esson">
+<META NAME="keywords" CONTENT="forth">
+<META NAME="description" CONTENT=" used to generate uCforth">
+<LINK REL=stylesheet HREF="forth.css" TYPE="text/css">
+</head>
+
+<body>
+<h2>Constants</h2>
+<a HREF="./license.html">license</a>
+<pre>
+<code>
+DECIMAL
+
+3 CONSTANT #lib_code
+04 CONSTANT #flt_version
+01 CONSTANT FLAT_FLAG_RAM
+
+        \ <a name="#1sec"></a>
+	100              CONSTANT #1sec
+        \ <a name="#2sec"></a>
+	#1sec 2*          CONSTANT #2sec
+        \ <a name="#10sec"></a>
+	#1sec 10 *       CONSTANT #10sec
+        \ <a name="#1hour"></a>
+	#1sec 60 * 60 * CONSTANT #1hour
+
+        \ <a name="#xoff"></a>
+	$13 CONSTANT #xoff
+
+        \ <a name="#xon"></a>
+	$11 CONSTANT #xon
+
+        \ <a name="#back_space"></a>
+	$08 CONSTANT #back_space
+
+        \ <a name="#bell"></a>
+	$07 CONSTANT #bell
+
+        \ <a name="#^c"></a>
+	$03 CONSTANT #^c
+
+        \ <a name="#tab"></a>
+	$09 CONSTANT #tab
+
+        \ <a name="#cr"></a>
+	$0D CONSTANT #cr
+
+        \ <a name="#lf"></a>
+	$0A CONSTANT #lf
+
+        \ <a name="#esc"></a>
+	$1B CONSTANT #esc
+
+        \ <a name="#^z"></a>
+	$1A CONSTANT #^z
+
+        \ <a name="#2k"></a>
+        $800 CONSTANT #2k
+</code>
+</pre>
+<p>
+The data stack size can be altered , this is the startup size.
+The startup stack is in the application bss space.
+The replaced stack can be anywhere including fast memory.
+Look at the action of <i>abort</i> to see how to replace the data stack.
+</p>
+<pre>
+<code>
+	$400 CONSTANT #min_data_stack
+</code>
+</pre>
+</body>
+</html>

@@ -1,0 +1,448 @@
+<html>
+<head>
+<title>target.image</title>
+<META NAME="Author" CONTENT="Charles Esson">
+<META NAME="keywords" CONTENT="forth, uClinux">
+<META NAME="description" CONTENT=" uCforth uses this file to generate uCforth">
+<LINK REL=stylesheet HREF="forth.css" TYPE="text/css">
+</head>
+<body>
+<a HREF="./license.html">license</a>
+<h3>Target data areas</h3>
+<p>
+We are keeping track of a library image and an application image.  The library is loaded
+first followed by the application. The following table details the address resolution.
+</p>
+<pre>
+                         library                    Application
+Library code          Absolute address            Absolute address
+Library data          Absolute address            Absolute address
+Library bss           Absolute address            Absolute address
+App code              Not possible                Absolute address
+App data              Through A5                  Absolute address
+App bss               Not possible                Absolute address
+</pre>
+<p>
+Callbacks to applications code can occur if the application not the cross compile
+installs the address. App data is through A5 if the cross compile
+generates the address. If the address is supplied by the application then it
+is application data area referenced by the application. We cannot access the application
+bss section from the library as we do not know the final application data segment length
+at cross compile time. The application data segment must start as we created it at xcompile
+time. Users build applications on top of applications so this is what occurs.
+</p>
+<p>
+We can switch between library and application with the keywords <i>library</i>
+and <i>application</i>. There are four data areas ( library code, application
+code, library data and application data). There are two lengths kept, library bss and
+application bss. There is a reference table kept for absolute references.
+A5 references are changed to offsets when uncounted.
+The absolute references have to have the image offsets removed
+and a reloation reference added to the Bflt file.
+</p>
+<p>
+A5 references have to have the image offset removed, but no reference added to
+the Bflt file. This is done at compile time.
+</p>
+<pre>
+<code>
+variable %application
+: library FALSE %application ! ;
+: application TRUE %application ! ;
+library
+</code>
+</pre>
+<h5>library code</h5>
+<p>
+Stuff added here must not be altered at run time.
+</p>
+<pre>
+<code>
+\ the library size
+$40000 CONSTANT #lib_code_size
+CREATE %lib_code_image #lib_code_size ALLOT
+%lib_code_image #lib_code_size ERASE
+variable %lib_code_pointer
+</code>
+</pre>
+<h5>application code</h5>
+<p>
+Stuff added here should not be altered at run time.
+</p>
+<pre>
+<code>
+\ maximum application size. This is the code copied into a new
+\ user application, the smaller this is the small the footprint
+\ of a multiprocess appplication.
+$4000 CONSTANT #app_code_size
+CREATE %app_code_image #app_code_size ALLOT
+%app_code_image #app_code_size ERASE
+variable %app_code_pointer
+</code>
+</pre>
+<p>
+We use the image address as the various image spaces reside in different location.
+Not all options are available and the AB instruction should abort if an invalid 
+option is being used.
+</p>
+<p>
+At the end of the cross compile we have a table of address that need relocating.
+The cross compile library and applications code image are relocated from the image
+base address back to a base address of zero.
+The relevent data image and the reference table are relocated to just above the
+relevent code image. The whole shooting match is then combined into two bFLT file.
+</p>
+<p>
+To use the result the library file has to be installed in the binary directory.
+To make casual use simple there is a file created that combines the library and the application
+in one file. This file should not be used if the library is installed.
+</p>
+<pre>
+<code>
+%lib_code_image %lib_code_pointer !
+: lib_code_here ( -- addr) %lib_code_pointer @ ;
+: lib_code_allot ( n --)
+	%lib_code_pointer +!
+	%lib_code_pointer @
+	[ %lib_code_image #lib_code_size + ] LITERAL
+	 &lt; not ABORT" library code image overrun"
+;
+
+
+%app_code_image %app_code_pointer !
+: app_code_here ( -- addr) %app_code_pointer @ ;
+: app_code_allot ( n --)
+	%app_code_pointer +!
+	%app_code_pointer @
+	[ %app_code_image #app_code_size + ] LITERAL
+	 &lt; not ABORT" application code image overrun"
+;
+
+
+: %target_code_pointer
+	%application @ IF
+		%app_code_pointer
+	ELSE
+		%lib_code_pointer
+	THEN
+;
+
+: target_code_here
+	%application @ IF
+		app_code_here
+	ELSE
+		lib_code_here
+	THEN
+;
+
+: target_code_allot ( n --)
+	%application @ IF
+		app_code_allot
+	ELSE
+		lib_code_allot
+	THEN
+;
+
+</code>
+</pre>
+<h5>library data</h5>
+<p>
+This area is loaded from the library image,
+it is expected that executing program will alter it. It is not used
+much. Any data in this segment will be reflected across all programs
+that use the library.
+</p>
+<pre>
+<code>
+\ the target size
+$1000 CONSTANT #lib_data_size
+CREATE %lib_data_image #lib_data_size ALLOT
+%lib_data_image #lib_data_size ERASE
+variable %lib_data_pointer
+%lib_data_image %lib_data_pointer !
+
+\ Bflt files compile with base address of zero, relocation
+\ done when file is loaded.
+: lib_data_here ( -- addr) %lib_data_pointer @ ;
+
+: lib_data_allot ( n --)
+	%lib_data_pointer +!
+	%lib_data_pointer @
+	[ %lib_data_image #lib_data_size + ] LITERAL &lt; not ABORT" library data image overrun"
+;
+
+</code>
+</pre>
+<h5>application data</h5>
+<p>
+This area is loaded with the application image, it is expected the executing program will
+alter it.
+</p>
+<pre>
+<code>
+\ the application data size
+$10000 CONSTANT #app_data_size
+CREATE %app_data_image #app_data_size ALLOT
+%app_data_image #app_data_size ERASE
+variable %app_data_pointer
+%app_data_image %app_data_pointer !
+
+
+
+\ Bflt files compile with base address of zero, relocation
+\ done when file is loaded.
+: app_data_here ( -- addr)
+	\ If in library mode can't have it.
+	%app_data_pointer @
+;
+
+: app_data_allot ( n --)
+	%app_data_pointer +!
+	%app_data_pointer @
+	[ %app_data_image #app_data_size + ] LITERAL &lt; not
+	ABORT" application data image overrun"
+;
+
+</code>
+</pre>
+<h5>bss section pointer</h5>
+<p>
+Bss section pointer is need, no image is saved as area is simple set to zero on
+startup.
+</p>
+<pre>
+<code>
+variable %lib_bss_pointer
+variable %app_bss_pointer
+</code>
+</pre>
+<p>
+The base address can be anything as long as it is not in the
+code or data image area. If we initialize to the address of the
+pointer to  <i>%target_bss_image</i> to dereference from and to assure
+that references are an address outside the data and code areas. As the bss
+segment is set to zero there can be no absolute addresses to reference to
+reference table is needed.
+</p>
+<pre>
+<code>
+\ needs no size as no image is created.
+CREATE %lib_bss_image
+%lib_bss_image %lib_bss_pointer !
+
+: lib_bss_here ( -- addr)
+	%lib_bss_pointer @
+;
+
+: lib_bss_allot ( n --)
+	\ very little lib bss should be allocated
+	\ ." Allocating lib bss: " KEY DROP
+	%lib_bss_pointer +!
+;
+
+\ needs no size as no image is created.
+CREATE %app_bss_image
+%app_bss_image %app_bss_pointer !
+
+: app_bss_here ( -- addr)
+	%app_bss_pointer @
+;
+
+: app_bss_allot ( n --)
+	%app_bss_pointer +!
+;
+
+: %target_bss_pointer
+	%application @ IF
+		%app_bss_pointer
+	ELSE
+		%lib_bss_pointer
+	THEN
+;
+
+
+: target_bss_allot
+	%application @ IF
+		app_bss_allot
+	ELSE
+		lib_bss_allot
+	THEN
+;
+
+: target_bss_here
+	%application @ IF
+		app_bss_here
+	ELSE
+		lib_bss_here
+	THEN
+;
+
+</code>
+</pre>
+<p>
+Add_reference for all image segments. The referenced address decides which
+segment is being referenced. The content of the cell referenced decides
+what segment it is referencing. If the content of the referenced cell is zero
+the reference is removed. If the contents of the referenced cell is not
+otherwise within the images areas an abort occurs.
+</p>
+<p>
+If the ref table is for the library code or data segment and the address stored there
+references the application then an abort occurs because the address cannot be
+resolved.
+</p>
+<p>
+This table is in the host byte order. Byte order will be sorted out
+when the final reference table is created. The target table has to be in network
+byte order. That is if created on the Intel platform bytes swapping has to occur
+on the coldfire none has to occur.
+<p>
+<pre>
+<code>
+$10000 CONSTANT #ref_size
+variable %ref_pointer
+0 %ref_pointer !
+
+CREATE %refs #ref_size ALLOT
+
+: add_reference ( addr--)
+	%ref_pointer @ DUP #ref_size &lt; not
+	ABORT" Reference table full"
+	%refs + !
+	\ this is the host cell size.
+	CELL %ref_pointer +!
+;
+
+: remove_reference ( --)
+	%ref_pointer @ CELL - 0 MAX %ref_pointer !
+;
+
+</code>
+</pre>
+<pre>
+<code>
+: .iloc
+	CR ." lib code: " %lib_code_image .h %lib_code_pointer @ .h
+	CR ." lib data: " %lib_data_image .h %lib_data_pointer @ .h
+	CR ." lib bss : " %lib_bss_image .h %lib_bss_pointer @ .h
+	CR ." app code: " %app_code_image .h %app_code_pointer @ .h
+	CR ." app data: " %app_data_image .h %app_data_pointer @ .h
+	CR ." app bss : " %app_bss_image .h %app_bss_pointer @ .h
+	CR ." refs    : " %refs .h %ref_pointer @ .h 
+	CR
+;
+</code>
+</pre>
+<p>
+We now define words to store into the images this requires us to work out the
+host systems byte order.
+</p>
+<pre>
+<code>
+
+: in_image ( addr -- )
+	DUP %lib_code_image [ #lib_code_size %lib_code_image + ] LITERAL WITHIN IF
+		DROP EXIT
+	THEN
+	DUP %lib_data_image [ #lib_data_size %lib_data_image + ] LITERAL WITHIN IF
+		DROP EXIT
+	THEN
+	DUP %app_code_image [ #app_code_size %app_code_image + ] LITERAL WITHIN IF
+		DROP EXIT
+	THEN
+	DUP %app_data_image [ #app_data_size %app_data_image + ] LITERAL WITHIN IF
+		DROP EXIT
+	THEN
+	DROP
+	TRUE ABORT" Trying to access target data outside target image"
+;
+
+
+\ find out what type of system the compile is running on
+$12345678 HERE !
+HERE C@ $12 = [IF]
+	\ big compiling big
+	: -targetw! ( value addr -- )
+		 W!
+	;
+	: -targetw@ ( addr -- value )
+		W@
+	;
+	: -target!  ( value addr --)
+		!
+	;
+	: -target@  ( addr -- value)
+		@
+	;
+[ELSE]
+	\ little to big
+	: -target@ ( addr --value)
+		DUP 0 + byte@ $18 LSHIFT SWAP
+		DUP 1 + byte@ $10 LSHIFT SWAP
+		DUP 2 + byte@ $8 LSHIFT SWAP
+		3 + byte@
+		OR OR OR
+	;
+
+	: -target! ( value addr --)
+		OVER $18 RSHIFT OVER 0 + byte!
+		OVER $10 RSHIFT OVER 1 + byte!
+		OVER 8 RSHIFT   OVER 2 + byte!
+		3 + byte!
+	;
+
+	: -targetw@ ( addr --value)
+		DUP 0 +  byte@ 8 LSHIFT
+		SWAP 1 + byte@ OR
+	;
+
+	: -targetw! ( value addr --)
+		OVER 8 RSHIFT OVER 0 + byte!
+		1 + byte!
+	;
+[THEN]
+
+	: target@ ( addr --value)
+		DUP in_image
+		-target@
+	;
+
+	: target! ( value addr --)
+		DUP in_image
+		-target!
+	;
+
+	: targetw@ ( addr --value)
+		DUP in_image
+		-targetw@
+	;
+
+	: targetw! ( value addr --)
+		DUP in_image
+		-targetw!
+ 	;
+
+
+
+	: targetbyte@ ( addr -- value)
+		DUP in_image
+		byte@
+	;
+
+	: targetbyte! ( value addr -- )
+		DUP in_image
+		byte!
+	;
+
+\ for the 68k net order and target order are the same.
+	: net! -target! ;
+	: net@ -target@ ;
+	: netw! -targetw! ;
+	: netw@ -targetw@ ;
+	
+\  target location to be set to true when lib app combined version is made
+VARIABLE %no_lib_ref
+</code>
+</pre>
+</body>
+</html>

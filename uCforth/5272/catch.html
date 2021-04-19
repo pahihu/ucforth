@@ -1,0 +1,70 @@
+<html>
+<head>
+<title>catch.html</title>
+<META NAME="Author" CONTENT="Charles Esson">
+<META NAME="keywords" CONTENT="forth">
+<META NAME="description" CONTENT=" used to generate uCforth">
+<LINK REL=stylesheet HREF="forth.css" TYPE="text/css">
+</head>
+<h3>Catch</h3>
+<body>
+<a HREF="./license.html">license</a>
+ </code>
+ </pre>
+<a name="CATCH"></a>
+<h5>ANS 9.6.1.0875 CATCH</h5>
+<p>EXCEPTION</p>
+<p>( i*x xt -- j*x 0 | i*x n )</p>
+<p>
+Push an exception frame on the exception stack and then execute the
+execution token xt (as with EXECUTE) in such a way that control can
+be transferred to a point just after CATCH if THROW is executed
+during the execution of xt.
+</p>
+<p>
+If the execution of xt completes normally (i.e., the exception
+frame pushed by this CATCH is not popped by an execution of THROW)
+pop the exception frame and return zero on top of the data stack,
+above whatever stack items would have been returned by xt EXECUTE.
+Otherwise, the remainder of the execution semantics are given by THROW.
+</p>
+<p>
+The ansi standard requires the input spec to fall back to what it was 
+when catch was executed. This does not happen. If it did the kenrel
+couldn't use catch and throw to tidy up the i/o state as catch and throw
+would be screwing around with it.
+</p>
+<pre>
+<code>
+
+	CODE CATCH       ( xt -- n )
+		S )+ W MOV
+		OP R -) MOV         \ object pointer must be restored.
+		LP R -) MOV         \ local pointer has to be restored.
+		S R -) MOV          \ stackpointer
+		%catch_link DP_data_offset DP) R -) MOV      \ handler
+		R %catch_link DP_data_offset DP)  MOV         \ save so throw can do it's thing
+		W ) JSR
+		R )+ %catch_link DP_data_offset DP) MOV
+		3 CELLS # R ADD
+		0 # S -) MOV
+	NEXT
+
+
+
+	CODE _throw       ( n -- )
+		S )+ D0 MOV
+		%catch_link DP_data_offset DP) R MOV
+		R )+ %catch_link DP_data_offset DP) MOV
+		R )+ S MOV
+		\ local variable pointer
+		R )+ LP MOV
+		\ object pointer
+		R )+ OP MOV
+		D0 S -) MOV
+	NEXT
+
+</code>
+</pre>
+</body>
+</html>

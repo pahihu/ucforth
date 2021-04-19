@@ -1,0 +1,79 @@
+<html>
+<head>
+<title>checksum.html</title>
+<META NAME="Author" CONTENT="Charles Esson">
+<META NAME="keywords" CONTENT="forth">
+<META NAME="description" CONTENT=" file used to generate uCforth">
+<LINK REL=stylesheet HREF="forth.css" TYPE="text/css">
+</head>
+
+<body>
+<a HREF="./license.html">license</a>
+<p>
+<i>checksum</i> is used extensively. All names are checksummed and the value used to
+speed up name searches. The kernel libary is checksummed, with the
+checksummed checked on a restart. String change of value are detected
+with checksums.
+</p>
+	<pre> <code>
+( make checksum table)
+HEX
+forth  : make_table  ( --)
+    	forth&host  100 0 DO
+    		I  8 0 DO
+    			DUP 1 AND IF
+    				1 RSHIFT 0EDB88320 XOR
+    			ELSE
+    				1 RSHIFT
+    			THEN
+    	 	LOOP
+    	 	host&forth t, forth&host
+    	LOOP
+    ;
+host&forth
+HOST
+CREATE checksum_table
+    	make_table
+
+\ file has to exist but it can be empty.
+include_card checksum.html
+
+</code>
+</pre>
+<a name="checksum"></a>
+<p>
+Should be rewritten in the above file for performance.
+If not use the forth version.
+</p>
+<pre> <code>
+defined_ghost checksum
+NIP not [IF]
+	: checksum ( addr n -- value )
+		-1 -rot
+		OVER + SWAP ?DO
+			DUP 8 RSHIFT   \ old new (--
+			SWAP           \ new old (--
+			I C@ XOR       \ new old+(--
+			0FF AND        \ new +(--
+			4*             \ new offset(--
+			checksum_table + @  \ new new_value(--
+			XOR            \ new_value
+		LOOP
+		-1 XOR
+	;
+[THEN]
+</code>
+</pre>
+<pre>
+<code>
+        \ <a name="$checksum"></a>
+	: $checksum ( addr --n )
+		COUNT
+		checksum
+	;
+</code>
+</pre>
+
+</body>
+</html>
+

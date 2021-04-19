@@ -1,0 +1,20 @@
+#!./ucf
+\ This is a unix script. The #! in the above line tells the unix application loader that 
+\ this is a script file. The file name after is the script interpreter. 
+\ The script interpreter ./ucf expect the file to contain forth. So the rest
+\ of the file is Forth.
+\ Forth is a scipting language that contains a compiler and an 
+\ assembler. Learn and enjoy.
+
+\ So the system will not exit when script is finished
+.S .( About to set 'restart from startup script) send
+' QUIT 'restart !
+
+\ If you like "ok" uncomment following line.
+\ ok
+
+\ Describe desired environment here. Increase these numbers if you want bigger areas.
+.S .( About to set dictionary from startup script) send
+$8000 dictionary
+$1000 ram
+$1000 data

@@ -1,0 +1,412 @@
+<html>
+<head>
+<title>signal.html</title>
+<META NAME="Author" CONTENT="Charles Esson">
+<META NAME="keywords" CONTENT="forth">
+<META NAME="description" CONTENT=" file used to generate uCforth">
+<LINK REL=stylesheet HREF="forth.css" TYPE="text/css">
+</head>
+<body>
+<h3>Signals</h3>
+<p>
+I cross referenced linux kernel can be found at: lxr.linux.no
+</p>
+<h4>Introduction</h4>
+<p>
+Your about to return to user space, and you then look at
+the state of the signals. If a signal is to be called a signal context is placed
+on the user stack, this context contains several register values you were about to restore.
+Included in the signal context are the <i>usp</i> and the <i>pc</i>. The following table
+attempts to describe it all.
+</p>
+<pre>
+reg  switch    save_all    signal_registers context
+-------------------------------------------------------------------------------------------
+A0                x             thread         x
+A1                x             thread         x
+A2                x             thread
+A3     x                        thread
+A4     x                        thread
+A5     x                        bsd_base
+A6     x                        thread
+A7     x                        signal         x
+D0                x             thread         x
+D1                x             thread         x
+D2                x             thread
+D3                x             thread
+D4                x             thread
+D5                x             thread
+D6     x                        thread
+D7     x                        thread
+PC                x             signal         x
+</pre>
+<p>
+The base signals context is designed to call C functions. C functions preserve
+all registers other than A0,A1,D0 and D1.
+</p>
+<p>
+FORTH's register use is different to C. <i>D0</i> to <i>D7</i>, and <i>A0</i> to <i>A2</i>
+are scratch registers and are not saved. The standard signal context will not work without wrapper
+code that saves and restores the registers that will vary.
+</p>
+<p>
+Two signal stack frames are supported. The selection is done using the flag <i>SA_SIGINFO</i>.
+The signal call selection can be seen in the routine <i>handle_signal</i> found in the file
+<i>/arch/m68knommu/platform/5307/signal.c</i>.
+</p>
+<p>
+If <i>SA_SIGINFO</i> is set the entire machine state is saved when the signal is called. With this
+option signal handlers can be FORTH code with no wrapper. As 2.4 is written signal handlers can
+only be called within the context of the process. The is important as <i>S</i> must be valid for FORTH
+to work, as with C <i>A5</i> must be valid, there is however little doubt that linux will continue to
+supply a valid <i>A5</i>.
+</p>
+<p>
+We have two ways to go, write a wrapper that must be around signal code, or wrap the signal routine
+setting code so SA_SIGINFO is always set. I think the latter will lead to less restrictions on what
+a signal word can do, and thus less mistakes.
+</p>
+<p>
+It is pretty obvious that rt signals are a work in progress and we are going to have to
+revisit this.
+</p>
+<h4>Install signals</h4>
+<p>
+Data structure described is found in file: /include/asm-m68knommu/signal.h
+</p>
+<pre>
+<code>
+\
+\ the sigaction structure
+
+| 8 CONSTANT #sa_mask_ln
+
+0
+| DUP CONSTANT #sa_handler   CELL+
+| DUP CONSTANT #sa_flags     CELL+
+| DUP CONSTANT #sa_restorer  CELL+
+| DUP CONSTANT #sa_mask      #sa_mask_ln +
+|     CONSTANT #sa_length
+
+
+\ install signal
+: install_signal { variable %handler variable %signum  -- ( zero ) }{
+
+	#sa_length bytes %act }
+
+	%handler @ %act #sa_handler + !
+	SA_SIGINFO %act #sa_flags + !
+	0 %act #sa_restorer + !
+	0 %act #sa_mask + !
+	0 %act [ #sa_mask CELL + ]T LITERAL + !
+
+	\ if the kernel changes and #sa_mask_ln is wrong you get an error
+	%signum @ %act 0 #sa_mask_ln _sys_rt_sigaction
+
+;
+</code>
+</pre>
+<h4>Define the rt signal frame</h4>
+<p>
+Leave heads on so application can define their own signal handlers.
+</p>
+<pre>
+<code>
+\ this is setup in:
+\ /arch/m68knommu/platform/5307/signal.c setup_rt_frame
+0
+DUP CONSTANT #sig_return    CELL+    \ Do a rte and the code pointed to will be executed
+DUP CONSTANT #sig_sig       CELL+    \ The signal number
+DUP CONSTANT #sig_*info     CELL+    \ Pointer to the info
+DUP CONSTANT #sig_*ucontext CELL+    \ Pointer to the context
+DUP CONSTANT #sig_code
+DROP
+\ this is followed by code, this is of no interest to us.
+\ Except, it a dam poor way of doing it on the 5407 and must be fixed.
+
+</code>
+</pre>
+<h4>ucontext</h4>
+<p>
+This structure is pointed to by <i>sig_*context</i>.
+</p>
+<p>
+This is setup in: <i>/arch/m68knommu/platform/5307/signal.c rt_setup_ucontext</i>
+</p>
+<p>
+The structure that contains the registers is defined as an array in uClinux.
+The names are created from the code.
+The structure is defined in: <i>/include/asm-m68knommu/ucontext.h</i>
+</p>
+<pre>
+<code>
+
+2   CONSTANT #uc_version_num
+0
+DUP CONSTANT #uc_flags       CELL+           \ set to zero
+DUP CONSTANT #uc_link        CELL+           \ set to zero -- link to another ucontext
+
+\ type stack_t defined in /include/asm-m68k/signal.h
+\ By the time we get to the signal code the stack has been set
+\ This info is close to useless.
+DUP CONSTANT #uc_stack_p     CELL+           \ the address of the stack, if alternate
+DUP CONSTANT #uc_stack_flags CELL+           \ flags, reflects what has been done not what
+                                             \ was requested
+DUP CONSTANT #uc_stack_size  CELL+           \ length of the stack if alternate
+
+DUP CONSTANT #uc_version     CELL+           \ kernel sets to #uc_version_num, I think we need to check value
+DUP CONSTANT #uc_d0          CELL+
+DUP CONSTANT #uc_d1          CELL+
+DUP CONSTANT #uc_d2          CELL+
+DUP CONSTANT #uc_d3          CELL+
+DUP CONSTANT #uc_d4          CELL+
+DUP CONSTANT #uc_d5          CELL+
+DUP CONSTANT #uc_d6          CELL+
+DUP CONSTANT #uc_d7          CELL+
+DUP CONSTANT #uc_a0          CELL+
+DUP CONSTANT #uc_a1          CELL+
+DUP CONSTANT #uc_a2          CELL+
+DUP CONSTANT #uc_a3          CELL+
+DUP CONSTANT #uc_a4          CELL+
+DUP CONSTANT #uc_a5          CELL+
+DUP CONSTANT #uc_a6          CELL+
+DUP CONSTANT #uc_usp         CELL+
+DUP CONSTANT #uc_pc          CELL+
+DUP CONSTANT #uc_sr          CELL+
+DUP CONSTANT #uc_format      2 +            \ short int
+DUP CONSTANT #uc_mask        8 +            \ The signal mask
+DROP
+
+</code>
+</pre>
+<h4>sig_info</h4>
+<p>
+This is of type <i>siginfo_t</i>
+It is defined in the file: <i>/include/asm-m68k/siginfo.h</i>
+The first three values are fixed, the rest of the structure is dependent
+on the si_code field.
+At this stage this is of little interest to us.
+</p>
+<pre>
+<code>
+
+0
+DUP CONSTANT #si_signo     CELL+
+DUP CONSTANT #si_errno     CELL+
+DUP CONSTANT #si_code      CELL+
+DROP
+
+</code>
+</pre>
+<h4>Signal service routines</h4>
+<p>
+We are using rt signals, these signals restore the tasks context from signal context. If we don't
+use local variables or objects in the signal word then it is easy to get access to the frame described
+above, <i>R</i> points to it. The following code forces an abort on the current thread. We need this
+for bus error.
+</p>
+<pre>
+<code>
+
+| : .uc_d0 ( addr --) ." D0 " #uc_d0 + @ .h ;
+| : .uc_d1 ( addr --) ." D1 " #uc_d1 + @ .h ;
+| : .uc_d2 ( addr --) ." D2 " #uc_d2 + @ .h ;
+| : .uc_d3 ( addr --) ." D3 " #uc_d3 + @ .h ;
+| : .uc_d4 ( addr --) ." D4 " #uc_d4 + @ .h ;
+| : .uc_d5 ( addr --) ." D5 " #uc_d5 + @ .h ;
+| : .uc_d6 ( addr --) ." D6 " #uc_d6 + @ .h ;
+| : .uc_d7 ( addr --) ." D7 " #uc_d7 + @ .h ;
+| : .uc_a0 ( addr --) ." A0 " #uc_a0 + @ .h ;
+| : .uc_a1 ( addr --) ." A1 " #uc_a1 + @ .h ;
+| : .uc_a2 ( addr --) ." OP " #uc_a2 + @ .h ;
+| : .uc_a3 ( addr --) ." W  " #uc_a3 + @ .h ;
+| : .uc_a4 ( addr --) ." S  " #uc_a4 + @ .h ;
+| : .uc_a5 ( addr --) ." DP " #uc_a5 + @ .h ;
+| : .uc_a6 ( addr --) ." LP " #uc_a6 + @ .h ;
+| : .uc_a7 ( addr --) ." R  " #uc_usp + @ .h ;
+| : .uc_pc ( addr --) ." PC " #uc_pc + @ .h ;
+| : .uc_sr ( addr --) ." SR " #uc_sr + @ .h ;
+
+| : .regs ( addr )
+	#sig_*ucontext + @
+	DUP .uc_d0 ."     "
+	DUP .uc_d1 ."     "
+	DUP .uc_d2 ."     "
+	DUP .uc_d3 CR send
+	DUP .uc_d4 ."     "
+	DUP .uc_d5 ."     "
+	DUP .uc_d6 ."     "
+	DUP .uc_d7 CR send
+	DUP .uc_a0 ."     "
+	DUP .uc_a1 ."     "
+	DUP .uc_a2 ."     "
+	DUP .uc_a3 CR send
+	DUP .uc_a4 ."     "
+	DUP .uc_a5 ."     "
+	DUP .uc_a6 ."     "
+	DUP .uc_a7 CR send
+	DUP .uc_pc ."     "
+	DUP .uc_sr CR send
+	DROP
+;
+
+\ the signal number, we can do a little better than bash, a string could be printed.
+| CREATE .sig00 ," Singal number set to zero ?"
+| CREATE .sig01 ," SIGHUP Hangup(POSIX)"
+| CREATE .sig02 ," SIGINT Terminal interrupt(ANSI)"
+| CREATE .sig03 ," SIGQUIT Terminal quit POSIX"
+| CREATE .sig04 ," SIGILL Illegal Instruction (ANSI)"
+| CREATE .sig05 ," SIGTRAP Trace trap (POSTIX)"
+| CREATE .sig06 ," SIGIOT IOT Trap (4.2 BSD)"
+| CREATE .sig07 ," SIGBUS BUS error (4.2 BSD)"
+| CREATE .sig08 ," SIGFPE Floating point exception (ANSI)"
+| CREATE .sig09 ," SIGKILL Kill (can't be caught or ignored) (POSIX)"
+| CREATE .sig10 ," SIGUSR1 User defined signal 1 (POSTIX)"
+| CREATE .sig11 ," SIGSEGV Invalid memory access (ANSI)"
+| CREATE .sig12 ," SIGUSR2 User defined signal 2 (POSTIX)"
+| CREATE .sig13 ," SIGPIPE Write on a pipe with no reader, Broken pipe (POSIX)"
+| CREATE .sig14 ," SIGALRM Alarm clock (POSTIX)"
+| CREATE .sig15 ," SIGTERM Termination (ANSI)"
+| CREATE .sig16 ," SIGSTKFLT Stack fault"
+| CREATE .sig17 ," SIGCHLD Child process has stopped or exited, changed (POSIX)"
+| CREATE .sig18 ," SIGCONT Continue executing if stopped (POSIX)"
+| CREATE .sig19 ," SIGSTOP Stop executing ( can't be caught or inored) (POSTIX)"
+| CREATE .sig20 ," SIGTSTP Terminal stop signal (POSIX)"
+| CREATE .sig21 ," SIGTTIN Background process trying to read TTY (POSTIX)"
+| CREATE .sig22 ," SIGTTOU Background process trying to write to TTY (POSTIX)"
+| CREATE .sig23 ," SIGURG Urgent condition on socket (4.2 BSD)"
+| CREATE .sig24 ," SIGXCPU CPU limit exceeded (4.2 BSD)"
+| CREATE .sig25 ," SIGXFSZ File size limit exceeded (4.2 BSD)"
+| CREATE .sig26 ," SIGVTALRM Virtual alarm clock (4.2 BSD)"
+| CREATE .sig27 ," SIGPROF Profiling alarm clock (4.2 BSD)"
+| CREATE .sig28 ," SIGWINCH Window size change (4.3 BSD Sun)"
+| CREATE .sig29 ," SIGIO I/O now possible (4.2 BSD)"
+| CREATE .sig30 ," SIGPWR Power failure restart ( System V)"
+| CREATE .sig31 ," signal out of range"
+
+| CREATE linux_signal_strings
+0 t,
+HERE
+.sig00 ref,
+.sig01 ref,
+.sig02 ref,
+.sig03 ref,
+.sig04 ref,
+.sig05 ref,
+.sig06 ref,
+.sig07 ref,
+.sig08 ref,
+.sig09 ref,
+.sig10 ref,
+.sig11 ref,
+.sig12 ref,
+.sig13 ref,
+.sig14 ref,
+.sig15 ref,
+.sig16 ref,
+.sig17 ref,
+.sig18 ref,
+.sig19 ref,
+.sig20 ref,
+.sig21 ref,
+.sig22 ref,
+.sig23 ref,
+.sig24 ref,
+.sig25 ref,
+.sig26 ref,
+.sig27 ref,
+.sig28 ref,
+.sig29 ref,
+.sig30 ref,
+.sig31 ref,
+
+\ patch in count
+HERE SWAP - 4/ linux_signal_strings t!
+
+\ this may be of use to an application.
+: linux_sig$ ( code -- $)
+	1+ \ skip the count field
+	linux_signal_strings @ MIN
+	CELLS linux_signal_strings + @
+;
+
+
+| : sig$ ( addr -- addr2)
+	#sig_sig + @ linux_sig$
+;
+
+| : push_stack ( value addr --)
+	#sig_*ucontext + @ #uc_a4 +
+	DUP >R @
+	\ value stack_addr
+	cell - TUCK !
+	R> !
+;
+
+| : set_pc ( xt addr --)
+	#sig_*ucontext + @ #uc_pc + !
+;
+
+| : push_error_code ( addr --)
+	DUP sig$ SWAP push_stack
+;
+
+| : sig_abort_action { variable %signal_context -- }
+	\ could add
+	\ ---------
+	\ copy the data stack.
+	\ copy the return stack.
+
+	\ tell the user about the register
+	%abort_file @ %output_file !
+	CR
+	%signal_context @ .regs
+
+	\ push the error code.
+	\ abort the tasks thread by changing #uc_pc.
+
+	%signal_context @ push_error_code
+	['] THROW %signal_context @ set_pc
+
+;
+
+</code>
+</pre>
+<p>
+Note we simple take the address of the return stack to give us a pointer to the
+signal structure.
+</p>
+<p>
+We are operating on the threads data stack, we want to add a value to that stack
+so we push a value on for alteration. That is the zero in the code below.
+</p>
+<pre>
+<code>
+
+: sig_abort ( --)
+	\ we have to hope the data stack address is not completely screwed
+	\ as we are going to use it.
+	\ We are using the data stack just as the main thread was using it.
+	\ We want to push a value onto the main threads data stack so we
+	\ need to push a value here to overwrite.
+	zero
+	\ The structure that signals are to use is on the return stack.
+	\ @r gives the address.
+	@r sig_abort_action
+;
+
+
+\ those little errors that an interpreter user makes
+| : init_sig
+	\ well how easy is this.
+	['] sig_abort SIGSEGV install_signal
+	['] sig_abort SIGILL install_signal
+	['] sig_abort SIGBUS install_signal
+	['] sig_abort SIGSTKFLT install_signal
+	['] sig_abort SIGINT install_signal
+;
+
+</code>
+</pre>
+</body>
+</html>

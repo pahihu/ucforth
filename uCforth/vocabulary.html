@@ -1,0 +1,382 @@
+<html>
+<head>
+<title>vocabulary.html</title>
+<META NAME="Author" CONTENT="Charles Esson">
+<META NAME="keywords" CONTENT="forth">
+<META NAME="description" CONTENT=" Used to generate uCforth">
+<LINK REL=stylesheet HREF="forth.css" TYPE="text/css">
+</head>
+<body>
+<h3>Vocabularies</h3>
+<a HREF="./license.html">license</a>
+
+
+<p>
+Like wordlist but you have to give it a name.
+There are three different contexts being created
+here. It's a pain to follow but being able to
+use multiple vocabularies when cross compiling
+is a must if you are going to support objects
+in your cross compile.
+</p>
+<pre>
+<code>
+	forth&host : (create_wordlist) ( twid -- )    \ parent
+	                               ( --twid/gwid) \ children
+		forth&host
+		>IN @ >R
+		\ twid(--
+		host&forth
+
+		\ twid (--
+		\ a target and ghost entry
+		\ ------------------------
+		\ return twid, this will work in target and
+		\ in : code put in target.
+		DUP (DP_REFERENCE)
+
+		\ have the twid point to the words name.
+		\ The string has to be extracted using name_count
+		last_definition t_lfa>nfa OVER #thread_name + t!
+
+		\ link list tidy up code
+		\ ----------------------
+		\ We add to this structure for empty.
+		\ twid (--
+		DUP DP_data_offset t,
+		\ add stuff for empty list
+	    	HERE add_reference
+		HERE %lists_head t@ t,
+		%lists_head t!
+		_#DP_word_list t,
+
+		\ the host entry
+		\ --------------
+		\ A constant in the host vocabulary that returns
+		\ a gwid.
+		\ twid(--
+		(ghost_wordlist)
+		\ gwid(--
+		forth&host
+		R> >IN !
+		\ this creates a host entry that returns gwid
+		CONSTANT
+		host&forth
+		;
+
+	forth&host : create_wordlist ( --)
+		host&forth
+		0 target_wordlist
+		(create_wordlist)
+	;
+host&forth
+</code>
+</pre>
+<p>
+These words treat context as a simple stack. ALSO can be looked on as
+vocabulary_push and PREVIOUS as vocabulary_drop. When executed a vocabulary
+child word puts it's wid address into context. ONLY clears context
+and installs the root vocabulary twice.
+It is intended ONLY be used in the form:
+</p>
+<pre> <samp>
+	ONLY voc
+
+	for example: ONLY FORTH
+</pre> </samp>
+<p>
+In the above example FORTH will overwrite the first vocabulary in the search order,
+which will be the second copy of root put in by only.
+
+To added a vocabulary to the search order, for example classes:
+</p>
+<pre> <samp>
+ALSO classes
+</samp> </pre>
+<p>
+To remove it:
+</p>
+<pre> <samp>
+PREVIOUS
+</pre> </samp>
+<p>
+To move a vocabulary to current but not add to search order
+</p>
+<pre> <samp>
+ALSO classes DEFINITIONS PREVIOUS
+</pre> </samp>
+
+<h5>Describe a vocabulary entry</h5>
+<pre>
+<code>
+
+
+	forth&host : (vocabulary) ( twid --twid/gwid)
+
+		forth&host
+		>IN @ >R
+		\ twid(--
+		host&forth
+
+		\ twid (--
+		\ a target and ghost entry
+		\ ------------------------
+		\ return twid, this will work in target and
+		\ in : code put in target.
+		[CREATE]
+
+		\ have the twid point to the words name.
+		\ The string has to be extracted using name_count
+		last_definition t_xt>nfa OVER #thread_name + t!
+
+		\ address fetched by DOES> code and
+		\ address used by link list tidy up code
+		\ ----------------------
+		\ twid (--
+		\ This is in the application data
+		\ we must de-referenced relative to A5
+		DUP DP_data_offset t,
+		\ add stuff for empty list
+	    	HERE add_reference
+		HERE %lists_head t@ t,
+		%lists_head t!
+		_#DP_word_list t,
+
+		\ the hosts ghost vocabulary
+		\ --------------
+		\ A constant in the host vocabulary that returns
+		\ a gwid.
+		\ twid(--
+		forth&host
+		R> >IN !
+		\ this creates a host entry that set %ghost_context
+		\ to gwid
+		(ghost_vocabulary)
+		host&forth
+	DOES>
+		\ this is in the libary, value fetched
+		\ is in application_data
+		@ DP_data_ref %context !
+	;
+
+	\ needs a special word
+
+	forth&host : vocabulary ( --)
+		host&forth
+		0 target_wordlist
+		(vocabulary)
+	;
+
+
+vocabulary root
+
+
+host&forth
+</code>
+</pre>
+<a name="GET-ORDER"></a>
+<h5>ANS 16.6.1.1647 GET-ORDER</h5>
+<p>( -- widn ... wid1 n )</p>
+<p>
+Returns the number of word lists n in the search order and the word
+list identifiers widn ... wid1 identifying these word lists. wid1
+identifies the word list that is searched first, and widn the word
+list that is searched last. The search order is unaffected.
+</p>
+
+
+<pre>
+<code>
+
+	: GET-ORDER
+		%context_count @ zero ?DO
+			%context_count @  I - 1- CELLS %context + @
+		LOOP
+		%context_count @
+	;
+</code>
+</pre>
+
+
+
+<a name="SET-ORDER"></a>
+<h5>ANS 16.6.1.2197 SET-ORDER</h5>
+<p>( widn ... wid1 n -- )</p>
+<p>
+Set the search order to the word lists identified by widn ... wid1.
+Subsequently, word list wid1 will be searched first, and word list
+widn searched last. If n is zero, empty the search order. If n is
+minus one, set the search order to the implementation-defined minimum
+search order. The minimum search order shall include the words
+FORTH-WORDLIST and SET-ORDER. A system shall allow n to be at least eight.
+</p>
+
+
+<pre>
+<code>
+	: SET-ORDER  ( wid1 .. widn n -- )
+		DUP [ #vocs 1- ]T LITERAL > ABORT" Vocabulary overload"
+		DUP -1 = IF
+			DROP
+			1 %context_count !
+			root
+			EXIT
+		THEN
+		DUP %context_count  !
+		zero ?DO
+			I CELLS %context + !
+		LOOP
+	;
+</code>
+</pre>
+
+
+
+<a name="ALSO"></a>
+<h5>ANS 16.6.2.0715 ALSO</h5>
+<p>SEARCH EXT</p>
+<p>( -- )</p>
+<p>
+Transform the search order consisting of widn, ... wid2, wid1
+(where wid1 is searched first) into widn, ... wid2, wid1, wid1.
+An ambiguous condition exists if there are too many word lists in
+the search order.
+</p>
+<p>
+The standard doesn't say if nothing is in the search order. We leaeve it at nothing.
+</p>
+<pre>
+<code>
+	: ALSO  ( -- )
+		GET-ORDER  
+		?DUP IF
+			OVER SWAP 1+
+			SET-ORDER
+		THEN
+	;
+</code>
+</pre>
+
+
+<a name="ONLY"></a>
+<h5>ANS 16.6.2.1965 ONLY</h5>
+<p>( -- )</p>
+<p>
+Set the search order to the implementation-defined minimum search order.
+The minimum search order shall include the words FORTH-WORDLIST and
+SET-ORDER.
+</p>
+
+
+<pre>
+<code>
+	: ONLY  ( -- )
+		-1 SET-ORDER
+	;
+</code> 
+</pre>
+
+
+
+<a name="PREVIOUS"></a>
+<h5>ANS 6.6.2.2037 PREVIOUS</h5>
+<p>( -- )</p>
+<p>
+Transform the search order consisting of widn, ... wid2, wid1
+(where wid1 is searched first) into widn, ... wid2. An ambiguous
+condition exists if the search order was empty before PREVIOUS
+was executed.
+</p>
+
+
+<pre>
+<code>
+	: PREVIOUS  ( --  )
+		\ if no search order don't try and reduce it.
+		GET-ORDER DUP IF
+			SWAP DROP 1-
+		THEN
+		SET-ORDER
+	;
+</code>
+</pre>
+<a name="DEFINITIONS"></a>
+<h5>ANS 16.6.1.1180 DEFINITIONS</h5>
+<p>SEARCH</p>
+<p>( -- )</p>
+<p>
+Make the compilation word list the same as the first word list in the
+search order. Specifies that the names of subsequent definitions
+will be placed in the compilation word list. Subsequent changes in
+the search order will not affect the compilation word list.
+</p>
+<p>
+<b>uCforth:</b> The replaced vocabulary can be had with previous_definitions.
+</p>
+
+
+<pre>
+<code>
+	: push_definitions ( --)
+		%current %current CELL+  [ _#current_vocs 1- CELLS ]T LITERAL MOVE
+	;
+
+	: DEFINITIONS
+		push_definitions
+		%context @ %current !
+	;
+</code>
+</pre>
+
+
+<a name="previous_definitions"></a>
+<h5>previous_defintions (--)</h5>
+<p>
+So you can set a new definition vocabulary and then return to what was.
+I think a stack with two entries is really enough, we will know when
+all is finished.
+As DEFINITIONS is often used without previous_definitions it is expected
+the stack will overflow and stay that way. But it is old entries that
+are lost. The stack always contains the most recent additions.
+</p>
+<pre>
+<code>
+	: previous_definitions ( --)
+		%current CELL+ %current [ _#current_vocs 1- CELLS ]T LITERAL MOVE
+	;
+</code>
+</pre>
+<a name="GET-CURRENT"></a>
+<h5>ANS 16.6.1.1643 GET-CURRENT</h5>
+<p>SEARCH</p>
+
+<p>( -- wid )</p>
+<p>
+Return wid, the identifier of the compilation word list.
+</p>
+
+<pre>
+<code>
+	: GET-CURRENT ( --wid)
+		%current @
+	;
+</code>
+</pre>
+<a name="SET-CURRENT"></a>
+<h5>ANS 16.6.1.2195 SET-CURRENT</h5>
+<p>SEARCH</p>
+
+<p>( wid -- )</p>
+<p>
+Set the compilation word list to the word list identified by wid.
+</p>
+
+<pre>
+<code>
+	: SET-CURRENT ( wid --)
+		%current !
+	;
+</code>
+</pre>
+</body>
+</html>

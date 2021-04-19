@@ -1,0 +1,773 @@
+<html>
+<head>
+<title>bFLT_maker.html</title>
+<META NAME="Author" CONTENT="Charles Esson">
+<META NAME="keywords" CONTENT="forth">
+<META NAME="description" CONTENT=" this file used to create uCforth">
+<LINK REL=stylesheet HREF="forth.css" TYPE="text/css">
+</head>
+<body>
+<a HREF="./license.html">license</a>
+<h1>bFLT</h1>
+<p>
+The bFLT header is described in <i>include/linux/flat.h</i>
+</p>
+<pre><samp>
+struct flat_hdr {
+	char magic[4];
+	unsigned long rev;          /* version (as above) */
+	unsigned long entry;        /* Offset of first executable instruction
+	                               with text segment from beginning of file */
+	unsigned long data_start;   /* Offset of data segment from beginning of
+	                               file */
+	unsigned long data_end;     /* Offset of end of data segment
+	                               from beginning of file */
+	unsigned long bss_end;      /* Offset of end of bss segment from beginning
+	                               of file */
+
+	/* (It is assumed that data_end through bss_end forms the bss segment.) */
+
+	unsigned long stack_size;   /* Size of stack, in bytes */
+	unsigned long reloc_start;  /* Offset of relocation records from
+	                               beginning of file */
+	unsigned long reloc_count;  /* Number of relocation records */
+	unsigned long flags;
+	unsigned long build_date;   /* When the program/library was built */
+	unsigned long filler[5];    /* Reservered, set to zero */
+};
+</samp></pre>
+<table>
+<tr><th>data item</th><th>Description</th></tr>
+<tr>	<td>magic</td>
+	<td>Set to "bFLT" magic value looked at by the bFLT loader, if not as
+	desired next binary option is tried by Linux. uClinux looks to see if
+	the file starts with #! or bFLT, if not the load is aborted.
+	</td> </tr>
+<tr><td>rev</td><td>The bFLT version number, this describes version 4</td></tr>
+<tr><td>entry</td><td>Address called on startup, as with all header offsets they are from the
+	start of the file.Note that this has nothing to do with the code start address. The code
+	start address is directly after the header.</td></tr>
+<tr><td>data_start</td><td>The start address of the data segment, once again it is an offset
+	from the start of the file. The length of the code is equal to
+	<i>(data_start -header-size)</i></td></tr>
+<tr><td>data_end</td><td>The end of the data segment the start of the bss segment. The length
+	of the data segment is <i>(data_end - data_start). The data segment is set from the file.</i></td></tr>
+<tr><td>bss_end</td><td>The end of the bss segment ( the segment that is set to zero on startup). The length
+	of the bss segment is <i>bss_end - data_end</i></td></tr>
+<tr><td>stack_size</td><td>The stack size required by the application. To this is added the area needed to
+	store the <i>arg</i> pages.</td></tr>
+<tr><td>reloc_start</td><td>A relocation table is located after the data segment.
+	Version 4 bFLT files should contain the same value in <i>reloc_start</i>
+	and <i>data_end</i>.</t></tr>
+<tr><td>reloc_count</td><td>A count of the number of relocations pointed to by reloc_start.</td></tr>
+<tr><td>flags</td><td>There are several load options. They are:
+	<table>
+	<tr><th>Bit name</th><th>Description</th></tr>
+	<tr><td>FLAT_FLAG_RAM</td><td>Load program in ram</td></tr>
+	<tr><td>FLAT_FLAG_GOTPIC</td><td>Global offset table present. Leave code in prom.</td></tr>
+	<tr><td>FLAT_FLAG_GZIP</td><td>All but the header is compressed, obviously code has to be copied to ram to decompress.</td></tr>
+	<tr><td>FLAT_FLAG_GZDATA</td><td>Only data/relocations are compressed, code can be left where is.
+	</td></tr>
+	</table>
+	Great care has been taken to keep code only in the dictionary so running uCforth should run
+	out of prom, however prom is a lot slower than ram. This application sets <i>FLAT_FLAG_RAM</i>
+	</td></tr>
+<tr><td>build_data</td><td>No doubt the one that rolls over in 2038, if I am alive I will not care.</td></tr>
+<tr><td>filler[5]</td><td>Pad to $40. Fill with zero.</td></tr>
+</table>
+<p>
+All header entries are in network order, that is the high byte is stored first.
+</p>
+<h3>Relocation entries</h3>
+<p>
+The GOT tale contains relocation entries, the relocation table stored after the data segment
+contains pointers to relocation entries.
+</p>
+<p>
+The relocations addresses stored in the relocation tables are in machine order. The address is
+relative to the code start address. That is relative to the end of the header.
+The relocation values contains two fields. The library and the address offset into the library. If the
+library is loaded there will be an entry filled in the data structure <i>lib_info</i>, the library
+will be loaded by the code that does the relocation. The relocation calculation will be bone after
+the library is loaded.
+</p>
+<p>
+The linux library function is not implemented, as mentioned libraries are loaded by the code
+that calculates the relocation values <i>calc_reloc</i>, if a relocation reference references a library.
+</p>
+<h3>Library location</h3>
+<p>Where do you get the library name from. A good question with a sad answer. The library name is
+hard coded into bFLT.</p>
+<table>
+<tr><th>library</th><th>location</th></tr>
+<tr><td>0</td><td>The application</td></tr>
+<tr><td>1</td><td>/lib/lib1.so</td></tr>
+<tr><td>2</td><td>/lib/lib2.so</td></tr>
+<tr><td>etc.</td><td>etc.</td></tr>
+</table>
+<p>
+As the reference library code is a bFLT library number this is the way it has to be.
+</p>
+<h3>Initialization</h3>
+<p>
+By pushing addresses on the stack and supplying the start address to <i>start_thread</i> bFLT
+controls the initial calls to the library and application. The call order is from highest numbered
+library to lowest. For this to work the libraries must return.
+</p>
+<p>
+It must be remembered that the initialization code is called every time the library is used, and that the
+libraries are global to the system. This means the library initialization code must check to see if it
+is being called the first time or not.
+</p>
+<h3>uCforth</h3>
+<p>
+We want multiple tasks running against the uCforth kernel. The uCforth kernel is a library. The
+application loads that library. As libraries are global to the system the library number is something
+that has to fit in with current uClinux useage.
+</p>
+<p>
+uCforth does not use the GOT table. It always executes out of ram.
+A5 always points to the applications data and bss segment.
+If the kernel references it's data and bss segment it does so through an absolute addresses
+that is relocated when the kernel is loaded.
+</p>
+<p>
+The bFLT header
+</p>
+<pre>
+<code>
+zero
+DUP CONSTANT #flt_hdr_magic       CELL+  \ bFLT
+DUP CONSTANT #flt_hdr_rev         CELL+  \ version 4
+DUP CONSTANT #flt_hdr_entry       CELL+  \ Offset of first executable instruction
+                                         \ within text segment from beginning of file
+DUP CONSTANT #flt_hdr_data_start  CELL+  \ Offset of data segment from beginning of
+                                         \ file.
+DUP CONSTANT #flt_hdr_data_end    CELL+  \ Offset of end of data segment
+                                         \ from beginning of file.
+DUP CONSTANT #flt_hdr_bss_end     CELL+  \ Offset of end of bss segment from beginning
+                                         \ of file.
+DUP CONSTANT #flt_hdr_stack_size  CELL+  \ Size of stack, in bytes
+DUP CONSTANT #flt_hdr_reloc_start CELL+  \ Offset of relocation records from
+	                                 \ beginning of file.
+DUP CONSTANT #flt_hdr_reloc_count CELL+  \ Number of relocation records.
+DUP CONSTANT #flt_hdr_flags       CELL+  \
+DUP CONSTANT #flt_hdr_build_date  CELL+  \ When the program/library was built */
+DROP
+
+$40 CONSTANT #flt_hdr_length
+
+CREATE %lib_bFLT_header #flt_hdr_length ALLOT
+%lib_bFLT_header #flt_hdr_length ERASE
+
+CREATE %app_bFLT_header #flt_hdr_length ALLOT
+%app_bFLT_header #flt_hdr_length ERASE
+
+\ the relocated range, set at the end of the compile.
+
+VARIABLE %lib_code_base                      \ always zero
+VARIABLE %lib_data_base                      \
+VARIABLE %lib_bss_base                       \
+VARIABLE %lib_bss_end                        \
+VARIABLE %lib_entry                          \ entry address
+VARIABLE %lib_code                           \ library code
+
+\ the relocated range, set at the end of the compile.
+VARIABLE %app_code_base                      \ always zero
+VARIABLE %app_data_base                      \
+VARIABLE %app_bss_base                       \
+VARIABLE %app_bss_end                        \
+VARIABLE %app_entry                          \ entry address
+VARIABLE %app_code                           \ library code
+
+\ must be zero otherwise bFLT loader complains
+: build_date ( -- n )
+	0
+;
+
+04 CONSTANT #flt_version
+01 CONSTANT FLAT_FLAG_RAM
+FLAT_FLAG_RAM CONSTANT #flt_flags
+</code>
+</pre>
+<p>
+We make the library first and then the application.
+Library code can only access the application area through A5, A5 access is resolved at
+compile time. So we need to add an reference if the pointer is into the library space.
+The address in the library image must point to the library space,
+if it doesn't we complain with vigor.
+</p>
+<pre>
+<code>
+: lib_header_setup ( lentry library_code --)
+	\ the lib code is in the high byte
+	$18 LSHIFT %lib_code !
+	%lib_code_image -  %lib_entry !
+
+	0  %lib_code_base !
+	%lib_code_pointer @ %lib_code_image -   DUP %lib_data_base !
+        %lib_data_pointer @ %lib_data_image - + DUP %lib_bss_base  !
+        %lib_bss_pointer  @  %lib_bss_image - +     %lib_bss_end   !
+
+	%lib_bFLT_header
+
+	\ the stuff unrelated to address
+	S" bFLT" >R OVER #flt_hdr_magic + R> CMOVE
+	#flt_version OVER #flt_hdr_rev + net!
+	#flt_flags OVER #flt_hdr_flags + net!
+	build_date OVER #flt_hdr_build_date + net!
+
+	\ stuff related to address
+	%lib_entry @ #flt_hdr_length + OVER #flt_hdr_entry + net!
+	%lib_data_base @ #flt_hdr_length + OVER #flt_hdr_data_start + net!
+	%lib_bss_base @ #flt_hdr_length + OVER #flt_hdr_data_end + net!
+	%lib_bss_end @ #flt_hdr_length + OVER #flt_hdr_bss_end + net!
+	\ the library requires no stack
+	$0000 OVER #flt_hdr_stack_size + net!
+	%lib_bss_base @ #flt_hdr_length + OVER #flt_hdr_reloc_start + net!
+	DROP
+;
+
+: app_header_setup ( entry library_code --)
+	\ the lib code is in the high byte
+	$18 LSHIFT %app_code !
+	%app_code_image -  %app_entry !
+
+	0  %app_code_base !
+	%app_code_pointer @ %app_code_image -   DUP %app_data_base !
+        %app_data_pointer @ %app_data_image - + DUP %app_bss_base  !
+        %app_bss_pointer  @ %app_bss_image - +      %app_bss_end   !
+
+	%app_bFLT_header
+	\ the stuff unrelated to address
+	S" bFLT" >R OVER #flt_hdr_magic + R> CMOVE
+	#flt_version OVER #flt_hdr_rev + net!
+	#flt_flags OVER #flt_hdr_flags + net!
+	build_date OVER #flt_hdr_build_date + net!
+
+	\ stuff related to address
+	%app_entry @ #flt_hdr_length + OVER #flt_hdr_entry + net!
+	%app_data_base @ #flt_hdr_length + OVER #flt_hdr_data_start + net!
+	%app_bss_base @ #flt_hdr_length + OVER #flt_hdr_data_end + net!
+	%app_bss_end @ #flt_hdr_length + OVER #flt_hdr_bss_end + net!
+	\ the app requires stack
+	$1000 OVER #flt_hdr_stack_size + net!
+	%app_bss_base @ #flt_hdr_length + OVER #flt_hdr_reloc_start + net!
+	DROP
+;
+
+
+: redo_app_header (  --)
+
+
+	%app_bFLT_header
+
+	\ stuff related to address
+	%app_entry @  %lib_data_base @ + #flt_hdr_length +  OVER #flt_hdr_entry + net!
+	%app_data_base @ %lib_data_base @ + #flt_hdr_length + OVER #flt_hdr_data_start + net!
+	%app_bss_base @ %lib_bss_base @ + #flt_hdr_length + OVER #flt_hdr_data_end + net!
+	%app_bss_end @ %lib_bss_end @ + #flt_hdr_length + OVER #flt_hdr_bss_end + net!
+	%app_bss_base @ %lib_bss_base @ +  #flt_hdr_length + OVER #flt_hdr_reloc_start + net!
+	DROP
+;
+
+
+
+$10000 CONSTANT #lib_ref_size
+variable %lib_ref_pointer
+0 %lib_ref_pointer !
+CREATE %lib_refs #lib_ref_size ALLOT
+: lib_add_ref ( addr--)
+	%lib_code @ OR
+	%lib_ref_pointer @ DUP #lib_ref_size &lt; not
+	ABORT" Library reference table full"
+	%lib_refs + net!
+	\ this is the host cell size.
+	CELL %lib_ref_pointer +!
+;
+
+
+$1000 CONSTANT #app_ref_size
+variable %app_ref_pointer
+0 %app_ref_pointer !
+CREATE %app_refs #app_ref_size ALLOT
+: app_add_ref ( addr--)
+	%app_ref_pointer @ DUP #app_ref_size &lt; not
+	ABORT" Application reference table full"
+	%app_refs + net!
+	\ this is the host cell size.
+	CELL %app_ref_pointer +!
+;
+
+\ addr is with a library area. We fetch the data from the address and
+\ then look at what area it references and act accordingly.
+: lib_fix_code ( addr --)
+	library
+	DUP target@
+	DUP %lib_code_image &lt; not SWAP
+	%lib_code_pointer @ &lt; AND IF
+		\ a code reference
+		DUP target@
+		%lib_code_image - %lib_code_base @ +
+		%lib_code @ OR
+		SWAP target!
+		EXIT
+	THEN
+	DUP target@ DUP %lib_data_image &lt; not SWAP
+	%lib_data_pointer @ &lt; AND IF
+		DUP target@
+		%lib_data_image - %lib_data_base @ +
+		%lib_code @ OR
+		\ addr addr2
+		SWAP target!
+		EXIT
+	THEN
+	DUP target@ DUP %lib_bss_image &lt; not SWAP
+	%lib_bss_pointer @ &lt; AND IF
+		DUP target@
+		%lib_bss_image -
+		%lib_bss_base @ +
+		%lib_code @ OR
+		SWAP
+		target!
+		EXIT
+	THEN
+	\ have we referenced the application.
+	DUP target@ DUP %app_code_image &lt; not SWAP
+	%app_code_pointer @ &lt; AND IF
+		\ an application code reference in library, sorry not allowed
+		CR ." lib address:" DUP .h ." lib data: " target@ .h CR
+		TRUE ABORT" An application code reference in library."
+	THEN
+	DUP target@ DUP %app_data_image  &lt; not SWAP
+	%app_data_pointer @ &lt; AND IF
+		CR ." lib address:" DUP .h ." lib data: " target@ .h CR
+		TRUE ABORT" An application data reference in library."
+	THEN
+	DUP target@ DUP %app_bss_image &lt; not SWAP
+	%app_bss_pointer @ &lt; AND IF
+		CR ." lib address:" DUP .h ." lib data: " target@ .h CR
+		TRUE ABORT" An application bss reference in library."
+	THEN
+	\ it's just a total stuff up
+	CR ." lib address:" DUP .h ." lib data: " target@ .h CR
+	TRUE ABORT" Data outside range."
+;
+
+\ addr is within a app area. We fetch the data from the address and
+\ then look at what area it references and act accordingly.
+: app_fix_code ( addr --)
+	application
+	DUP target@ DUP %lib_code_image &lt; not SWAP
+	%lib_code_pointer @ &lt; AND IF
+		\ a code reference
+		DUP target@
+		%lib_code_image - %lib_code_base @ +
+		%lib_code @ OR
+		SWAP target!
+		EXIT
+	THEN
+	DUP target@ DUP %lib_data_image &lt; not SWAP
+	%lib_data_pointer @ &lt; AND IF
+		DUP target@
+		%lib_data_image - %lib_data_base @ +
+		%lib_code @ OR
+		\ addr addr2
+		SWAP target!
+		EXIT
+	THEN
+	DUP target@ DUP %lib_bss_image &lt; not SWAP
+	%lib_bss_pointer @ &lt; AND IF
+		DUP target@
+		%lib_bss_image -
+		%lib_bss_base @ +
+		%lib_code @ OR
+		SWAP
+		target!
+		EXIT
+	THEN
+	DUP target@ DUP %app_code_image &lt; not SWAP
+	%app_code_pointer @ &lt; AND IF
+		\ a code reference
+		DUP target@
+		%app_code_image - %app_code_base @ +
+		%app_code @ OR
+		SWAP target!
+		EXIT
+	THEN
+	DUP target@ DUP %app_data_image  &lt; not SWAP
+	%app_data_pointer @ &lt; AND IF
+		DUP target@
+		%app_data_image  - %app_data_base @ +
+		%app_code @ OR
+		\ addr addr2
+		SWAP target!
+		EXIT
+	THEN
+	DUP target@ DUP %app_bss_image &lt; not SWAP
+	%app_bss_pointer @ &lt; AND IF
+		DUP target@
+		%app_bss_image -
+		%app_bss_base @ +
+		%app_code @ OR
+		SWAP
+		target!
+		EXIT
+	THEN
+	\ it's just a total stuff up
+	CR ." app address: " DUP .h target@ ." app data :" .h CR
+	TRUE ABORT" Address outside range."
+;
+
+
+
+\ addr is the address of the code
+: fix_ref ( addr --)
+	DUP DUP %app_code_image &lt; not SWAP
+	%app_code_pointer @ &lt; AND IF
+		DUP app_fix_code
+		%app_code_image - %app_code_base @ +
+		app_add_ref
+		EXIT
+	THEN
+	DUP DUP %app_data_image  &lt; not SWAP
+	%app_data_pointer @ &lt; AND IF
+		DUP app_fix_code
+		%app_data_image  - %app_data_base @ +
+		app_add_ref
+		EXIT
+	THEN
+	DUP DUP %app_bss_image &lt; not SWAP
+	%app_bss_pointer @ &lt; AND IF
+		TRUE ABORT" Reference tables should not point to application bss"
+	THEN
+
+	DUP DUP %lib_code_image &lt; not SWAP
+	%lib_code_pointer @ &lt; AND IF
+		DUP lib_fix_code
+		%lib_code_image - %lib_code_base @ +
+		lib_add_ref
+		EXIT
+	THEN
+	DUP DUP %lib_data_image &lt; not SWAP
+	%lib_data_pointer @ &lt; AND IF
+		DUP lib_fix_code
+		%lib_data_image - %lib_data_base @ +
+		lib_add_ref
+		EXIT
+	THEN
+	DUP DUP %lib_bss_image &lt; not SWAP
+	%lib_bss_pointer @ &lt; AND IF
+		." address: " .h
+		TRUE ABORT" Reference tables should not point to library bss"
+	THEN
+	." address: " .h
+	TRUE ABORT" Reference has to point into library or app, code or data spaces"
+;
+
+\ The ref table points to app and lib, we separate into different tables
+\ The tables will be written to files.
+: rebuild_reference ( --)
+	%ref_pointer @ zero DO
+		\ If the ref points to a cell that contains zero the
+		\ reference is lost.
+		%refs I + @ @ IF
+			%refs I + @ fix_ref
+		THEN
+	CELL +LOOP
+	%lib_ref_pointer @ 4/ %lib_bFLT_header #flt_hdr_reloc_count + net!
+	%app_ref_pointer @ 4/ %app_bFLT_header #flt_hdr_reloc_count + net!
+;
+
+
+: $lib_write_file ( $ --)
+	new_file
+	\ fileid(--
+	>R
+
+	%lib_bFLT_header #flt_hdr_length R@ WRITE-FILE THROW
+	%lib_code_image %lib_data_base @ %lib_code_base @ - R@ WRITE-FILE THROW
+	%lib_data_image %lib_bss_base @ %lib_data_base @ - R@ WRITE-FILE THROW
+	%lib_refs %lib_ref_pointer @ R@ WRITE-FILE THROW
+	R> CLOSE-FILE THROW
+;
+
+: $app_write_file ( $ --)
+	new_file
+	\ fileid(--
+	>R
+
+	%app_bFLT_header #flt_hdr_length R@ WRITE-FILE THROW
+	%app_code_image %app_data_base @ %app_code_base @ - R@ WRITE-FILE THROW
+	%app_data_image  %app_bss_base @ %app_data_base @ - R@ WRITE-FILE THROW
+	%app_refs %app_ref_pointer @ R@ WRITE-FILE THROW
+	R> CLOSE-FILE THROW
+;
+
+
+</code>
+</pre>
+<p>
+The lib and the app are rebuilt to reside in one file. This file is used if
+the library hasn't been installed. The aim is to make it simpler for first
+time forth users.
+</p>
+<p>
+The file is arranged
+</p>
+<table>
+<tr><th>Section</th><th>Comment</th><th>base</th></tr>
+<tr><td>lib code:</td><td>lib data area refs have to be altered. refs in lib code and lib
+           data that ref lib data and lib bss have to be altered.
+           All app refs are to app data, these are relative to the DP and do not
+           have to be altered.</td><td>zero</td></tr>
+<tr><td>app code:</td><td> All refs have to be altered, the only code refs that don't have to
+           be altered are those ref lib code.</td><td>%lib_data_base @</td></tr>
+<tr><td>app data:</td><td> Has to be the first data segment as DP offsets cannot be altered.
+           All refs have to be altered, the only code refs that don't have to
+           be altered are to lib code.</td><td>%lib_data_base @ %app_data_base @ +</td></tr>
+<tr><td>lib data:</td><td> Can only be supported if the references to it are absolute, that is
+           not relative to DP, this is the same restriction required by the lib option.</td>
+           <td>%lib_data_base @ %app_bss_base @ + </td></tr>
+<tr><td>lib bss:</td><td>  No refs point to bss sections, lib refs to
+           locations will have to be alter.</td><td>%lib_bss_base @ %app_bss_base @ +</td></tr>
+<tr><td>app bss:</td><td> No refs point to the bss sections app refs will have to be altered.</td>
+          </td><td>%lib_bss_end @ %app_bss_base @ +</td></tr>
+</table>
+<p>
+After fix up the two ref arrays are appended to the end and the number of refs is the sum
+of the two.
+</p>
+<pre>
+<code>
+: fix_up_lib_common ( addr value--)
+	\ addr value(--
+	DUP $FF000000 AND %lib_code @ <> IF
+		.S
+		TRUE ABORT" lib code not correct."
+	THEN
+	$00FFFFFF AND
+	\ addr addr(--
+	DUP %lib_data_base @ &lt; IF
+		\ refs lib code
+		%app_code @ OR
+		SWAP target!
+		EXIT
+	THEN
+	DUP %lib_bss_base @ &lt; IF
+		\ add in length of app code and app data
+		%app_bss_base @ +
+		%app_code @ OR
+		SWAP target!
+		EXIT
+	THEN
+	DUP %lib_bss_end @ &lt; IF
+		\ add in app data and code length
+		%app_bss_base @ +
+		%app_code @ OR
+		SWAP target!
+		EXIT
+	THEN
+	TRUE ABORT" lib image not well formed" ;
+
+: fix_up_lib_code ( add -- )
+	%lib_code_image + DUP target@
+	fix_up_lib_common
+;
+
+: fix_up_lib_data ( addr--)
+	%lib_data_base @ -
+	%lib_data_image + DUP target@
+	fix_up_lib_common
+;
+
+: fix_up_lib_ref ( value --)
+	$00FFFFFF AND
+	DUP %lib_data_base @  &lt; IF
+		\ ref into code
+		DUP fix_up_lib_code
+		%app_code @ OR
+		EXIT
+	THEN
+	DUP %lib_bss_base @ &lt; IF
+		DUP fix_up_lib_data
+		\ the ref has to have the app_code length
+		\ and the app_data_length added
+		%app_bss_base @ +
+		%app_code @ OR
+		EXIT
+	THEN
+	\ we have a serious problem
+	TRUE ABORT" Lib reference table is not well formed"
+;
+
+
+: fix_up_app_common ( addr value--)
+	\ addr value(--
+	DUP $FF000000 AND %lib_code @ = IF
+		$00FFFFFF AND
+		\ addr addr(--
+		DUP %lib_data_base @ &lt; IF
+			\ refs lib code
+			%app_code @ OR
+			SWAP target!
+			EXIT
+		THEN
+		DUP %lib_bss_base @ &lt; IF
+			\ refers lib data
+			\ add in length of app code, and app data
+			%app_bss_base @ +
+			%app_code @ OR
+			SWAP target!
+			EXIT
+		THEN
+		DUP %lib_bss_end @ &lt; IF
+			\ add in app data and code length
+			%app_bss_base @ +
+			%app_code @ OR
+			SWAP target!
+			EXIT
+		THEN
+		.S
+		TRUE ABORT" lib problem app image not well formed"
+	ELSE
+		\ refers to app
+		$00FFFFFF AND
+		\ addr addr(--
+		DUP %app_data_base @ &lt; IF
+			\ refs app code
+			%lib_data_base @ +
+			%app_code @ OR
+			SWAP target!
+			EXIT
+		THEN
+		DUP %app_bss_base @ &lt; IF
+			\ add in length of app code
+			%lib_data_base @ +
+			%app_code @ OR
+			SWAP target!
+			EXIT
+		THEN
+		DUP %app_bss_end @ &lt; IF
+			\ add in app data and code length
+			%lib_bss_end @ +
+			%app_code @ OR
+			SWAP target!
+			EXIT
+		THEN
+		.S
+		TRUE ABORT" app problem app image not well formed"
+	THEN
+;
+
+: fix_up_app_code ( add -- )
+	%app_code_image + DUP target@
+	fix_up_app_common
+;
+
+: fix_up_app_data ( addr--)
+	%app_data_base @ -
+	%app_data_image + DUP target@
+	fix_up_app_common
+;
+
+: fix_up_app_ref ( value --)
+	\ get the address
+	$00FFFFFF AND
+	DUP %app_data_base @  &lt; IF
+		\ ref into code
+		\ lib code is now under ref
+		DUP fix_up_app_code
+		%lib_data_base @ +
+		%app_code @ OR
+		EXIT
+	THEN
+	DUP %app_bss_base @ &lt; IF
+		\ ref into app data
+		\ lib code is now under ref
+		DUP fix_up_app_data
+		%lib_data_base @ +
+		%app_code @ OR
+		EXIT
+	THEN
+	\ we have a serious problem
+	TRUE ABORT" App reference table is not well formed"
+;
+
+
+:  redo_lib_refs ( --)
+	%lib_ref_pointer @ 0 DO
+		%lib_refs I + net@
+		$00FFFFFF AND
+		fix_up_lib_ref
+		%lib_refs I + net!
+	CELL +LOOP
+;
+
+:  redo_app_refs ( --)
+	%app_ref_pointer @ 0 DO
+		%app_refs I + net@
+		fix_up_app_ref
+		%app_refs I + net!
+	CELL +LOOP
+;
+
+
+
+: redo_references
+	.S ." fixing up lib refs" CR
+	redo_lib_refs
+	.S ." fixing up app refs" CR
+	redo_app_refs
+	redo_app_header
+	%lib_ref_pointer @ %app_ref_pointer @ + 4/
+	%app_bFLT_header #flt_hdr_reloc_count + net!
+
+;
+
+: $common_write_file ( $ --)
+	new_file	\ fileid(--
+	>R
+
+	%app_bFLT_header #flt_hdr_length R@ WRITE-FILE THROW
+	%lib_code_image %lib_data_base @ %lib_code_base @ - R@ WRITE-FILE THROW
+	%app_code_image %app_data_base @ %app_code_base @ - R@ WRITE-FILE THROW
+	\ has to come first because DP is used to access app data in library.
+	%app_data_image  %app_bss_base @ %app_data_base @ - R@ WRITE-FILE THROW
+	%lib_data_image  %lib_bss_base @ %lib_data_base @ - R@ WRITE-FILE THROW
+	%lib_refs %lib_ref_pointer @ R@ WRITE-FILE THROW
+	%app_refs %app_ref_pointer @ R@ WRITE-FILE THROW
+	R> CLOSE-FILE THROW
+;
+
+
+\ lib_header_setup
+\ app_header_setup
+\ have to be executed first.
+: bFLT
+	rebuild_reference
+	BL WORD $lib_write_file
+	BL WORD $app_write_file
+	redo_references
+	\ let run time code know it
+	\ is not running as lib code
+	TRUE %no_lib_ref @ !
+	BL WORD $common_write_file
+;
+
+
+\ test tool
+: ?ref ( addr --)
+	%refs %ref_pointer @ + %refs DO
+		I @ $FFFFFFF0  AND OVER $FFFFFFF0 AND
+		= IF
+			I .
+		THEN
+	CELL +LOOP
+	DROP
+;
+</code>
+</pre>
+</body>
+</html>
+

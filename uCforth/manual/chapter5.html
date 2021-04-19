@@ -1,0 +1,306 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+<HEAD>
+<TITLE>COLDFORTH chapter 5</TITLE>
+        <META NAME="AUTHOR" CONTENT="Charles Esson">
+        <META NAME="keywords" CONTENT="COLDFORTH">
+        <LINK REL=stylesheet HREF="forth.css" TYPE="text/css">
+
+</HEAD>
+<BODY bgcolor=#ffffff>
+<h1>COLDFORTH MANUAL CHAPTER 5 Memory Management</h1>
+<ul>
+<li><a href="#standard_words">The ANSI standard words</a></li>
+<li><a href="#get_buffer">get_buffer, kill_buffer and buffer</a></li>
+<li><a href="#get_free_buffer">get_free_buffer, kill_free_buffer resize_free_buffer</a>
+<li><a href="#heap_errors">Heap errors</a></li>
+        <ul>
+        <li><a href="#hogging">Who is hogging the heap</a></li>
+        <li><a href="#overrun">Buffer overrun</a></li>
+        <li><a href="#fragmentation">Fragmentation</a></li>
+        </ul>
+</ul>
+<p>
+How the memory management system works is covered in <a href="./appendix1.html">Appendix 1</a>, here we talk about how to use it.
+</p>
+<p>
+Memory management is about getting blocks of memory for temporary use from the memory management system
+and <b>returning</b> it. Two situations need to be explored, returning it within the task that obtained
+the memory, and returning it from another task.
+</p>
+<a name="standard_words"><h3>The ANSI standard words</h3></a>
+<p>
+The ANSI standard provides a set of words to get and return blocks of memory to the OS. Unfortunately
+the standards does not tell us what to do with allocated memory should the task
+fail.
+</p>
+<p>
+<b>COLDFORTH</b> keeps track of the memory allocated by the standard words and returns it to the
+system on task failure. These words should not be used if the memeory is going to be used for a buffer
+that is to be passed to another task for use and destruction.
+</p>
+<p>
+There are three standard memeory management words,
+<a HREF="./source/heap_control.html#ALLOCATE">ALLOCATE</a>,
+<a HREF="./source/heap_control.html#FREE">FREE</a> and
+<a HREF="./source/heap_control.html#RESIZE">RESIZE</a>.
+The following example show their use.
+</p>
+<h5>EXAMPLE</h5>
+<pre><samp>
+#$buffer ALLOCATE \ addr1 ior(--
+$ABORT            \ give up if failed.
+DUP do_stuff          \ addr1(--
+#$buffer 2*       \ addr1 u1(--
+\ if the buffer can be extended addr1 will equal addr2
+\ if the buffer can't be extended a new buffer will be created
+\ and the data copied from buffer1 to buffer2
+RESIZE            \ addr2 ior
+$ABORT
+DUP do_stuff          \ addr2(--
+FREE
+</samp></pre>
+<p>
+<samp>RESIZE</samp> makes the management of areas that can extend over time simple to manage.
+</p>
+<pre><samp>
+\ The systems sets ram_variables to zero on startup
+ram_variable %item_offset
+ram_variable %item_buffer
+8  CONSTANT #item_length
+
+: add_item  { ( item_addr --) }{
+        20 CONSTANT #min_items
+       }
+
+        \ if there is no buffer get one
+        %item_buffer @ not IF
+                [ #min_items #item_length * ] LITERAL ALLOCATE
+                $ABORT
+                %item_buffer !
+        THEN
+
+        \ if item buffer is too small get bigger one
+        %item_offset @ #item_length + %item_buffer @ buffer_size &gt; IF
+                %item_buffer @ %item_offset @  [ #min_items #item_length * ] LITERAL +  RESIZE %item_buffer !
+        THEN
+
+        \ add the item
+        %item_buffer @ %item_offset @ + #item_length MOVE
+        #item_length %item_offset +!
+;
+</samp></pre>
+<p>
+The above example introduces
+<a HREF="./source/heap_control.html#buffer_size">buffer_size</a>
+</p>
+<p>
+The last example illustrates several points.
+</p>
+<ul>
+<li>Move calculation to compile time if you can. In the above code you will find <samp>[ #min_items #item_length * ] LITERAL</samp></li>
+<li>Create data structure that reduce runtime calculation, for example, using an offset instead of an item number</li>
+<li>Keep the concept simple, keep code related to one concept together, good code is like English, it has paragraphs, indicate where they are.</li>
+<li>Comment what you are doing in a paragraph.</li>
+<li>Where you can use local constants, for example <samp>#min_items</samp> is probable only of interest to this word.</li>
+<li>Keep it clear, keep it simple.</li>
+</ul>
+<p>
+<b>COLDFORTH</b> buffers are self describing, <a HREF="./source/heap_control.html#buffer_size">buffer_size</a>
+uses this feature. The buffer size can be longer than requested.
+</p>
+<p>
+If %item_buffer is non zero the above codes assumes that the buffer address is valid. This is ok unless there is
+an abort. If an abort happens the buffer pointed to by %item_buffer will be returned to the buffer pool.
+If the code is then reused problems occure because you are using a memory area that is no longer yours.
+The above code would be better written as follows.
+</p>
+<pre><samp>
+\ The systems sets ram_variables to zero on startup
+ram_variable %item_offset
+ram_variable %item_buffer
+8  CONSTANT #item_length
+
+\ to be placed in a word executed only on task startup
+\ Note we don test for a non zero value. If there is an address
+\ stored it is because the task aborted. The abort code has
+\ already returned the buffer.
+: item_init
+        [ #min_items #item_length * ] LITERAL ALLOCATE
+        $ABORT
+        %item_buffer !
+;
+
+: add_item  { ( item_addr --) }{
+        20 CONSTANT #min_items
+       }
+        \ if item buffer is too small get bigger one
+        %item_offset @ #item_length + %item_buffer @ buffer_size &gt; IF
+                %item_buffer @ %item_offset @  [ #min_items #item_length * ] LITERAL +  RESIZE %item_buffer !
+        THEN
+
+        \ add the item
+        %item_buffer @ %item_offset @ + #item_length MOVE
+        #item_length %item_offset +!
+;
+</samp></pre>
+<p>
+This code offers two advantages.
+</p>
+<ul>
+<li>Code can restart without error.</li>
+<li>One test has been removed by the runtime code.</li>
+</ul>
+
+<a name="get_buffer"><h3>get_buffer, kill_buffer and buffer</h3></a>
+<p>
+Often you need memory for a short time. A buffer to do some sting manipulation, a buffer to create
+the data structure needed for a binary sort, and so it goes.
+<a HREF="./source/heap_control.html#get_buffer">get_buffer</a>,
+<a HREF="./source/heap_control.html#kill_buffer">kill_buffer</a> and
+<a HREF="./source/heap_control.html#buffer">buffer</a> are a simple to use wordset for these situations.
+<p>
+Buffers obtained this way are returned if the task aborts so you don't have to worry about reurning buffers
+on an exception.
+</p>
+<p>
+get_buffer and return_buffer should to be paired within a word.
+The following example shows typical useage.
+</p>
+<pre><samp>
+: .unsigned ( n --)
+        #picture_min get_buffer
+                S&gt;D buffer #picture_min [# #S #] TYPE
+        kill_buffer
+;
+</samp></pre>
+<p>
+<samp>get_buffer</samp> and <samp>kill_buffer</samp> are fully recursive, so low level words using these words have no
+effect on the use of buffers in high level words. The word buffer returns the address of the
+last buffer claimed with getbuffer.
+The following code may be poorly structured but it is valid.
+</p>
+<pre><samp>
+: (.unsigned) ( n--)
+        S&gt; buffer #picture_min [# #S #] TYPE
+;
+: .unsigned
+        #picture_min get_buffer
+        (.unsigned)
+        kill_buffer
+;
+</samp></pre>
+<p>
+<samp>get_buffer</samp> and <samp>kill_buffer</samp> are used extensivly in the kernel.
+</p>
+
+<a name="get_free_buffer"><h3>get_free_buffer, kill_free_buffer resize_free_buffer</h3></a>
+<p>
+These are used if you want a buffer that is free of any system interferance. You do this if you
+want to hand the buffer over to another task to use and consume. If you have given the buffer
+to another task the last thing you want is the task that created the buffer returning it on an ABORT.
+If you get a buffer using <samp>get_free_buffer</samp> the memeory is lost to the system unless someone
+returns it. If you are using free buffers you have to consider what happens if something goes wrong.
+Fortunatly <b>COLDFORTH</b> supports the catching of aborts in user code, so users can clean up on failure.
+</p>
+<pre><samp>
+
+\ describe the data in the buffer
+0
+DUP CONSTANT #transfer_count CELL+
+DUP CONSTANT #transfer_data
+DROP
+
+: transfer_data { ( add n --) }{
+        variable %buffer }
+        DUP #transfer_data +  get_free_buffer %buffer !
+        DUP %buffer @ #transfer_count + !
+        %buffer @ #transfer_data + SWAP MOVE
+        %buffer @ transfer_to_other_task
+;
+</samp></pre>
+<p>
+The above example is worth some comment. Note that we have used constants to descibe the structure
+of tha data in the buffer. The description of the buffer has been done in a manner that
+allows the additional of fields with minimum effort. It is well worth getting into the habit of doing this.
+</p>
+<ul>
+<li>In the code it documents the field you are trying to alter.</li>
+<li>It allows the additon of fields without having to go and chase magic numbers.</li>
+<li>It lays before the user how the data is arranged</li>
+</ul>
+<p>
+The example above expects consumption of the buffer by <samp>transfer_to_other_task</samp>.
+<samp>transfer_to_other_task</samp> has to fullfill the promise.
+</p>
+<pre><samp>
+: transfer_to_other_task { variable %buffer -- }
+        ['] _word_that_can_fail CATCH ?DUP IF
+                %buffer @ kill_free_buffer
+                $ABORT
+        THEN
+        %buffer @ _do_the transfer
+;
+
+</samp></pre>
+<p>
+In the above code the <samp>ABORT</samp> done by <samp>_word_that_can_fail</samp> is caught with <samp>CATCH</samp>
+the buffer returned as promised and the <samp>ABORT</samp> continued. CATCH is discussed in
+<a href="./chapter3.html#CATCH">chaper 3</a>.
+</p>
+<p>
+You can resize a free_buffer using <samp>resize_free_buffer</samp>.
+</p>
+
+<a name="heap_errors"><h3>Heap errors</h3></a>
+<p>
+Introduce a heap and you run into three problems.
+</p>
+<ul>
+<li>Programmes failing to return buffers.</li>
+<li>Programmes writing over the end of the memory allocated ( buffer overrun).</li>
+<li>Memory fragmentation.</li>
+</ul>
+<a name="hogging"><h4>Who is hogging the heap</h4></a>
+<p>
+Code consuming and not returning buffers is simple to detect using the diagnostic
+words <samp>.buffers_used</samp> and <samp>.buffers</samp>.
+</p>
+<p>
+<a HREF="./source/print_system_data.html#.buffers"><samp>.buffers</samp></a>
+gives a summary of the buffer pool. It tells you how many buffer of each size
+are available, and how many buffers of each size are in use. If useage is growing you have a problem.
+</p>
+<p>
+
+<a HREF="./source/print_system_data.html#.buffers_used"><samp>.buffers_used</samp></a>
+list all used buffers, one per line, along with the buffers base address, the task that
+claimed the buffer and the execution token address of the word that claimed the buffer. If one word shows up over and
+over again as claimer, then this is the word to suspect.
+</p>
+<a name="overrun"><h4>Buffer overrun</h4></a>
+<p>
+Buffer overrun is difficult to detect, and can lead to erratic system behavior. Directly after the buffer
+is a guard cell followed by the head of the next buffer. The next head may be linked into the empty buffer
+list, or may be the head of a buffer in use. If you write over the head of the next you are effecting the
+execution of totally unrelated code.
+</p>
+<p>
+At the end of each buffer is a guard cell. If a buffer is returned to the system with the
+guard cell corrupted the buffer is saved of as a bad buffer, further if the card has a fault led
+it is turned on.
+</p>
+<p>
+The faulted buffer details can be view with
+<a HREF="./source/print_system_data.html#.bad_buffer"><samp>.bad_buffer</samp></a>
+</p>
+<a name="fragmentation"><h4>Fragmentation</h4></a>
+<p>
+Fragmentation can be an issue if the heap is under heavy use, with demand for small
+and large buffers. <a href="./appendix1.html">Appendix 1</a> describes the effort
+that has been put in to prevent fragmentation problems. There is really only one
+complete solution, the addition of an MMU.
+</p>
+
+</BODY>
+</HTML>

@@ -1,0 +1,921 @@
+<html>
+<head>
+<title>make_app.html</title>
+<META NAME="Author" CONTENT="Charles Esson">
+<META NAME="keywords" CONTENT="forth">
+<META NAME="description" CONTENT=" file used to generate uCforth">
+<LINK REL=stylesheet HREF="forth.css" TYPE="text/css">
+</head>
+<body>
+<h3>Create an application from current load</h3>
+<p>
+There are three parts to the image a code space, a data space and a bss space. The code space
+is set when the application is loaded and should not be altered in a running application.
+The data space is set when the application is loaded and can be altered. The bss space is set
+to zero on load.
+</p>
+<p>
+The code space is used with the words such <i>CREATE</i> <i>ALLOT</i> <i>VARIABLE</i>.
+If the rule, "the code space should not be altered at runtime"
+is followed VARIABLE is of little use.
+</p>
+<p>
+The data space is used with words such as <i>data_create</i> <i>data_allot</i> and <i>data_variable</i>.
+Values set at compile time in this space will end up in the final appplication.
+</p>
+<p>
+The space that is allocated to the task and set to zero ( the bss space) is used with the words
+<i>ram_create</i> <i>ram_allot</i> and <i>ram_variable</i>
+</p>
+<p>
+This application makes a relocatable file. A relocatable file has a table of image addresses
+that have to be altered to reflect the load address. Doing it this way increase the load time
+as the address have to be relocated but reduces the runtime as running code is dealing with
+absolute addresses. To perform this trick the compile must keep track of the addresses that must
+be relocated. This is done with the word <i>add_reference</i>. Most of this work is done for you
+one exception is jump tables. The following example shows you how to deal with jump tables.
+</p>
+<pre>
+<samp>
+CREATE jump_table
+4 ,               \ number of entries
+HERE add_reference
+' word1 ,
+HERE add_reference
+' word2 ,
+HERE add_reference
+' word3 ,
+HERE add_reference
+' word4 ,
+</samp>
+</pre>
+<p>
+There are two version of forth, one stores a re-entrant kernel in a library, the other
+stores the whole shooting match in one file. Having most of the kernel stored
+in a library makes for much smaller applications as the library code is common to all
+applications. Having the library as part of the applications makes for a more durable applications
+as the resultant code is not dependent on the installed library. The cross compiler
+bFLT_maker patches the %no_lib_ref address with TRUE when the version that doesn't use a library
+is created. When this is done <i>no_lib?</i> returns true.
+</p>
+<p>
+The following words provide us with enough data to allow us to work out into which area
+a reference points. For consistency all words return an address where the data can be found.
+These are all patched at the end of the cross compile.
+</p>
+<p>
+The application end address will be altered when make_app is executed.
+These locations will be patched before that operation starts. As code can't
+be written, these values must be in the application data area.
+</p>
+<pre>
+<code>
+uhere add_reference
+uvariable %app_code_end
+uhere add_reference
+uvariable %app_data_end
+uhere add_reference
+uvariable %app_bss_end
+</code>
+</pre>
+<p>
+The following give the start address of the application areas. We use uvariables
+as it gives us direct access to the data from library code, and we want <i>make_app</i>
+to be library code.
+</p>
+<pre>
+<code>
+uhere add_reference
+uvariable %app_code_start
+uhere add_reference
+uvariable %app_data_start
+uhere add_reference
+uvariable %app_bss_start
+</code>
+</pre>
+<pre>
+<code>
+uvariable %source_handle
+uvariable %dest_handle
+uvariable %new_app_image
+uvariable %new_app_size
+
+
+CREATE %lib_code_start  \ this is 4 bytes on as cannot reference location zero
+0 ref,
+CREATE %lib_code_end
+0 ref,
+CREATE %lib_data_start
+0 ref,
+CREATE %lib_data_end
+0 ref,
+CREATE %lib_bss_start
+0 ref,
+CREATE %lib_bss_end
+0 ref,
+</code>
+</pre>
+<p>
+The new application can't be built without the files used to load the application.
+The linux environment provides the load file name as the first environment variable.
+The library file isn't needed. We are creating an application there is enough info
+in the system to create relocatable library references.
+</p>
+<p>
+The ref pointers stored in the file reference area will point into two file areas
+the code segment stored in the file and the data area stored in the file.
+The image value will point to any of the six areas. The app code offsets will remain the same but any
+pointing into app data or app bss will move as additional code and bss are about to be added.
+Clear?
+</p>
+<p>
+An app that contains the library will be arranged
+</>
+<pre>
+lib code
+app code
+app data
+lib data
+lib bss
+app bss
+</pre>
+<p>
+The app that doesn't contain the lib is arranged.
+</p>
+<pre>
+app code
+app data
+app bss
+</pre>
+<p>
+The app data goes first in the combined lib/app version so that A5 offsets to app data
+are the same if the lib data is included or not included in the the app file.
+The application data is added as follows.
+</p>
+<pre>
+lib code
+app code
+new_app_code
+app data
+lib data
+new_app_data
+lib bss
+app bss
+new_app_bss
+</pre>
+<p>
+For the above case can look at the problem as:
+</p>
+<pre>
+app' code
+new_app_code
+app' data
+new_app_data
+app' bss
+new_app_bss
+</pre>
+<p>
+When we make up the new file we will find no lib references, but the problem is the same as the
+next case.
+</p>
+<pre>
+app code
+new_app_code
+app data
+new_app_data
+app bss
+new_app_bss
+</pre>
+<p>
+This case however will have lib references.
+</p>
+<a name="header">
+<p>
+References in the Bflt header are file offsets, references in the code blocks are
+code offsets.
+<p>
+Describe the Bflt head
+</p>
+<pre>
+<code>
+zero
+DUP CONSTANT #flt_hdr_magic       CELL+  \ bFLT
+DUP CONSTANT #flt_hdr_rev         CELL+  \ version 4
+DUP CONSTANT #flt_hdr_entry       CELL+  \ Offset of first executable instruction
+                                         \ within text segment from beginning of file
+DUP CONSTANT #flt_hdr_data_start  CELL+  \ Offset of data segment from beginning of
+                                         \ file.
+
+DUP CONSTANT #flt_hdr_data_end    CELL+  \ Offset of end of data segment
+                                         \ from beginning of file.
+DUP CONSTANT #flt_hdr_bss_end     CELL+  \ Offset of end of bss segment from beginning
+                                         \ of file.
+DUP CONSTANT #flt_hdr_stack_size  CELL+  \ Size of stack, in bytes
+DUP CONSTANT #flt_hdr_reloc_start CELL+  \ Offset of relocation records from
+	                                 \ beginning of file.
+
+DUP CONSTANT #flt_hdr_reloc_count CELL+  \ Number of relocation records.
+DUP CONSTANT #flt_hdr_flags       CELL+  \
+DUP CONSTANT #flt_hdr_build_date  CELL+  \ When the program/library was built */
+DROP
+$40 CONSTANT #flt_hdr_length
+
+
+: .header ( --)
+	%lib_code_start @ cell -
+	#flt_hdr_length -
+	CR
+	." First executable instruction: " DUP #flt_hdr_entry + @ .h CR
+	." Data start offset           : " DUP #flt_hdr_data_start + @ .h CR
+	." Date end offset             : " DUP #flt_hdr_data_end + @ .h CR
+	." Bss end offset              : " DUP #flt_hdr_bss_end + @ .h CR
+	." Return stack size           : " DUP #flt_hdr_stack_size + @ .h CR
+	." Relocate table base         : " DUP #flt_hdr_reloc_start + @ .h CR
+	." Relocate count              : " DUP #flt_hdr_reloc_count + @ .h CR
+	DROP
+;
+
+
+: find_rel ( value --)
+	%new_app_image @ #flt_hdr_reloc_start + net@ %new_app_image @ + DUP
+	%new_app_image @ #flt_hdr_reloc_count + net@ CELLS + SWAP DO
+		DUP I @ = IF
+			." file offset : " I %new_app_image @ - .h
+			." ref offset  : " I %new_app_image @ - .h
+			%new_app_image @ #flt_hdr_reloc_start + net@ - .h
+		THEN
+	cell +LOOP
+	DROP
+;
+</code>
+</pre>
+<h4>File reading writing words</h4>
+<p>
+We are either going to have to read in the whole app file into memory or make a set of words that read
+and write data from the file. The former will require a large data block.
+The file based version is to slow.
+</p>
+<p>
+These are written in a generic manner so any program that has to manipulate
+a source and destination file can use them.
+<pre>
+<code>
+
+: source@ { ( offset -- data) }{
+	variable %buffer
+	}
+	S>D %source_handle @ REPOSITION-FILE $abort
+ 	%buffer cell %source_handle @ READ-FILE $abort
+	cell <> ABORT" Source@ failed"
+	%buffer net@
+;
+
+\ dump the source file at the offset spec-ed
+: sdump ( offset n --)
+	SWAP -2 AND  DUP ROT + SWAP DO
+		CR I .h I $10 +  I
+		DO
+			I source@  .h
+		cell +LOOP
+	$10 +LOOP
+	send
+;
+
+
+
+: source! { variable %data variable %offset ( -- data) }
+	%data @ %data net!
+	%offset @ S>D %source_handle @ REPOSITION-FILE $abort
+	%data cell %source_handle @ WRITE-FILE $abort
+;
+
+: dest@ ( offset -- data)
+	%new_app_image @ + net@
+;
+
+
+: dest! ( data offset  --)
+	%new_app_image @ + net!
+;
+</code>
+</pre>
+<h4>Words to build an application on</h4>
+<pre>
+<code>
+
+CREATE bFLT_magic $62464C54 t,
+
+: bFLT? ( addr -- true)
+	#flt_hdr_magic OVER + net@ bFLT_magic @ <> ABORT" Load file doesn't start with bFLT magic"
+	#flt_hdr_rev OVER + net@  #flt_version <> ABORT" bFLT version wrong"
+	DROP
+;
+
+: open_app_file ( --handle)
+	_%return_stack_end @ #argp + @
+	\ the first string is the file being execute.
+	open_arg_file
+	$abort
+;
+
+: open_dest_file ( $ -- handle)
+	COUNT R/W S_IRWXU + S_IRWXG + S_IRWXO + CREATE-FILE THROW
+	\ fileid(--
+;
+
+\ The compiled application is stored in heap data areas.
+\ These words tell us how much data has been added.
+: extra_code ( -- n)
+	%here @ %here_base @ -
+;
+
+: extra_data ( --n)
+	%data @ %data_base @ -
+;
+
+: extra_bss ( --n)
+	%ram @ %ram_base @ -
+;
+
+\ has to return number of bytes like rest
+: extra_ref ( --n)
+	%ref @ %ref_base @ - 
+;
+
+\ get the header into memory.
+: read_header ( addr -- )
+	0 S>D %source_handle @ REPOSITION-FILE $abort
+	DUP #flt_hdr_length %source_handle @ READ-FILE $abort
+	#flt_hdr_length <> ABORT" Not a Bflt file, too short"
+	bFLT?
+;
+
+
+\ copy a memory area to dest file image. This is used to write the code and data
+\ to the file.
+: memory&gt;dest_file ( add offset n --)
+	>R %new_app_image @ + R> MOVE
+;
+</code>
+</pre>
+<p>
+The %app values contain the address limits in the application file. There are two types
+of app files, a type that contains the library and a type that doesn't. In the former case there
+will be no lib references and all will be dealt with in the app part.
+</p>
+<pre>
+<code>
+\ a little area in bss
+\ would take more space to use temp data
+ram_variable %appf_code_start
+ram_variable %appf_code_end
+ram_variable %appf_code_size
+
+ram_variable %appf_data_start
+ram_variable %appf_data_end
+ram_variable %appf_data_size
+
+ram_variable %appf_bss_start
+ram_variable %appf_bss_end
+ram_variable %appf_bss_size
+
+\ as we set up the appf values we remove all the + and - values
+\ that happened when the raw values are saved off by the cross compile.
+: set_appf ( --)
+	no_lib? IF
+		\ we added 4 at cross compile time
+		\ because start cannot be zero
+		%lib_code_start @ 4- %appf_code_start !
+		%app_code_end @  1+    %appf_code_end !
+
+		\ the xcompile app data comes first
+		\ the xcompile lib data second. This is
+		\ so we know app data offsets as we cross compile.
+		%app_data_start @    %appf_data_start !
+		\ After the cross compile %app_data_end is less
+		\ than %lib_data_end. After a make binary
+		\ %app_data_end is greater than %lib_data_end.
+		\ you can add to a binary that has been
+		\ made with make_binary.
+		%app_data_end @ 1+ %lib_data_end @ 1+ MAX %appf_data_end !
+
+		\ the bss is lib first app second
+		%lib_bss_start @ %appf_bss_start !
+		%app_bss_end @ 1+ %appf_bss_end !
+
+	ELSE
+		\ we add 4 because start could not be zero.
+		%app_code_start @ 4 - %appf_code_start !
+		%app_code_end @ 1+ %appf_code_end !
+		%app_data_start @ %appf_data_start !
+		%app_data_end @ 1+ %appf_data_end !
+		%app_bss_start @ %appf_bss_start !
+		%app_bss_end @ 1+ %appf_bss_end !
+	THEN
+	%appf_code_end @ %appf_code_start @ - %appf_code_size !
+	%appf_data_end @ %appf_data_start @ - %appf_data_size !
+	%appf_bss_end  @ %appf_bss_start @ - %appf_bss_size !
+;
+
+: .appf ( --)
+	." area     start    end      size" CR
+	." code: " %appf_code_start @ .h %appf_code_end @ .h %appf_code_size @ .h CR
+	." data: " %appf_data_start @ .h %appf_data_end @ .h %appf_data_size @ .h CR
+	." bss : "%appf_bss_start @ .h %appf_bss_end @ .h %appf_bss_size @ .h CR
+;
+
+</code>
+</pre>
+<p>
+Everything is a fix up code because in all cases we have to dereference a memory value
+and then reference the file.
+</p>
+<pre>
+io  = image offset
+fo  = file offset
+addr= absolute memory address
+</pre>
+<p>
+The difference between io and fo is the header length. Because we save off memory images
+and then dereference, the off file can contain absolute addresses.
+</p>
+<pre>
+<code>
+: fix_up_code { variable %value_addr  -- ( value_io) }
+	%value_addr @ %appf_code_start @ &lt; not
+	%value_addr @ %appf_code_end @ &lt; AND IF
+		%value_addr @ %appf_code_start @ -
+		\ it is at the start of the file
+		EXIT
+	THEN
+	%value_addr @ %appf_data_start @ &lt; not
+	%value_addr @ %appf_data_end @ &lt; AND IF
+		\ remove data offset
+		%value_addr @ %appf_data_start @ -
+		\ add in offset to file data
+		%appf_code_size @ +
+		extra_code +
+		EXIT
+	THEN
+	%value_addr @ %appf_bss_start @ &lt; not
+	%value_addr @ %appf_bss_end @ &lt; AND IF
+		%value_addr @ %appf_bss_start @ -
+		%appf_code_size @ +
+		%appf_data_size @ +
+		extra_code +
+		extra_data +
+		EXIT
+	THEN
+	\ is it part of the new app
+	%value_addr @ %here_base @ &lt; not
+	%value_addr @ %here @ &lt; AND IF
+		%value_addr @ %here_base @ -
+		%appf_code_size @ +
+		EXIT
+	THEN
+	%value_addr @ %data_base @ &lt; not
+	%value_addr @ %data @ &lt; AND IF
+		%value_addr @ %data_base @ -
+		%appf_code_size @ +
+		extra_code +
+		%appf_data_size @ +
+		EXIT
+	THEN
+	%value_addr @ %ram_base @ &lt; not
+	%value_addr @ %ram @ &lt; AND IF
+		%value_addr @ %ram_base @ -
+		%appf_code_size @ +
+		extra_code +
+		%appf_data_size @ +
+		extra_data +
+		%appf_bss_size @ +
+		EXIT
+	THEN
+	\ all that is left is  lib reference.
+	no_lib? ABORT" Reference outside app"
+	%value_addr @ %lib_code_start @ &lt; not
+	%value_addr @ %lib_code_end @ &lt; AND IF
+		%value_addr @ %lib_code_start @ - \ the offset into the lib code
+		#lib_code $18 LSHIFT +
+		EXIT
+	THEN
+	%value_addr @ %lib_data_start @ &lt; not
+	%value_addr @ %lib_data_end @ &lt; AND IF
+		%value_addr @ %lib_data_start @ - \ the offset into the lib data
+		%lib_code_end @ %lib_code_start @ - +
+		#lib_code $18 LSHIFT +
+		EXIT
+	THEN
+	%value_addr @ %lib_bss_start @ &lt; not
+	%value_addr @ %lib_bss_end @ &lt; AND IF
+		%value_addr @ %lib_bss_start @ - \ the offset into the lib data
+		%lib_code_end @ %lib_code_start @ - +
+		%lib_data_start @ %lib_data_end @ - +
+		#lib_code $18 LSHIFT +
+		EXIT
+	THEN
+	TRUE ABORT" Reference is outside app and lib"
+;
+
+\ _io = image offset
+: new_file_ref { variable %ref_addr_io ( -- new_ref_addr_io new_ref_data_io ) }
+	%ref_addr_io @ %appf_code_size @ &lt; IF
+		\ in code, reference offset is still correct
+		%ref_addr_io @
+		\ we have an image in memory we are running it
+		%ref_addr_io @ %appf_code_start @ + @ fix_up_code
+		EXIT
+	THEN
+	%ref_addr_io @ %appf_code_size @ %appf_data_size @ + &lt; IF
+		\ in the data segment.
+		\ we need to add the additional code length
+		%ref_addr_io @ extra_code +
+		\ we have an image of dest data we are running it.
+		%ref_addr_io @
+		%appf_code_size @ -
+		%appf_data_start @ + @ fix_up_code
+		EXIT
+	THEN
+	\ we have problems
+	TRUE ABORT" File reference points out of file code/data segments"
+;
+</code>
+</pre>
+<p>
+The ref is the address of the location to be patched
+it has to be to within the new code or new data. Can't be in new bss as it
+is set to zero. Can't be in old app or lib because they are not new and all
+references will be in the old ref table.
+</p>
+<pre>
+<code>
+: new_mem_ref { variable %addr ( -- new_ref_addr/co new_ref_data/co ) }
+	%addr @
+
+	.S ." addr(--" CR send
+	%here_base @ &lt; not
+	%addr @ %here @ &lt; AND IF
+		.S ." in code" CR send
+		%addr @ %here_base @ -
+		%appf_code_size @ +
+		\ in code
+		%addr @ @ fix_up_code
+
+		EXIT
+	THEN
+	%addr @ %data_base @ &lt; not
+	%addr @ %data @ &lt; AND IF
+		.S ." in data" CR send
+		%addr @ %data_base @ - \ offset into new data
+		%appf_code_size @ +
+		extra_code +
+		%appf_data_size @ +
+
+		%addr @ @ fix_up_code
+
+		EXIT
+	THEN
+	\ only two areas we are allowed to reference
+	TRUE ABORT" Reference points outside app data or app code.
+;
+
+</code>
+</pre>
+<p>
+There are data locations that can contain buffer pointers.
+The buffers will be in the free buffer pool after startup.
+so pointer value is invalid.
+They are in the app data  space because the app bss cannot be referenced from libary.
+This is the case because we do not know the app data size when we create the libary.
+</p>
+<pre>
+<code>
+
+CREATE reset_locations
+0 t,
+HERE
+	%buffer              DP_data_offset t,
+	_%data_stack_base    DP_data_offset t,
+	_%data_stack_end     DP_data_offset t,
+	_%return_stack_base  DP_data_offset t,
+	_%return_stack_end   DP_data_offset t,
+\	'restart             DP_data_offset t,
+	%abort               DP_data_offset t,
+	%catch_link          DP_data_offset t,
+	BASE                 DP_data_offset t,
+	%output_file         DP_data_offset t,
+	%input_file          DP_data_offset t,
+	%abort_file          DP_data_offset t,
+	%create              DP_data_offset t,
+	%tib                 DP_data_offset t,
+	STATE                DP_data_offset t,
+	>IN                  DP_data_offset t,
+	#TIB                 DP_data_offset t,
+	SOURCE-ID            DP_data_offset t,
+	%$input              DP_data_offset t,
+	%enter_here          DP_data_offset t,
+	%line                DP_data_offset t,
+	_%save_op            DP_data_offset t,
+	%last                DP_data_offset t,
+	%last_xt             DP_data_offset t,
+	%context_count       DP_data_offset t,
+	%context $00 +       DP_data_offset t,
+	%context $04 +       DP_data_offset t,
+	%context $08 +       DP_data_offset t,
+	%context $0C +       DP_data_offset t,
+	%context $10 +       DP_data_offset t,
+	%context $14 +       DP_data_offset t,
+	%context $18 +       DP_data_offset t,
+	%context $1C +       DP_data_offset t,
+	%context $20 +       DP_data_offset t,
+	%context $24 +       DP_data_offset t,
+	%context $28 +       DP_data_offset t,
+	%context $2C +       DP_data_offset t,
+	%context $30 +       DP_data_offset t,
+	%context $34 +       DP_data_offset t,
+	%context $38 +       DP_data_offset t,
+	%context $3C +       DP_data_offset t,
+
+	%current $00 +       DP_data_offset t,
+	%current $04 +       DP_data_offset t,
+	%current $08 +       DP_data_offset t,
+	%current $0C +       DP_data_offset t,
+
+	%threads_number      DP_data_offset t,
+	%csp                 DP_data_offset t,
+	%included_handles    DP_data_offset t,
+	%words_html          DP_data_offset t,
+	%word_source_link    DP_data_offset t,
+	%word_link           DP_data_offset t,
+	%local_in            DP_data_offset t,
+	%local_use           DP_data_offset t,
+	%local_size          DP_data_offset t,
+	%local_base          DP_data_offset t,
+	%local_top           DP_data_offset t,
+	%local_old_here      DP_data_offset t,
+	%local_old_top       DP_data_offset t,
+	%local_old_last      DP_data_offset t,
+	_%local_input_bytes  DP_data_offset t,
+	_%local_output_bytes DP_data_offset t,
+	_%local_data_bytes   DP_data_offset t,
+	%local_wid $00 +     DP_data_offset t,
+	%local_wid $04 +     DP_data_offset t,
+	%local_wid $08 +     DP_data_offset t,
+	%here                DP_data_offset t,
+	%here_top            DP_data_offset t,
+	%here_base           DP_data_offset t,
+	%ram                 DP_data_offset t,
+	%ram_top             DP_data_offset t,
+	%ram_base            DP_data_offset t,
+	%data                DP_data_offset t,
+	%data_top            DP_data_offset t,
+	%data_base           DP_data_offset t,
+	%ref                 DP_data_offset t,
+	%ref_top             DP_data_offset t,
+	%ref_base            DP_data_offset t,
+	%abort_supress$      DP_data_offset t,
+\	%prompt DP_data_offset t,  \ kept at current
+	%(pad)               DP_data_offset t,
+	%(_token)            DP_data_offset t,
+	\ picture number conversion pointer
+	%hold&gt;            DP_data_offset t,
+	%hold_base           DP_data_offset t,
+	%_picture_buffer     DP_data_offset t,
+	%stemp_buffer        DP_data_offset t,
+	%current_class       DP_data_offset t,
+	\ these are set to something more important than zero
+\ 	%app_code_end
+\ 	%app_data_end
+\ 	%app_bss_end
+\ 	%app_code_start
+\ 	%app_data_start
+\ 	%app_bss_start
+	%source_handle       DP_data_offset t,
+	%dest_handle         DP_data_offset t,
+	%new_app_image       DP_data_offset t,
+	%new_app_size        DP_data_offset t,
+HERE SWAP - 4/ reset_locations t!
+
+</code>
+</pre>
+<p>
+We always go through the same startup code, that way the flags always work
+and the scripting always works. The user sets the action of the application be setting
+%abort.
+</p>
+<pre>
+<code>
+: make_app { -- }{
+	variable %old_ref_offset
+	variable %new_ref_offset
+	variable %number_old_refs
+	}
+
+	CR
+	." About to open files" CR send
+	open_app_file %source_handle !
+
+	BL WORD open_dest_file %dest_handle !
+
+	%source_handle @ FILE-SIZE $abort D>S
+	extra_code + extra_data + extra_ref + %new_app_size !
+	%new_app_size @ get_buffer buffer %new_app_image !
+
+	\ set the %appf values
+	set_appf
+
+	\ <b>Update the file header</b>
+	." About to update header" CR send
+	buffer read_header
+
+	\ update code length
+	buffer #flt_hdr_data_start + net@ extra_code +
+	DUP
+	%appf_code_size @
+	extra_code +
+	#flt_hdr_length +    \ offset to where the app data segment should be stored
+	<> ABORT" Code length is not as expected"
+	buffer #flt_hdr_data_start + net!
+
+	\ update data Length
+	buffer #flt_hdr_data_end + net@ extra_code + extra_data +
+	DUP
+	%appf_code_size @
+	extra_code +
+	%appf_data_size @ +
+	extra_data +
+	#flt_hdr_length +    \ offset to where the app data segment should be stored
+	<> ABORT" Data length is not as expected"
+	DUP buffer #flt_hdr_data_end + net!
+	buffer #flt_hdr_reloc_start + net!
+	\ update bss length
+	buffer #flt_hdr_bss_end + net@ extra_code + extra_data + extra_bss +
+	DUP
+	%appf_code_size @
+	extra_code +
+	%appf_data_size @ +
+	extra_data +
+	#flt_hdr_length +    \ offset to where the app data segment should be stored
+	%appf_bss_size @ +
+	extra_bss +
+	<> ABORT" bss length is not as expected"
+	buffer #flt_hdr_bss_end + net!
+
+
+
+
+	\ more relocs
+	buffer #flt_hdr_reloc_count + net@ %number_old_refs !
+
+	%number_old_refs @ extra_ref cell / + buffer #flt_hdr_reloc_count + net!
+	\ update the app end limits to reflect what is happening
+	extra_code %app_code_end +!
+	extra_data %app_data_end +!
+	extra_bss  %app_bss_end +!
+
+	\ we need to write the code out to the new file as we want to alter
+	\ it and we cannot do it in the old file. The file reference table can reference
+	\ data or code. We only want to go through the reference table once so we write out
+	\ the data and code.
+
+	\ <b>copy the code</b>
+	\ We copy the code from memory dereference and then make sure
+	\ the result is the same as the source file. This forces th user
+	\ to write code that doesn't modify the code segment. Aren't we
+	\ a pain.
+	." About to copy old code to image" CR send
+	%appf_code_start @
+	#flt_hdr_length
+	%appf_code_size @
+	\ memory offset_dest n(--
+	memory&gt;dest_file
+
+	\ <b>copy the data</b>
+	\ we have to copy the data segment from memory not
+	\ from the file as the data can change. It gets messier
+	\ the data has to be dereferenced after it is copied to
+	\ the file. We can do that when we go through the file references
+	." About to copy old data to image" CR send
+	%appf_data_start @   \ base address of memory data segment.
+	\ do the offset into file
+	%appf_code_size @
+	extra_code +
+	#flt_hdr_length +    \ offset to where the app data segment should be stored
+	%appf_data_size @    \ the size of the app data segment
+	\ addr offset n(--
+	memory&gt;dest_file
+
+	\ <b>reset data locations that should be</b>
+	." About to reset data locations." CR send
+	reset_locations CELL+
+	reset_locations @ 0 DO
+		0
+		OVER @
+		%appf_code_size @ +
+		extra_code +
+		#flt_hdr_length +
+		%new_app_image @ +
+		!
+		CELL+
+	LOOP
+	DROP
+	\ reset the free_heads
+	%free_heads %appf_data_start @ -
+	%appf_code_size @ +
+	extra_code +
+	#flt_hdr_length +
+	%new_app_image @ +
+	#num_free_lists zero DO
+		0 OVER
+		!
+		cell +
+	LOOP
+	DROP
+	\ <b>Update file refs</b>
+	." About to update file references because code blocks have moved" CR send
+	#flt_hdr_length
+	%appf_code_size @ +
+	%appf_data_size @ +
+	DUP %old_ref_offset !
+
+	extra_code + extra_data +
+	%new_ref_offset !
+
+	%number_old_refs @ zero
+	?DO
+		%old_ref_offset @
+		\ file_offset(--
+		source@ \ value in relocation value
+		\ image_offset(--
+		new_file_ref
+		\ new_ref_addr/io new_ref_data/io
+		OVER #flt_hdr_length +
+		\
+		dest!
+		%new_ref_offset @
+		dest!
+		cell %old_ref_offset +!
+		cell %new_ref_offset +!
+	LOOP
+	\ we can go playing with the memory image of the dictionary as we may be using it.
+	\ We copy it to disk
+	\ <b>new code</b>
+	." About to add new code" CR send
+	%here_base @
+	#flt_hdr_length  %appf_code_size @ +
+	%here @ %here_base @ -
+	\ .S send
+	memory&gt;dest_file
+
+	\ the refs are file offsets if you add the header length to the value.
+	\ <b>new data</b>
+	." About to add new data" CR send
+	%data_base @
+	#flt_hdr_length
+	%appf_code_size @ + extra_code +
+	%appf_data_size @ +
+	%data @ %data_base @ -
+	\ .S send
+	memory&gt;dest_file
+
+	\ <b>new file refs</b>
+	\ the update of the file refs leaves the %new_ref_offset pointing to the correct file offset
+	\ we have to move out%old_ref_offset pointer to the start of the ref table
+	." About to add new file references" CR send
+	%ref_base @ %old_ref_offset !
+	extra_ref cell / zero ?DO
+		%old_ref_offset @ @
+		new_mem_ref
+		OVER #flt_hdr_length +
+		.S ." value to be stored" CR send
+		dest!
+		%new_ref_offset @
+		.S ." value offset (-  reference to be stored" CR send
+		dest!
+		cell %old_ref_offset +!
+		cell %new_ref_offset +!
+	LOOP
+
+
+	\ these have to be as per new file when writing image
+	\ but must reflect current situation after leaving this word.
+	extra_code NEGATE %app_code_end +!
+	extra_data NEGATE %app_data_end +!
+	extra_bss  NEGATE %app_bss_end +!
+
+
+	." About to write file to disk." CR send
+	\ write image to file
+	buffer %new_app_size @ %dest_handle @ WRITE-FILE
+
+	." About to return buffer and close files." CR send
+	\ return the mem that contains the image
+	kill_buffer
+	%source_handle @ CLOSE-FILE $abort
+	%dest_handle @ CLOSE-FILE $abort
+;
+
+</code>
+</pre>
+</body>
+</html>

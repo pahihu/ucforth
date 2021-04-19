@@ -1,0 +1,535 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+<HEAD>
+<TITLE>All the HTML you need to know in 5 minutes</TITLE>
+        <META NAME="AUTHOR" CONTENT="Charles Esson">
+        <META NAME="keywords" CONTENT="HTML HOWTO">
+
+</HEAD bgcolor=#ffffff>
+<BODY>
+<h1>COLDFORTH MANUAL CHAPTER 4 Using HTML files as source</h1>
+
+<ul>
+<li><a href="#general">General</a></li>
+<li><a href="#editor">Editor</a></li>
+<li><a href="#start">Document start</a></li>
+<li><a href="#end">Document end</a></li>
+<li><a href="#content">Content</a></li>
+<li><a href="#links">Links within a file</a></li>
+<li><a href="#headings">Headings</a></li>
+<li><a href="#formating">Formating</a></li>
+<li><a href="#test_forms">Different text forms</a></li>
+<li><a href="#special_char">Special characters</a></li>
+<li><a href="#list">List</a></li>
+<li><a href="#numbered_list">Numbered list</a></li>
+<li><a href="#tables">Tables</a></li>
+<li><a href="#images">Images</a></li>
+<li><a href="#links2">Links</a></li>
+</ul>
+<p>
+A good html tutorial can be found at
+<a href="http://www.cwru.edu/help/introHTML/toc.html">Cape Western Reserve University</a>
+</p>
+<p>
+We have mentioned before, to be successfull a program has to do two things.
+</p>
+<ul>
+<li>Work</li>
+<li>Be maintainable</li>
+</ul>
+<p>
+Making code maintainable is hard. It requires well designed data structures, the use of simple language constructs,
+and clear documentation. The clean data structures design comes with experiance. You can tell inexperianced
+and really experiance plane travellers, both do up there seat belts. It is the same with programming, the
+inexperianced use simple contructs because thats all they know, an experiance programme uses simple constucts
+because he knows thats all you need and has nothing to prove. The person maintaining his code will thank him.
+<b>COLDFORTH </b> will load from HTML files, this greatly increases your
+documentation options. This chapter introduces some of the options.
+</p>
+<p>
+The coldforth compiler will treate as a comment anything between
+</p>
+<ul>
+<li>&lt;html&gt; and &lt;code&gt;</li>
+<li>&lt;/code&gt; and &lt;code&gt;</li>
+<br>
+and
+<li>&lt;/code&gt; and &lt;/html&gt;</li>
+</ul>
+<p>
+as a comment.
+</p>
+<p>
+A html file always starts with the tag &lt;html&gt; and ends with he tag &lt;/html&gt;. To the <b>COLDFORTH</b>
+compiler a file with one code section is structured.
+</p>
+<pre><samp>
+&lt;html&gt;
+<i>comment</i>
+&lt;code&gt;
+<b>code</b>
+&lt;/code&gt;
+<i>comment</i>
+&lt;/html&gt;
+</samp></pre>
+<p>
+When you add html code to your file, from the compilers point of view
+you are simple adding comments to your source.
+</p>
+<p>
+It gets better than this. You can add HTML tags to your forth comments. For example.
+</p>
+<pre><samp>
+\ x<sup>2</sup>
+</samp></pre>
+<p>
+There are many,many,many HTML tags.
+If you want your document to have a long life and a
+wide audience,keep it simple. The follow gives you a nice selection.
+<p>
+<p>
+In most case you have a start tag for example: <samp>&lt;p&gt;</samp>, and an end tag
+for example: <samp>&lt;/p&gt;</samp>. Some browser allow you to be slack and leave off the end tag, <b>don't</b>.
+The shortcuts will not work across all browsers and the standard teams are trying to stamp it out.
+The golden rule. <b>Always close your tags.</b>
+</p>
+
+<a name="general"><h3>General</h3></a>
+<p>
+Keep you files small. Some browser don't start displaying the content until all the data has arrived.
+The aim is to interest, not to bore.
+</p>
+<a name="editor"><h3>HTML Editor</h3></a></li>
+<p>
+Windows installs NOTEPAD ( a simple text editor) as the default HTML editor. It is a good choice.
+Start and end your document with the header and footer discussed below. Save it
+with a .html extension and open it in your browser. When a section is completed
+save the file again and reload into your browser.
+</p>
+
+<a name="start"><h3>Document start</h3></a>
+<p>
+A html document has a header and a body. Search engines are controlled by robots,
+if you want to be listed first you look after the robots. Robots roam
+the internet retrieving and indexing content. Lazy robots only look at the header.
+They are interested in three things. <i>keywords</i> <i>author</i> and <i>title</i>. Get them right.
+</p>
+<p> The header is placed at the start of the document. The html code for a simple header follows.
+</P>
+<pre><samp>
+&lt;!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN"&gt;
+&lt;HTML&gt;
+&lt;HEAD&gt;
+&lt;TITLE&gt;<i>Title of your document</i>&lt;/TITLE&gt;
+        &lt;META NAME=&quot;AUTHOR&quot; CONTENT=&quot;<i>Your name</i>&quot;&gt;
+        &lt;META NAME=&quot;keywords&quot; CONTENT=&quot;<i>Search words</i>&quot;&gt;
+&lt;/HEAD&gt;
+</samp></pre>
+<p>
+<samp>&lt;!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN"&gt;</samp> tells the browser
+what sort of code you are sending it. <samp>&lt;HTML&gt;</samp> Is an opening tag that
+tells the browser we are going to talk html. This tag is closed at the end of the document.
+<samp>&lt;HEAD&gt;</samp>is the opening tag for the header section. The header section contains
+the three pieces of information used by the robots and is ended with the closing tag
+<samp>&lt;/HEAD&gt;</samp>. We then open the body section with the tag <samp>&lt;BODY&gt;</samp>.
+<p>
+<a name="end"><h3>Document end</h3></a>
+
+<p>
+We end the file with tags to close the body section and the html code.
+</p>
+
+<pre><samp>
+&lt;/BODY&gt;
+&lt;/HTML&gt;
+</samp></pre>
+<a name="content"><h3>Content</h3></a>
+<p>
+Between <samp>&lt;BODY&gt;</samp> and <samp>&lt;/BODY&gt;</samp> you put your content.
+Content is text, images, a few tags to tell the browser how to lay it all out, some code for
+the <b>COLDFORTH</b> compiler and links.
+HTML tags are just like english words; 95% of them are of no interest,
+available for those that have nothing better to do.
+</p>
+<a name="links"><h3>Links within a file</h3></a>
+<p>
+The following code is used to generate the link below. The link can be used to
+get additional info on this topic.
+</p>
+
+<pre><samp>
+&lt;a HREF=&quot;#jump_label"&gt;Go to the topic&lt;/a&gt;
+</samp></pre>
+<a HREF="#jump_label">Go to the topic</a>
+
+
+<a name="headings"><h3>Headings</h3></a>
+<p>
+You have a tag to start a heading and a tag to end a heading. Between the tags you can
+have HTML code or simply text. There are five heading tags.
+</p>
+<h1>
+&lt;h1&gt;
+<br>
+This is the document
+<br>
+&lt;/h1&gt;
+</h1>
+<h2>
+&lt;h2&gt;
+<br>
+1.0 A topic
+<br>
+&lt;/h2&gt;
+</h2>
+<h3>
+&lt;h3&gt;
+<br>
+1.1 A sub topic
+<br>
+&lt;/h3&gt;
+</h3>
+<h4>
+&lt;h4&gt;
+<br>
+1.1.1 A sub sub topic
+<br>
+&lt;/h4&gt;
+</h4>
+<h5>
+&lt;h5&gt;
+<br>
+1.1.1.1 A sub sub sub topic
+<br>
+&lt;/h5&gt;
+</h5>
+
+<a name="formating"><h3>Formatting</h3></a>
+<p>
+Divide your text into paragraphs.
+</p>
+<p>
+&lt;p&gt;
+<br>
+This is paragraph text.
+<br>
+&lt;/p&gt;
+</p>
+<p>
+The browser will take the text between <samp>&lt;p&gt;</samp> and <samp>&lt;/p&gt;</samp>,
+remove all the carriage returns and treat the data as a block of text to be displayed.
+If you really want a carriage return you have to add the tag <samp>&lt;br&gt;</samp>,
+a "bloody return". There is no matching closing tag,
+that is the way computer science is, there is always an exception.
+</p>
+
+<a name="test_forms"><h3>Different text forms</h3></a>
+<p>
+Different text forms can be had by enclosing text within the appropriate tag pairs. This
+table gives a list of well supported tags.
+</p>
+
+<table border="0">
+<tr><td>
+&lt;b&gt;<b>If you want to be bold be bold</b>&lt;/b&gt;
+</td></tr>
+<tr><td>
+&lt;i&gt;<i>falling text ( Italics )</i>&lt;/i&gt;
+</td></tr>
+<tr><td>
+&lt;u&gt;<u>Underlined text</u>&lt;/u&gt;
+</td></tr>
+<tr><td>
+&lt;small&gt;<small>Think small</small>&lt;/small&gt;
+</td></tr>
+<tr><td>
+&lt;big&gt;<big>or big</big>&lt;/big&gt;
+</td></tr>
+<tr><td>
+&lt;sup&gt;<sup>superscript</sup>&lt;/sup&gt;really helps with x<sup>2</sup>
+</td></tr>
+<tr><td>
+&lt;sub&gt;<sub>subscript</sub>&lt;/sub&gt; for those little array items x<sub>i</sub>
+</td></tr>
+<tr><td>
+&lt;code&gt;<code>\ stuff compiled by the COLFORTH compiler</code>&lt;/code&gt;
+</td></tr>
+<tr><td>
+&lt;samp&gt;<samp>Code sample</samp>&lt;/samp&gt;
+</td></tr>
+</table>
+<br>
+<br>
+&lt;pre&gt;&lt;code&gt;
+<pre><code>
+\ stuff compiled by the COLFORTH compiler
+\ note that we enclose code between pre format tags as well as the code tags.
+\ If we don't, our newlines will be removed by the browser.
+: fred 0 . ;
+</code></pre>
+&lt;/code&gt;&lt;/pre&gt;
+
+<br>
+<pre><samp>
+&lt;pre&gt;&lt;samp&gt;
+\ sample code
+\ note we enclose the sample code in a pre format tag so the layout is not lost
+: dup. DUP . ;
+&lt;/samp&gt;&lt;/pre&gt;
+</samp></pre>
+
+
+<a name="special_char"><h3>Special characters</h3></a>
+<p>
+There has been hundreds defined, few are well supported, you  need to know the html code for four.
+These are the characters that have special meaning in a HTML file.
+</p>
+
+<table border="0">
+        <tr>
+                <td>&lt;</td><td>use the code &amp;lt;</td>
+        </tr>
+        <tr>
+                <td>&gt;</td><td>use the code &amp;gt;</td>
+        </tr>
+        <tr>
+                <td>&amp;</td><td>use the code &amp;amp;</td>
+        </tr>
+        <tr>
+                <td>&quot;</td><td>use the code &amp;quot;</td>
+        </tr>
+</table>
+<a name="list"><h3>List</h3></a>
+<p>
+The first example is a bulleted list
+</p>
+<h4>The result</h4>
+
+<ul>
+<li>Item a</li>
+<li>Item b</li>
+</ul>
+
+
+<h4>The html code</h4>
+<pre><samp>
+&lt;ul&gt;
+&lt;li&gt;Item a&lt;/li&gt;
+&lt;li&gt;Item b&lt;/li&gt;
+&lt;/ul&gt;
+</samp></pre>
+
+<a name="numbered_list"><h3>Numbered list</h3></a>
+<p>
+A number list.
+</p>
+<h4>The result</h4>
+<ol>
+<li>Item</li>
+<li>Item</li>
+</ol>
+<h4>The html code</h4>
+<pre><samp>
+&lt;ol&gt;
+        &lt;li&gt;Item&lt;/li&gt;
+        &lt;li&gt;Item&lt;/li&gt;
+&lt;/ol&gt;
+</samp></pre>
+
+
+<h3>A list; combining the two</h3>
+<p>
+This examples combines the previous two examples to create something more
+interesting.
+</p>
+<h4>The result</h4>
+
+<ul>
+<li>Item a</li>
+<li>Item b</li>
+<li>A sub list
+        <ol>
+                <li>sub item</li>
+                <li>sub item</li>
+        </ol>
+</li>
+</ul>
+<h4>The html code</h4>
+<pre><samp>
+&lt;ul&gt;
+&lt;li&gt;Item a&lt;/li&gt;
+&lt;li&gt;Item b&lt;/li&gt;
+&lt;li&gt;A sub list
+        &lt;ol&gt;
+                &lt;li&gt;sub item&lt;/li&gt;
+                &lt;li&gt;sub item&lt;/li&gt;
+        &lt;/ol&gt;
+&lt;/li&gt;
+&lt;/ul&gt;
+</samp></pre>
+<a name="tables"><h3>Tables</h3></a>
+<p>
+Get rid of the borders and tables can be used to put text in defined places.
+Keep the border and you end up with tables.
+</p>
+<p>
+You can put almost anything in a table. There are only a few tags to learn.
+</p>
+<table>
+<tr><th>tag</th><th>use</th></tr>
+<tr><td>&lt;table&gt;</td><td>Start table</td></tr>
+<tr><td>&lt;/table&gt;</td><td>End table</td></tr>
+<tr><td>&lt;th&gt;</td><td>Start a header field</td></tr>
+<tr><td>&lt;/th&gt;</td><td>End a header fiield</td></tr>
+<tr><td>&lt;td&gt;</td><td>Start a data field</td></tr>
+<tr><td>&lt;/td&gt;</td><td>End a data field</td></tr>
+</table>
+<p>
+You can have as many rows as you want and as many data items within each row as desired.
+</p>
+
+
+<h4>The result</h4>
+<table border="0" align="center" cellspacing="4"cellpadding="0">
+        <tr><th>heading first column</th><th>heading second column</th></td>
+        <tr>
+                <td>An ordered list</td>
+                <td>A heading</td>
+        </tr>
+        <tr>
+                <td>
+                <ol>
+                        <li>Item</li>
+                        <li>Item</li>
+                </ol>
+                </td>
+                <td>
+                        <h3>heading tag</h3>
+                </td>
+        </tr>
+        <tr>
+                <td>A table</td>
+                <td>An image</td>
+        </tr>
+        <tr>
+                <td>
+                <table border="0" cellspacing="4"cellpadding="0">
+                <tr>
+                        <th>a heading</th>
+                        <th>a heading</th></td>
+                </tr>
+                <tr>
+                        <td>sub data</td>
+                        <td>sub data</td>
+                </tr>
+                </table></td>
+                <td><img src=" ./images/image_table.png" width="100" height="100" alt="Image" ></td>
+        </tr>
+</table>
+
+<h4>The html code</h4>
+<pre><samp>
+&lt;table border=&quot;0&quot; align=&quot;center&quot; cellspacing=&quot;4&quot; cellpadding=&quot;0&quot;&gt;
+        &lt;tr&gt;
+                &lt;th&gt;heading first column&lt;/th&gt;&lt;th&gt;heading second column&lt;th&gt;
+        &lt;tr/&gt;
+        &lt;tr&gt;
+                &lt;td&gt;An ordered list &lt;/td&gt; &lt;td&gt;A heading&lt;/td&gt;
+        &lt;/tr&gt;
+        &lt;tr&gt;
+                &lt;td&gt;
+                        &lt;ol&gt;
+                        &lt;li&gt;Item&lt;/li&gt;
+                        &lt;li&gt;Item&lt;/li&gt;
+                        &lt;/ol&gt;
+                &lt;/td&gt;
+                &lt;td&gt;&lt;h3&gt;heading tag&lt;/h3&gt;&lt;/td&gt;
+        &lt;/tr&gt;
+        &lt;tr&gt;
+                &lt;td&gt;A table&lt;/td&gt;
+                &lt;td&gt;An image&lt;/td&gt;
+        &lt;/tr&gt;
+        &lt;tr&gt;
+                &lt;td&gt;
+                &lt;table border=&quot;0&quot; cellspacing=&quot;4&quot;cellpadding=&quot;0&quot;&gt;
+                        &lt;tr&gt;&lt;th&gt;a heading&lt;/th&gt;&lt;th&gt;a heading&lt;/th&gt;
+                &lt;tr/&gt;
+                &lt;tr&gt;
+                        &lt;td&gt;sub data&lt;/td&gt;
+                        &lt;td&gt;sub data&lt;/td&gt;
+                &lt;/tr&gt;
+                &lt;/table&gt;
+        &lt;/tr&gt;
+        &lt;tr&gt;
+                &lt;td&gt;&lt;img       src=&quot; ./images/image_table.png&quot;
+                                        width=&quot;100&quot;
+                                        height=&quot;100&quot;
+                                        alt=&quot;Image&quot;&gt;
+                &lt;/td&gt;
+        &lt;/tr&gt;
+&lt;/table&gt;
+</samp></pre>
+<a name="images"><h3>Images</h3></a>
+<p>
+A browser can display many different image formats; only three are really of interest.
+</p>
+<p>
+.png is the preferred form. Unfortunately .jpeg and .gif have better support.
+.jpeg ( for pictures) and .gif ( for graphics). .gif is tied up with patent issues.
+If you use them you take a risk.
+</p>
+<p>
+Take a look at the size of your picture files; if they are over 64k don't use them,
+no-one is going to wait for them to download.
+</p>
+<p>
+A browser can lay out the text before the images arrives, if you provide the image size.
+</p>
+<p>
+Provide alternative text. This is needed if the image can't be found, if the browser can't
+display the image type you have used and it is useful as it gives a hint as to what is coming while
+only the text is displayed.
+</p>
+<p>
+Always provide the image size;
+The image size is given by all good image editors.
+</p>
+<pre><samp>
+&lt;img src=&quot; ./images/image_name.png&quot; width=&quot;277&quot; height=&quot;300&quot; alt=&quot;text displayed instead&quot; &gt;
+</samp></pre>
+<img src=" ./images/image_name.png" width="277" height="100" alt="text displayed instead" >
+
+<a name="links2"><h3>Links</h3></a>
+<p>
+Be generous with your links. The following is the html code required to generate the link below. Clicking the
+link will display the code in the file <samp>./file.html</samp>.
+</p>
+<pre><samp>
+&lt;a href=&quot; ./file.html" &gt; any html code can be included in here &lt;/a&gt;
+</samp></pre>
+<a href=" ./file.html" > any html code can be included in here </a>
+<h3>linking within a file.</h3>
+<p>
+First you need a place to jump to.
+</p>
+<a name="jump_label"></a>
+<pre><samp>
+&lt;a name=&quot;jump_label&quot;&gt;&lt;/a&gt;
+</samp></pre>
+<p>
+And then you need a link.
+</p>
+<pre><samp>
+&lt;a HREF=&quot;#jump_label&quot;&gt;Go back a couple of lines&lt;/a&gt;
+</samp></pre>
+
+<h3>The end</h3>
+<p>
+And we finish the document with the following code.
+</p>
+
+<pre><samp>
+&lt;h1 align=&quot;center&quot;&gt;THE END&lt;/h1&gt;
+</samp></pre>
+
+<h1 align="center">THE END</h1>

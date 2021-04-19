@@ -1,0 +1,737 @@
+<html>
+<head>
+<title>heap_control.html</title>
+<META NAME="Author" CONTENT="Charles Esson">
+<META NAME="keywords" CONTENT="forth">
+<META NAME="description" CONTENT=" This file used to generate uCforth">
+<LINK REL=stylesheet HREF="forth.css" TYPE="text/css">
+</head>
+
+<body>
+<a HREF="./license.html">license</a>
+<a name="heap_control"></a>
+<h3>Heap control</h3>
+<p>
+This is a very simple, fast and I think, nice heap manager.
+</p>
+<p>
+If the chunk requested is smaller than or equal to the page size we are responsible
+for allocation and must deal with joining small chunks back together when the
+allocation is returned.
+If the allocation is larger than a page we claim the page from the system and we return
+it to the system.  With this sort of stuff speed it traded against memory use.
+This version looks for speed with simplicity.
+</p>
+<p>
+We call the OS to get chunks bigger than
+<i>#os_buffer_size</i>. The small buffer will call the OS if there is no memory in
+it's free lists to supply the request.
+</p>
+<p>
+The chunk of memory obtained from the OS is not binary multiple so the heap manager
+splits and rejoins buffers as it sees fit. To make things work quickly buffers must have
+enough data to join without looking at the free buffer lists.
+<pre>
+<code>
+	\ The magic number contains two bits of info.
+	\ If it is in-use or free, and it's position
+	\ in any joining operation.
+        $5530 CONSTANT #used_magic  \ U0
+        $4630 CONSTANT #free_magic  \ F0
+
+	\ the bits that hold the magic code.
+	$FFFC CONSTANT #magic_code
+
+	\ buffer has been split
+	0 CONSTANT #pos_split
+
+	\ these are the positions in a sys_buffer
+	\ the start buffer of a group
+	1 CONSTANT #pos_start
+	\ the end buffer of a group
+	2 CONSTANT #pos_end
+
+	\ the bits that hold the position code.
+	3 CONSTANT #pos_code
+
+	\ the sc allows one linked list for all possible buffer sizes.
+	#os_buffer_size _#buffer_unit / CELLS CONSTANT #os_buffer_sc
+
+	\ number of os buffers we keep hanging around
+	\ for the small buffer system. Really doesn't have to
+	\ be many. If we get more than this we return the buffer
+	\ to the OS.
+	2 CONSTANT #max_os_buffers
+</code>
+</pre>
+
+<h4>BUFFER STRUCTURE</h4>
+<p>
+Before and after the user area there is a system area.
+</p>
+<p>
+The system part of the buffer is arranged
+</p>
+<pre>
+<code>
+	zero
+	\ when in use this is used to link into buffer
+	\ structures. For instance get_buffer uses
+	\ this cell to store the previous contents of %buffer
+	DUP CONSTANT _#sys_buffer_link        CELL+   \ 4
+
+	DUP CONSTANT _#sys_buffer_magic        2+
+	DUP CONSTANT _#sys_buffer_sc           4+  \ size in sc
+	                                       2+  \ spare to get us line aligned
+	DUP CONSTANT _#sys_buffer_user
+
+	\ At a minimum we have to be long word aligned.
+	\ We could really hook into it on the coldfire if we
+	\ were line aligned. But that would waste memory.
+	$03 AND 0 ??=
+ </code>
+ </pre>
+ <p>
+ There is enough info at the end of the chunk to make a join
+ conclusion without going to the linked lists. The offsets are
+ negative so we can get to them using the buffer end address.
+ </p>
+ <p>
+ Th sc is the empty list offset
+ <pre>
+ <code>
+	6    CONSTANT _#sys_end_length
+
+	_#sys_end_length NEGATE
+	DUP CONSTANT _#sys_end_magic 2+
+	\ size code
+	DUP CONSTANT _#sys_end_sc    4+
+	0 ??=
+
+	_#sys_end_length _#sys_buffer_user + CONSTANT _#sys_buffer_overhead
+
+	: sys_addr&gt;user_addr ( sys_addr -- user_addr)
+		_#sys_buffer_user +
+	;
+
+	: user_addr&gt;sys_addr ( user_addr -- sys_addr)
+		_#sys_buffer_user -
+	;
+
+
+</code>
+</pre>
+<p>
+Words to change sc to sizes and back.
+</p>
+<pre>
+<code>
+	: sc&gt;sys_size ( sc -- sys_size)
+		[ _#buffer_unit_asl 2 - ]T LITERAL LSHIFT
+	;
+
+	: sys_size&gt;user_size ( n -- n)
+		_#sys_buffer_overhead -
+	;
+
+	: sc&gt;user_size ( sc -- user_size)
+		sc&gt;sys_size
+		sys_size&gt;user_size
+	;
+
+	\ add in overhead and round up to buffer unit
+	: user_size&gt;sys_size ( n -- n)
+		_#sys_buffer_overhead  +
+		[ _#buffer_unit 1 - ]T LITERAL +
+		[ _#buffer_unit 1 - -1 XOR ]T LITERAL AND
+	;
+
+	: user_size&gt;sc ( size -- sc)
+		user_size&gt;sys_size
+		[ _#buffer_unit_asl 2 - ]T LITERAL RSHIFT
+	;
+
+	: sys_size&gt;sc ( size --sc)
+		[ _#buffer_unit_asl 2 - ]T LITERAL RSHIFT
+	;
+
+	: sys_buffer_sc ( sys_addr -- sc )
+		_#sys_buffer_sc + @
+	;
+
+	: sys_buffer_size ( sys_addr --sys_size)
+		sys_buffer_sc
+		sc&gt;sys_size
+	;
+
+	: free_list_head ( sys_addr -- head)
+		sys_buffer_sc %free_heads +
+	;
+
+
+	\ Has to be set at the start and the end.
+	: set_sc ( sc addr --)
+		2DUP _#sys_buffer_sc + !
+		OVER sc&gt;sys_size + _#sys_end_sc + !
+	;
+
+
+	\ The address is the lower of the pair.
+	\ Pick up the two size codes add them together and set the
+	\ lower address to the new code. Remember to do the field at the
+	\ start and end of the buffer.
+	: set_new_join_sc ( sys_addr --)
+		DUP DUP sys_buffer_size +
+		\ lower upper(--
+		sys_buffer_sc OVER sys_buffer_sc + SWAP set_sc
+	;
+
+
+	: remove_from_empty_list ( sys_addr --)
+		\ the free list head depends on the sc
+		DUP free_list_head \ item head(--
+		BEGIN
+			DUP @
+		WHILE
+			2DUP @ = IF
+				\ item head(--
+				DUP @ @ SWAP !
+				DROP
+				EXIT
+			THEN
+			@
+		REPEAT
+		DROP
+		\ get here not in list
+		ABORT" Buffer expected in free list is not"
+	;
+
+
+</code>
+</pre>
+<p>Return buffers</p>
+<pre>
+<code>
+	: return_linux_memory ( sys_addr size --)
+	     	_sys_munmap
+	;
+
+	: return_os_memory ( sys_addr --)
+		DUP sys_buffer_size \ addr size
+	     	_sys_munmap linux_abort
+	;
+
+	: list_count ( head -- count )
+		0 >R
+		BEGIN
+			@ DUP
+		WHILE
+			R> 1+ >R
+		REPEAT
+		DROP
+		R>
+	;
+
+	\ a return will only generate 1 excess at max
+	: return_excess_os ( --)
+		#os_buffer_sc %free_heads + list_count #max_os_buffers > IF
+			#os_buffer_sc %free_heads + DUP @ TUCK @ SWAP !
+			\ addr(--
+			return_os_memory
+		THEN
+	;
+
+	: add_to_empty_list ( sys_addr --)
+		DUP free_list_head \ item head(--
+		2DUP @ SWAP ! !
+	;
+</code>
+</pre>
+<p>
+As we move buffers in and out of system we need to change
+the magic codes.
+</p>
+<pre>
+<code>
+	\ used to init magic.
+	: set_start_end ( length addr --)
+		#pos_start OVER _#sys_buffer_magic + w!
+		+ #pos_end SWAP _#sys_end_magic + w!
+	;
+
+	: set_used ( addr_sys --)
+		\ the lower magic
+		DUP _#sys_buffer_magic + DUP w@
+		\ addr_sys addr_magic magic(--
+		#pos_code AND #used_magic OR
+		SWAP w!
+		\ addr_sys(--
+		\ the upper magic
+		DUP sys_buffer_size + _#sys_end_magic + DUP w@
+		\ addr magic(--
+		#pos_code AND #used_magic OR
+		SWAP w!
+        ;
+
+	: set_free ( addr_sys --)
+		\ the lower magic
+		DUP _#sys_buffer_magic + DUP w@
+		\ addr_sys addr_magic magic(--
+		#pos_code AND #free_magic OR
+		SWAP w!
+		\ addr_sys(--
+		\ the upper magic
+		DUP sys_buffer_size + _#sys_end_magic + DUP w@
+		#pos_code AND #free_magic OR
+		SWAP w!
+        ;
+
+	: set_end_split ( addr --)
+		DUP sys_buffer_size + _#sys_end_magic + #pos_split SWAP w!
+	;
+
+	: set_start_split ( addr --)
+		#pos_split SWAP _#sys_buffer_magic + w!
+	;
+</code>
+</pre>
+<p>
+We have enough
+data to decide if a buffer is joinable when we have the buffer address. The key
+is a magic number at the start and end of a buffer.
+</p>
+<pre>
+<code>
+	\ the buffer at sys_addr is free otherwise we would not
+	\ be asking this question. The returned sys_addr depends on the
+	\ end being joined.
+	: ?join ( sys_addr --sys_addr|0)
+		\ lower end first
+		DUP _#sys_buffer_magic + w@ #pos_code AND #pos_split = IF
+			\ sys_addr(--
+			\ looks at the previous buffer because the offset is
+			\ negative
+			DUP _#sys_end_magic + w@ #magic_code AND #free_magic = IF
+				\ sys_addr(--
+				\ have to go back a buffer to get start
+				DUP _#sys_end_sc + @ sc&gt;sys_size -
+				EXIT
+			THEN
+		THEN
+		\ sys_addr(--
+		DUP sys_buffer_size +
+		\ sys_addr_end(--
+		DUP _#sys_end_magic + w@ #pos_code AND #pos_split = IF
+			\ sys_addr_end(--
+			DUP _#sys_buffer_magic + w@ #magic_code AND #free_magic = IF
+				DUP _#sys_end_sc + @ sc&gt;sys_size -
+				EXIT
+			THEN
+		THEN
+		DROP
+		zero
+	;
+
+	\ everthing up to and including the os buffer size
+	\ used in this sub system.
+	: ?small_sys ( sys_addr -- flag)
+		sys_buffer_sc #os_buffer_sc &gt; not
+	;
+
+
+
+	\ sys_addr is the lower of the two
+	\ because the buffers are in the free list
+	\ and are going back to the free list the magic code
+	\ is correct.
+	: join_buffer ( sys_addr --)
+		DUP remove_from_empty_list
+		DUP DUP sys_buffer_size + remove_from_empty_list
+		DUP set_new_join_sc
+		add_to_empty_list
+	;
+
+	\ This will join up and down. It does more tests than needed
+	\ as the maximum number of joins that will be done when a buffer
+	\ is returned is 2.
+	: join_buffers ( sys_address --)
+		BEGIN
+			?join DUP
+		WHILE
+			DUP join_buffer
+		REPEAT
+		DROP
+	;
+
+
+	: sys_free_buffer ( sys_address --)
+		DUP ?small_sys IF
+			DUP set_free
+			DUP add_to_empty_list
+			join_buffers
+			return_excess_os
+		ELSE
+			return_os_memory
+		THEN
+	;
+
+
+</code>
+</pre>
+<p>
+Getting buffers.
+</p>
+<pre>
+<code>
+: get_linux_memory ( n -- addr)
+	>R
+	0
+	0
+	[ MAP_SHARED MAP_ANONYMOUS OR ]T LITERAL
+	[ PROT_READ PROT_WRITE OR ]T LITERAL
+	R>
+	0
+	\ offset fd flags prot len addr(--
+	forth_mmap
+	DUP linux_abort
+;
+
+	: get_os_memory ( block_size -- sys_addr)
+		>R
+		R@ get_linux_memory
+		\ we have to set up buffer for this system
+		\ addr (--
+		R@ sys_size&gt;sc OVER set_sc
+		R> OVER set_start_end
+		\ addr(--
+		\ putting the memory into the free lists will reset this
+		DUP set_used
+		zero OVER _#sys_buffer_link + !
+	;
+
+	\ The material to make the buffer out of is not in the free lists.
+	\ The input magic state is not important as buffers are set free
+	\ and used as required.
+	\ Our job is to put as much as we can back in the free list
+	\ and return to the user what he wants.
+	: make_size ( sc addr --)
+		2DUP sys_buffer_sc = IF
+			\ buffer is right size
+			DUP set_used
+			NIP
+			EXIT
+		THEN
+		2DUP \ sc addr sc addr(--
+		sys_buffer_sc SWAP -
+		\ sc addr sc_left
+		-rot
+		\ sc_left sc addr(--
+		2DUP SWAP sc&gt;sys_size +
+		-rot
+		\ top bit is left, bottom bit is used
+		\ sc_left addr_left sc addr(--
+		>R
+		R@ set_sc
+		R@ set_end_split
+		R@ set_used
+		\ sc_Left addr_left(--
+		>R
+		R@ set_sc
+		R@ set_start_split
+		R@ set_free
+		R> add_to_empty_list
+		\ (--
+		R>
+	;
+
+	: linked_empty? ( addr --flag)
+		DUP sys_buffer_sc %free_heads +
+		BEGIN
+			DUP
+		WHILE
+			@ 2DUP = IF
+				TRUE EXIT
+			THEN
+		REPEAT
+		2DROP
+		FALSE
+	;
+
+	uvariable %last_os_buffer
+	: from_free_list ( sys_size -- address)
+		sys_size&gt;sc DUP BEGIN
+			DUP %free_heads + @ IF
+				\ sc offset(--
+				%free_heads + DUP @
+				\ sc head next(--
+				TUCK
+				\ sc next head next
+				@
+				\ sc next head next+1
+				SWAP !
+				\ sc next(--
+				make_size
+				\ addr(--
+				EXIT
+			THEN
+			CELL+
+			DUP #os_buffer_sc >
+		UNTIL
+		\ nothing in lists that will do the job
+		\ get another buffer and use it.
+		DROP
+		\ sc(--
+		#os_buffer_size get_os_memory
+		DUP %last_os_buffer !
+		DUP set_free
+		make_size
+	;
+
+	: sys_get_buffer ( sys_size -- address )
+		DUP #os_buffer_size > IF
+			\ get it from the system
+			get_os_memory
+		ELSE
+			from_free_list
+		THEN
+	;
+
+</code>
+</pre>
+<a name="ANS_memory_allocation"></a>
+<p>
+The following words are all that should be used external to this file.
+</p>
+<h4>ANS MEMORY ALLOCATION</h4>
+a name="ALLOCATE"></a>
+<h5>ANS 14.6.1.0707 ALLOCATE</h5>
+<p>MEMORY</p>
+<p>( u -- a-addr ior )</p>
+<p>
+Allocate u address units of contiguous data space. The data-space pointer is
+unaffected by this operation. The initial content of the allocated space is undefined.
+If the allocation succeeds, a-addr is the aligned starting address of the allocated
+space and ior is zero.
+If the operation fails, a-addr does not represent a valid address and ior is
+the address of a string describing the error.
+</p>
+
+	<pre> <code>
+	: ALLOCATE ( n -- addr_user ior )
+		user_size&gt;sys_size
+		['] sys_get_buffer CATCH
+		SWAP
+		sys_addr&gt;user_addr
+		SWAP
+	;
+</code>
+</pre>
+<a name="FREE"></a>
+<h5> ANS 14.6.1.1605 FREE </h5>
+
+<p>( a-addr -- ior )</p>
+<p>
+Return the contiguous region of data space indicated by a-addr to the system
+for later allocation. a-addr shall indicate a region of data space that was previously
+obtained by ALLOCATE or RESIZE. The data-space pointer is unaffected by this operation.
+If the operation succeeds, ior is zero. If the operation fails, ior is the
+implementation-defined I/O result code.
+</p>
+
+<pre>
+<code>
+	: FREE ( addr_user -- ior )
+		user_addr&gt;sys_addr
+		['] sys_free_buffer CATCH DUP IF
+			\ addr_user $(--
+			NIP
+		THEN
+	;
+</code>
+</pre>
+
+<a name="RESIZE"></a>
+<h5>ANS 14.6.1.2145 RESIZE</h5>
+
+<p>( a-addr1 u -- a-addr2 ior )</p>
+<p>
+Change the allocation of the contiguous data space starting at the address
+a-addr1, previously allocated by ALLOCATE or RESIZE, to u address units. u may be
+either larger or smaller than the current size of the region.
+The data-space pointer is unaffected by this operation.
+</p>
+<p>
+If the operation succeeds, a-addr2 is the aligned starting address of u address
+units of allocated memory and ior is zero. a-addr2 may be, but need not be,
+the same as a-addr1. If they are not the same, the values contained in the region
+at a-addr1 are copied to a-addr2, up to the minimum size of either of the two regions.
+If they are the same, the values contained in the region are preserved to the minimum
+of u or the original size. If a-addr2 is not the same as a-addr1, the region of memory at
+a-addr1 is returned to the system according to the operation of FREE.
+</p>
+<p>
+If the operation fails, a-addr2 equals a-addr1, the region of memory at a-addr1
+is unaffected, and ior is the implementation-defined I/O result code.
+</p>
+
+<pre>
+<code>
+
+	: RESIZE        ( addr_user1 n1 -- addr_user2 ior)
+		SWAP user_addr&gt;sys_addr SWAP
+		user_size&gt;sys_size
+		2DUP
+		\ see if request will fit in current buffer
+		SWAP sys_buffer_size
+		&gt; not IF
+			\ request will fit in current buffer
+			DROP
+			sys_addr&gt;user_addr
+			0
+			EXIT
+		THEN
+		['] sys_get_buffer CATCH ?DUP IF
+			\ sys_addr1 ? $error
+			NIP
+			sys_addr&gt;user_addr
+			EXIT
+		THEN
+		\ sys_addr1 sys_addr2 (
+		OVER sys_buffer_size OVER sys_buffer_size MIN >R
+		OVER sys_addr&gt;user_addr OVER sys_addr&gt;user_addr R> MOVE
+		\ sys_addr1 sys_addr2(--
+		SWAP
+		['] sys_free_buffer CATCH DUP IF
+			NIP
+		THEN
+		\ sys_addr2 ior
+		\ If the return of the original buffer fails then the
+		\ comment in the ansi spec is wrong.
+		SWAP
+		sys_addr&gt;user_addr
+		SWAP
+
+	;
+</code>
+</pre>
+<h4> The application words </h4>
+<a name="buffer"></a>
+<h5>buffer</h5>
+<p>
+Last allocated buffer
+</p>
+
+	<pre> <code>
+	: buffer ( --addr_user )
+		%buffer @
+	;
+	</code> </pre>
+
+
+<a name="get/kill_buffer"></a>
+<a name="get_buffer"></a>
+<h5>get_buffer</h5>
+<p>
+get_buffer and kill_buffer can be used to get and release a fresh buffer
+that is pointed to by %buffer and referred to using buffer .
+These words must be used together.
+<pre>
+Example:
+    n1 get_buffer                     \ buffer 1
+         buffer                       \ address buffer 1
+         n2 get_buffer                \ buffer 2
+		 buffer                   \ buffer 2
+         kill_buffer
+         buffer                       \ buffer 1
+    kill_buffer
+</pre>
+</p>
+<p>
+The buffers are linked together in the buffers system area so get_buffer
+can be used recursively. ABORT releases the buffers back to the system.
+In other words you get access to the buffers but the system knows where
+they are. Buffers so allocated will be returned on a task abort.
+</p>
+<pre> <code>
+
+	: get_buffer ( n --)
+		\ n (--
+		ALLOCATE
+		\ add ior(--
+		$abort
+		buffer
+		OVER [ _#sys_buffer_link _#sys_buffer_user - ]T LITERAL + !
+ 		%buffer !
+	;
+	</code> </pre>
+<a name="kill_buffer"></a>
+<h5>kill_buffer</h5>
+<pre> 
+<code>
+	: kill_buffer ( --)
+		buffer not ABORT" No buffer was allocated"
+		buffer [ _#sys_buffer_link _#sys_buffer_user - ]T LITERAL + @
+		buffer FREE $abort
+		%buffer !
+	;
+
+	\ used in ABORT to return buffers obtained with get_buffer
+	\ and kill_buffer.
+	: _return_linked_buffers
+		BEGIN
+			buffer
+		WHILE
+			kill_buffer
+		REPEAT
+	;
+
+</code>
+</pre>
+
+
+<a name="buffer_size"></a>
+<h5>buffer_size</h5>
+<p>
+Best way to go is ask for about what you want
+and then use this word to see what you got ( it will be bigger or the same)
+and then use what you get.
+</p>
+<pre>
+<code>
+	: buffer_size ( addr_user -- size )
+		DUP 0= ABORT" Buffer address supplied as zero"
+		[ _#sys_buffer_sc _#sys_buffer_user - ]T LITERAL + @ \ sc (--
+		sc&gt;user_size
+	;
+</code>
+</pre>
+<a name="#$buffer"></a>
+<a name="#$maximum_data"></a>
+<h5>#$buffer</h5>
+<pre>
+1   for the count
+1   so we can zero terminate
+0FF for the characters
+then round up to nearest long word
+AS the buffer system works as it does the buffer returned will be longer.
+</pre>
+<pre>
+<code>
+0FF CONSTANT #$maximum_data
+104 CONSTANT #$buffer
+</code> </pre>
+<a name="$buffer"></a>
+<h5>$buffer</h5>
+<p>
+Use this to get buffers for counted strings
+</p>
+<pre>
+<code>
+	: $buffer  ( --)
+		#$buffer get_buffer
+	;
+</code>
+</pre>
+</body>
+</html>
+

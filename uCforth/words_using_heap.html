@@ -1,0 +1,58 @@
+<html>
+<head>
+<title>words_using_heap.html</title>
+<META NAME="Author" CONTENT="Charles Esson">
+<META NAME="keywords" CONTENT="forth"> 
+<META NAME="description" CONTENT=" uCforth uses this file to generate uCforth">
+<LINK REL=stylesheet HREF="forth.css" TYPE="text/css">
+</head>
+<body>
+<a HREF="./license.html">license</a>
+<p>
+Having a decent heap manager means we can put transient regions in transient regions.
+</p>
+<a name="PAD"></a>
+<h5>ANS 6.2.2000 PAD</h5>
+<p>( -- c-addr )</p>
+<p>
+c-addr is the address of a transient region that can be used to hold data for
+intermediate processing.
+</p>
+<p>
+PAD has been available as scratch storage for strings since the earliest Forth
+implementations. It was brought to our attention that many programmers are
+reluctant to use PAD, fearing incompatibilities with system uses.
+PAD is specifically intended as a programmer convenience, however,
+which is why we documented the fact that no standard words use it.
+</p>
+<p>
+<strong>uCforth</strong>
+To keep with the intent, the kernel doesn't use PAD. But then with $buffer
+and kill_buffer available why would an application use it anyway.
+</p>
+<pre>
+<code>
+
+
+	: PAD ( --addr)
+		%(pad) @ ?DUP IF
+			EXIT
+		THEN
+		#$buffer ALLOCATE $abort
+		DUP %(pad) !
+	;
+
+	: _token ( --addr)
+		%(_token) @ ?DUP IF
+			EXIT
+		THEN
+		#$buffer ALLOCATE $abort
+		DUP %(_token) !
+	;
+
+
+
+</code>
+</pre>
+</body>
+</html>

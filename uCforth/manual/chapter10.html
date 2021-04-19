@@ -1,0 +1,189 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<html>
+<HEAD>
+<TITLE>COLDFORTH chapter 1</TITLE>
+        <META NAME="AUTHOR" CONTENT="Charles Esson">
+        <META NAME="keywords" CONTENT="COLDFORTH">
+</HEAD>
+<body bgcolor=#ffffff>
+<h1>COLDFORTH MANUAL CHAPTER 10</h1>
+<h2>Html Server</h2>
+<h3>Introduction</h3>
+<p>
+The html server listens to TCP/IP port 80. When a remote machines connects
+the server starts up another task and gives the open connection
+to that created task to look after. Lets call the created task a servelet.
+</P>
+<p>
+The servelet reads the remote request and replies as requested.
+</p>
+<p>
+Three request methods are supported. The method used depends on the file extension.
+</p>
+<h3>Headers and content</h3>
+<h4>Request</h4>
+<p>
+A <i>HTTP</i> request from a client ( your browser) to a  server contains a <b>header</b>, and if
+a post <b>content</b>. The header is separated from the content by an empty line.
+A request may may look something like this.
+</p>
+<pre><samp>
+GET /index.shtml HTTP/1.0
+Accept: image/gif, image/x-xbitmap, image/jpeg, image/pjpeg, */*
+Accept-Language: en-us
+User-Agent: Mozilla/4.0 (compatible; MSIE 4.0; Windows NT)
+Host: rack
+Connection: Keep-Alive
+
+</samp></pre>
+<p>
+The header gives the server additional information to use when fullfilling the request.
+</p>
+<h4>The responce</h4>
+<p>
+The responce contains header and content. If the server is serving a html file it will
+generate the header and then send the contents of the file as content.
+</p>
+<p>
+If the server is requested to serve a script or to execute the word it generates no header,
+that is left up to the or the word or script.
+</p>
+<h3>.HTML</h3>
+<p>
+As has been mentioned, the server looks after the sending of the header, and
+uses the contents of the file as the contents.
+</p>
+
+<p>
+A search for the file is done in the directory <i>flash/html</i>.
+</p>
+<p>
+There is nothing complicated about a html; file. Start it with:
+&lt;!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN"&gt;<br>
+and continue with standard &lt;HTML&gt; text.
+<p>
+<h3>.shtml</h3>
+<p>
+The servelet searches the <i>flash/html</i> for the request files and <samp>INCLUDES</samp> it.
+Hopefully the user has written
+a nice scripting file. The following script displays the current value of %ticks.
+</p>
+<samp><pre>
+\ n code
+DUP #post = [IF]
+   $" Can't post" .html_not_allowed
+[ELSE]
+   .html_ok
+   .( Connection: close) CR
+   .( Connection-Type: text/html) CR
+   \ terminate the header
+   CR
+   DUP #get = [IF]
+       \ the document
+       $" Scripted example" .html_header
+       &lt;BODY&gt;
+       &lt;h1&gt;Scripted&lt;/h1&gt;
+       &lt;$
+       .( Current clock: ) %ticks @ .h
+       $&gt;
+       &lt;br&gt;  the end
+       &lt;/BODY&gt;
+       &lt;/HTML&gt;
+       &lt;$
+    [THEN]
+    html_close
+[THEN]
+2DROP
+
+</pre></samp>
+<p>
+The script is called with two stack parameters, a <i>code</i> and a <i>count</i>. The code can take the
+value <i>#post</i>, <i>#head</i> and <i>#get</i>.
+</p>
+<h4>#post</h4>
+<p>
+If the code is <i>#post</i>, n gives the content length in
+bytes. You read the content from standard input using the standard input words.
+</p>
+<h4>#head</h4>
+<p>
+If the code is <i>#head</i> the requester only wants you to send the head. The contents is not sent.
+This method is used by search engines and such like to reduce overall traffic.
+</p>
+<h4>#get</h4>
+<p>
+This code expects the script to send both the head and the content.
+</p>
+<p>
+In the example we have executed the word <i>html_close</i> if the contents is sent. If you
+want to keep the link alive you have to send the header field <i>content-length</i>, you
+can't send this field unless you know the content length. The servelet uses the file length
+as the content length when returning an html file. You as the author of the script have to
+pre determine the content length or close the connection after sending the content.
+</p>
+<p>
+The script should be written so it sends the desired responce to the standard output.
+</p>
+<h3>.4th</h3>
+<p>
+If the servelet receives a request for a .4th file it searches for a forth word with that name in
+the <i>&html_words</i> vocabulary. The kernel defines the word <i>index.4th</i>. This word
+lists all words defined in the <i>&html_words</i> vocabulary.
+</p>
+<p>
+The follwoing is the definition for <i>index.4th</i>
+</p>
+<pre><samp>
+
+
+\ you have to add the word to the &html_words vocabulary.
+ALSO
+&html_words
+DEFINITIONS
+
+: index.4th ( length code--)
+        \ have to generate error message for post
+        DUP #post = IF
+                $" Can't POST to html files" .html_not_allowed \ 405
+                2DROP
+                EXIT
+        THEN
+
+        \ word has to create header
+        .html_ok
+        ." Connection: close" CR
+        ." Content-Type: text/html" CR
+
+        \ terminate the header
+        CR
+        \ length code(--
+        #get = IF
+                \ start the html page
+                $" Index of callable forth words" .html_header
+                \ my html content.
+                TRUE %words_html !
+                ~html_words null (words)
+                \ end the html text.
+                .html_trailer
+                \ have no idea how long it is.
+                \ so the link has to be closed
+        THEN
+        html_close
+        \ get rid of the count
+        DROP
+;
+
+previous_definitions
+PREVIOUS
+</samp></pre>
+<h3>Performance</h3>
+<p>
+The servlets are low priority tasks so they have little effect on the real time tasks. As each connection
+is given it's own task complex functions do not effect the servers performance. This is particularly
+important when requesting pictures. The task requesting the picture can be put to sleap while the
+picture arrives.
+</p>
+</samp></pre>
+
+</body>
+</html>

@@ -1,0 +1,442 @@
+<html>
+<head>
+<title>user_variables.html</title>
+<META NAME="Author" CONTENT="Charles Esson">
+<META NAME="keywords" CONTENT="forth">
+<META NAME="description" CONTENT=" This file used to generate uCforth">
+<LINK REL=stylesheet HREF="forth.css" TYPE="text/css">
+</head>
+
+<body>
+<h3>User variables</h3>
+<a HREF="./license.html">license</a>
+<p>
+Each task running has it's own application has a data segment.
+Most of the libary deals with stacks and buffers. This results in re-entrant code.
+If the libary needs a data item in the application it references the data using the DP register.
+</p>
+</code>
+</pre>
+<p>
+You don't have to keep the address of a buffer
+obtained with kill_buffer buffer will return it ( as
+long as another get_buffer hasn't been used).
+%buffer contains a pointer to current buffer.
+see:
+</p>
+<pre>
+<code>
+uvariable  %buffer
+</code>
+</pre>
+<p>
+<h5>describe the stacks, each process has a different stack</h5>.
+<p>
+The return stack is fixed by the OS and cannot be changed.
+The data stack can be changed by setting
+new values of _%data_stack_base and _%data_stack_end and executing an abort.
+</p>
+<pre>
+<code>
+uvariable _%data_stack_base
+uvariable _%data_stack_end      \ used on a task reset
+
+uvariable _%return_stack_base
+uvariable _%return_stack_end    \ used on a task reset
+</code>
+</pre>
+<h5>thread specific vector functions</h5>
+<p>
+Execution token of word executed on an abort.
+</p>
+<pre>
+<code>
+uvariable  %abort
+\ head of catch fames
+uvariable %catch_link
+</code>
+</pre>
+<p>
+The execution token to be used to start the application. <i>forth</i> sets this
+to QUIT.
+</p>
+<pre>
+<code>
+uvariable 'restart
+</code>
+</pre>
+<a name="BASE"></a>
+<h5>ANS 6.1.0750 BASE</h5>
+<p>CORE</p>
+<p>( -- a-addr )</p>
+<p>
+a-addr is the address of a cell containing the current number-conversion radix {{2...36}}.
+</p>
+<pre>
+<code>
+uvariable BASE
+</code>
+</pre>
+<p>
+<h5>float numbers</h5>
+<pre>
+<code>
+uvariable %fractional_digits
+3 %fractional_digits t!
+</code>
+</pre>
+<p>
+uCforth converts the unix file descriptors into an object pointer. The input output and error
+object addresses reside here. The standard output words use these objects to direct there I/O.
+</p>
+<pre>
+<code>
+uvariable %output_file
+uvariable %input_file
+uvariable %abort_file
+
+\ Don't seem to be very popular
+\	uvariable %aux_file
+\	uvariable %lpt_file
+</code>
+</pre>
+<p>
+Head creation routine.
+</p>
+<pre>
+<code>
+uvariable   %create
+</code>
+</pre>
+<h5>The search order</h5>
+<p>
+The search order is kept as a sorted table under context. The count of valid entries
+is kept in n_context_count.
+</p>
+<p>
+Base character address current line is stored here. See TIB
+</p>
+<pre>
+<code>
+uvariable  %tib
+</code>
+</pre>
+<a name="STATE"></a>
+<h5>ANS 6.1.2250 STATE</h5>
+<p>( -- a-addr )</p>
+<p>
+a-addr is the address of a cell containing the compilation-state flag.
+STATE is true when in compilation state, false otherwise. The
+true value in STATE is non-zero, but is otherwise implementation-defined.
+Only the following standard words alter the value in
+STATE: : (colon), ; (semicolon), ABORT, QUIT, :NONAME,
+[ (left-bracket), and ] (right-bracket).
+</p>
+<p>
+Note: A standard program shall not directly alter the contents of STATE.
+</p>
+<pre>
+<code>
+uvariable STATE
+</code>
+</pre>
+<a name="toIN"></a>
+<h5>ANS 6.1.0560 &gt;IN</h5>
+<p>CORE</p>
+<p>( -- a-addr )</p>
+<p>
+a-addr is the address of a cell containing the offset in characters
+from the start of the input buffer to the start of the parse area.
+</p>
+<pre>
+<code>
+uvariable >IN
+</code>
+</pre>
+<a name="hashTIB"></a>
+<a name="#TIB"></a>
+<h5>ANS 6.2.0060 #TIB </h5>
+<p>CORE EXT</p>
+<p>( -- a-addr )</p>
+<p>
+a-addr is the address of a cell containing the number of characters
+in the terminal input buffer.
+</p>
+<p>
+Note: This word is obsolescent and is included as a concession to
+existing implementations.
+</p>
+<p>
+The function of #TIB has been superseded by SOURCE.
+</p>
+<pre>
+<code>
+uvariable #TIB
+</code> </pre>
+<a name="SOURCE-ID"></a>
+<h5>6.2.2218 SOURCE-ID</h5>
+<p>CORE EXT</p>
+<p>( -- 0 | -1 )</p>
+<p>
+Identifies the input source as follows:
+</p>
+<dl>
+<dt>SOURCE-ID       Input source
+<dd>-1              String (via EVALUATE)
+<dd>0               User input device
+</dl>
+<pre>
+<code>
+uvariable SOURCE-ID
+</code>
+</pre>
+<p>
+When a file is loaded the string used to open the file is saved in the dictionary. Links
+that reference this string are then added. The resultant linked list can be used to work
+out where a word was defined.
+</p>
+<p>
+The value in this cell points to the string.
+</p>
+<pre>
+<code>
+uvariable %$input
+</code>
+</pre>
+<p>
+The value of here when you entered the file. If a file loads nothing the file name and
+link added to the dictionary is removed on exit.
+</p>
+<pre>
+<code>
+uvariable %enter_here
+</code>
+</pre>
+<p>
+Line number
+</p>
+<pre>
+<code>
+uvariable %line
+</code>
+</pre>
+<pre>
+<code>
+uvariable _%save_op
+</code>
+</pre>
+<p>
+Head we last added data to.
+</p>
+<pre>
+<code>
+uvariable %last
+</code>
+</pre>
+<p>
+<i>NONAME:</i> words have to list header so for recurse
+we must keep track of the last_xt.
+</p>
+<pre>
+<code>
+uvariable %last_xt
+</code>
+</pre>
+<pre>
+<code>
+$10 CONSTANT #vocs
+uvariable %context_count
+uvariable %context  #vocs 1- CELLS uallot
+</code>
+</pre>
+<a name="current"></a>
+<h5>The current compile wordlist</h5>
+<p>
+The words are added to the wordlist pointed to by the top current. We make current
+a stack so that the kernel can add words to vocabularies without altering the
+applications current value. DEFINITION pushes a value. definition_previous pops
+a value. We can use a stack without a count because only the top entry is used.
+</p>
+
+<pre>
+<code>
+4 CONSTANT _#current_vocs
+uvariable %current  _#current_vocs 1- CELLS uallot
+</code>
+</pre>
+
+<a name="threads_number"></a>
+<h5>threads_number ( --addr)</h5>
+<p>
+Set to the number of lists desired before creation. The default is one, but
+if a lot of words are to be created a greater number may be desirable.
+</p>
+<pre>
+<code>
+uvariable %threads_number
+</code>
+</pre>
+<p>Compile stack pointer</p>
+<pre>
+<code>
+uvariable %csp
+</code>
+</pre>
+<p>
+INCLUDED files are linked in here. These files are
+closed on an abort. See <i>_close_included_files</i>
+</p>
+<pre>
+<code>
+uvariable %included_handles
+</code>
+</pre>
+<pre>
+<code>
+\ set this to true to get a html printout
+uvariable %words_html
+\ set to true if you want link structure added
+uvariable %word_source_link
+uvariable %word_link
+</code>
+</pre>
+<p>
+Local data area.
+</p>
+<pre>
+<code>
+\ flag to indicate we are compiling into local dictionary.
+\ Set on { reset on }
+uvariable %local_in
+\ flag to indicate we have to add local access code set on { reset on ;
+uvariable %local_use
+
+\ set to non zero value if you want anything other than
+\ the default local size
+uvariable %local_size
+\ base address of buffer used
+uvariable %local_base
+\ last available local address
+uvariable %local_top
+\ value of here when local compiling entered
+uvariable %local_old_here
+uvariable %local_old_top
+uvariable %local_old_last
+
+
+uvariable _%local_input_bytes
+uvariable _%local_output_bytes
+uvariable _%local_data_bytes
+
+\ this is the thread structure used throughout the system.
+zero
+DUP CONSTANT _#wid_name CELL+
+DUP CONSTANT _#wid_count CELL+
+DUP CONSTANT _#wid_heads
+DROP
+
+
+1 CONSTANT #local_threads
+ucreate %local_wid _#wid_heads #local_threads CELLS + uallot
+</code>
+</pre>
+<p>
+Memory area pointers. The application dictionary. Ends up as the code segment
+in a binary application.
+</p>
+<pre>
+<code>
+uvariable %here
+uvariable %here_top
+uvariable %here_base
+</code>
+</pre>
+<p>
+This is set to zero on startup. Ends up in the bss segment of a binary application.
+</p>
+<pre>
+<code>
+uvariable %ram
+uvariable %ram_top
+uvariable %ram_base
+</code>
+</pre>
+<p>
+Ends up in the data segment of a binary application.
+</p>
+<pre>
+<code>
+uvariable %data
+uvariable %data_top
+uvariable %data_base
+</code>
+</pre>
+<p>
+<h5>ref</h5>
+<p>
+As the system compiles code reference pointers are added to the reference
+area. These are used to create the relocatable bFLT image.
+</p>
+<pre>
+<code>
+uvariable %ref
+uvariable %ref_top
+uvariable %ref_base
+</code>
+</pre>
+<p>
+Don't print out the error messages
+</p>
+<pre>
+<code>
+uvariable %abort_supress$
+</code>
+</pre>
+<p>
+Execution token of word that prints out the prompt
+you can run multiple terminals each can have it's own prompt. The default
+is to print out CVS style prompt. <i>ok</i> is provided as an option. See
+the startup script.
+</p>
+<pre>
+<code>
+uvariable %prompt
+
+uvariable %(pad)
+uvariable %(_token)
+
+\ temp string buffer
+uvariable %stemp_buffer
+
+\ picture number conversion pointer
+uvariable %hold&gt;
+uvariable %hold_base
+\ picture number conversion base
+uvariable %_picture_buffer
+
+\ 4k less OS overhead or _#buffer_unit whichever is the greatest
+\ There is a linux function to get this.
+\ But we are cross compiling when using Gforth
+\ so bad luck.
+$0FE0 CONSTANT #os_buffer_size
+
+\ this is the smallest system buffer the system will allocate.
+\ It is of no interest to the user they just ask for what they
+\ want.
+$20  CONSTANT _#buffer_unit
+_#buffer_unit >asl CONSTANT _#buffer_unit_asl
+\ the simplest solution is to have a list head for each size.
+\ It makes for clean code.
+
+\ We need a list for the os buffers as well so the +1.
+
+#os_buffer_size _#buffer_unit / 1 + CONSTANT #num_free_lists
+
+\ the heads are allocated in the application so memory allocation
+\ does not have to wait on other threads
+ucreate %free_heads #num_free_lists CELLS uallot
+
+</code>
+</pre>
+</body>
+</html>

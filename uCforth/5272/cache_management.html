@@ -1,0 +1,27 @@
+<html>
+<head>
+<title>cache_management.html</title>
+<META NAME="Author" CONTENT="Charles Esson">
+<META NAME="keywords" CONTENT="forth">
+<META NAME="description" CONTENT=" used to generate uCforth">
+<LINK REL=stylesheet HREF="forth.css" TYPE="text/css">
+</head>
+<body>
+<a HREF="./license.html">license</a>
+<pre>
+<code>
+
+: cache_flush ( --)
+	%here_base @ \ addr
+        FLUSH_SCOPE_PAGE
+	FLUSH_CACHE_INSN
+	HERE %here_base @ -
+	_sys_cacheflush
+	\ If not implemented we will get a non zero return value.
+	\ linux_abort
+	DROP
+;
+</code>
+</pre>
+</body>
+</html>

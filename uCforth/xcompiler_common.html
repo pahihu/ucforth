@@ -1,0 +1,399 @@
+<html>
+<head>
+<title>xcompiler_common.html</title>
+<META NAME="Author" CONTENT="Charles Esson">
+<META NAME="keywords" CONTENT="forth">
+<META NAME="description" CONTENT=" COLDFORTH uses this file to generate COLDFORTH">
+<LINK REL=stylesheet HREF="forth.css" TYPE="text/css">
+</head>
+
+<body>
+<h1>xcompiler_common</h1>
+<a HREF="./license.html">license</a>
+<p>
+<p>
+The host vocabulary. These are host words defined in host used to manipulate the
+target. Note that they have not been made immediate. [ and ] are designed to
+deal with the issue of changing vocabularies while compiling.
+</p>
+<p>
+Note there is no mention of ghost or target. The host vocabularies are another issue.
+The structure used is built using ansi forth but what can be done with ghost vocabularies
+is a little more extensive. The target vocabulary is built in the target. Obviously
+the host search words are not up to doing a target search.
+</p>
+<pre>
+<code>
+vocabulary host
+
+: forth&host
+	only host
+	also forth
+; IMMEDIATE
+
+: host&forth
+	only forth
+	also host
+; IMMEDIATE
+
+: assembler&host&forth
+	only forth
+	also host
+	also assembler
+; IMMEDIATE
+
+</code>
+</pre>
+<h3>Target code image</h3>
+<p>
+From now on if the host vocabulary is the first in the search order
+the standard dictionary words will talk about the target image.
+Host words that manipulate the host dictionary can be added if the
+forth vocabulary is the first in the search order.
+</p>
+<pre>
+<code>
+\ really important point, we are now adding words to host
+\ -------------------------------------------------------
+host&forth
+definitions
+
+: ALIGNED ( n -- 1) 1+ -2 AND ;
+: org ( a)   ALIGNED  %target_code_pointer ! ;        \ target code
+: HERE ( - a) target_code_here ;                   \ target code
+: ALLOT ( n--)  HERE + org ;                      \ target code
+
+\ Words to deal with the lib data image
+\ ---------------------------------------
+: data_org ( a) ALIGNED  %lib_data_pointer ! ;
+: data_here ( - a) lib_data_here ;
+: data_allot ( n)  lib_data_allot ;
+
+\ Words to deal with the app data image
+\ ---------------------------------------
+: uorg ( a) ALIGNED  %app_data_pointer ! ;
+: uhere ( - a) app_data_here  ;
+: uallot ( n)  app_data_allot
+	\ %app_data_pointer @ %app_data_image - . ." xx:" KEY DROP 
+;
+
+\ Words to deal with the target bss image
+\ ---------------------------------------
+: ram_org ( a) ALIGNED  %target_bss_pointer ! ;
+: ram_here ( - a) target_bss_here ;
+: ram_allot ( n)  target_bss_allot ;
+
+\ words to manipulate the target area.
+: tc@   ( addr --8b)   targetbyte@ ;
+: tc!   ( 8b addr --)  targetbyte!  ;
+: tw@   ( addr --16b)  targetw@ ;
+: tw!   ( 16b addr --) targetw! ;
+: tw+!  ( n addr --)   DUP tw@ ROT + SWAP tw!  ;
+: t!    ( 32b addr--)  target! ;
+: 2t!   ( 32b1 32b2 addr --) 	SWAP OVER t! CELL+ t! ;
+: t@    ( addr -- 32b) target@ ;
+: 2t@   ( addr -- 32b1 32b2 ) DUP CELL+ t@ SWAP t@ ;
+
+\ you never know what the target image may look like don't assume it is addressed memory
+: tcmove ( addr1 addr2 count --)
+	OVER + DO 
+		DUP C@ I tc!
+		1 CHARS +
+	LOOP
+	DROP
+;
+
+\ can't use ALLOT as it uses ALIGNED
+: tc,   ( 8b --)        HERE tc!  1 %target_code_pointer +! ;
+\ we will fetch the host version of here, this will return
+\ a target address.
+: tw,    ( 16b --)      2 ALLOT  HERE 2 - tw! ;
+: t,     ( 32b --)      4 ALLOT  HERE 4 - t! ;
+: ref,   ( 32b --)      HERE add_reference  t, ;
+
+\ Words to manipulate the lib data area
+: dtw,    ( 16b --) 2 lib_data_allot  lib_data_here 2 - tw! ;
+: dt,     ( 32b --) 4 lib_data_allot  lib_data_here 4 - t! ;
+
+\ Words to manipulate the app data area
+: utw,    ( 16b --) 2 app_data_allot  app_data_here 2 - tw! ;
+: ut,     ( 32b --) 4 app_data_allot  app_data_here 4 - t! ;
+
+\ Move to target space from host space, can be used for strings
+\ uClinux gives same action as CMOVE, but we must go through
+\ tc!, who knows what the future will bring.
+
+: to_target_cmove ( s d n--)
+	OVER + SWAP DO
+		DUP C@  I tc!  1+
+	LOOP
+	DROP
+;
+
+
+: ,string ( addr count--)
+	2DUP              \ addr count addr  count (--
+	NIP tc,
+	TUCK                    \ count addr count(--
+	HERE SWAP to_target_cmove         \ count(--
+	ALLOT
+;
+
+
+\ copy one area of target to another.
+\ used when doing inline code.
+: target_copy ( from to num --)
+	zero ?DO  \ from to (--
+		OVER R@ + tw@ \ from to value(--
+		OVER R@ + tw! \ from to
+	2 +LOOP
+	2DROP
+;
+
+
+
+</code>
+</pre>
+<p>
+Make a ghost vocabulary.
+When we make the forth ghost vocabulary we set the target_wid to -1 we latter
+patch that with correct value. Code that needs valid target_wid values test to make
+sure the wid is not still set to one.
+</p>
+<p>
+Being a vocabulary this has to set %ghost_context. I want to keep the
+xcompiler vocabulary model similar to accepted conventions. vocabulary
+is not a standard ansi word, the action of gforth is treated as the accepted
+convention.
+</p>
+<pre> <code>
+
+\ we have to describe the target wordlist
+zero
+DUP CONSTANT #thread_name  CELL+ \ points to a name string
+DUP CONSTANT #thread_count CELL+ \ number of threads
+DUP CONSTANT #thread_data  \ the data
+DROP
+
+ram_variable %target_wordlist_threads
+0 %target_wordlist_threads !
+
+\ wordlist heads are created in the application so they can be extended
+	: target_wordlist ( $name -- twid)
+		\ now create the target area.
+		\ Vocabularies can be extended so created
+		\ in the target data segment.
+		\ If threads are set to zero no target threads are created
+		\ this is needed for local ghost voc.
+		uhere >R
+		%target_wordlist_threads @ IF
+			uhere add_reference \ a string pointer
+			ut,
+			%target_wordlist_threads @
+			DUP ut,
+			zero DO
+				\ The final data in heads must be relocated.
+				\ the initial value will end up in a word
+				\ somewhere.
+				uhere add_reference
+				\ this zero will end up in the link field of
+				\ a word somewhere. The relocation code that
+				\ creates the bFLT image will remove a relocation
+				\ reference if the target cell contains 0.
+				0 ut,
+			LOOP
+			R>
+		ELSE
+			DROP
+			R> DROP
+			zero
+		THEN
+	;
+
+
+	: ghost_wordlist ( -- gwid)
+		0 target_wordlist
+		(ghost_wordlist)
+	;
+
+	\ target wordlist has otherwise been created.
+	\ This can be partially done with  <i>target_wordlist</> ( has no name)
+	\ <i>create_wordlist</i> ( has a name) or is done with host version of
+	\ <i>vocabulary</i>.
+	: (ghost_vocabulary) ( twid--)
+		(ghost_wordlist)
+		CREATE ,
+		DOES> @ %ghost_context ! ;
+
+	\ no target vocabulary required
+	: ghost_vocabulary_only ( --)
+		0 (ghost_vocabulary)
+	;
+	\ vocabulary is a non standard ansi word, we are going with the
+	\ gforth version.
+	\ This creates the wordlist in the target but doesn't provide the
+	\ target wordlist with a name. This comes latter with </i>(vocabulary)</i>
+	\ To keep the two ideas apart call vocabularies created with this word
+	\ ghost_xxxx, vocabularies created with vocabulary xxxx.
+	: ghost_vocabulary   ( --)
+		ghost_wordlist
+		\ child ( -- vocg)
+		CREATE ,
+		DOES> @ %ghost_context ! ;
+</code>
+</pre>
+<h3>the forth ghost wordlist</h3>
+<p>
+The heads go in the data area, we can create it here and all will be ok.
+</p>
+
+<pre>
+<code>
+$100 %ghost_wordlist_threads !
+$100 %target_wordlist_threads !
+
+ghost_vocabulary ghost_forth
+ghost_only
+ghost_also
+ghost_forth
+ghost_definitions
+
+#min_wordlists %ghost_wordlist_threads !
+#min_wordlists %target_wordlist_threads !
+
+</code> </pre>
+<h3>Target head structure</h3>
+<p>
+Describe the type of word we are going to create.
+</p>
+	<pre> <code>
+	20 CONSTANT _#smudge_bit
+		\ set true code can be copied to : word
+	40 CONSTANT _#pure_bit
+		\ set true if word is to be executed when compiling
+	80 CONSTANT _#immediate_bit
+		\ Bits used to set the name count
+	1F CONSTANT _#name_count_bits
+
+	\ The string is stored above the link count first and then the characters
+
+	zero
+	DUP CONSTANT _#head_count 1+
+	DUP CONSTANT _#head_link CELL+
+	DUP CONSTANT _#head_hash CELL+
+	DUP CONSTANT _#head_cfa
+	\ the length of this is target specific.
+	\ 6 for the 68k will be 4 for most risk machines.
+	DUP CONSTANT _#head_xt
+	DROP
+</code>
+</pre>
+<p>
+Words to get around the target head. At this stage we do not know
+the length of the code field. That happens in the target specific
+portion of the xcompiler.
+</p>
+<pre>
+<code>
+: t_xt>nfa ( lfa -- pfa )
+	[ _#head_count _#head_xt - ] LITERAL +
+;
+
+: t_lfa>nfa  ( addr -- addr )
+	[ _#head_count _#head_link - ] LITERAL +
+;
+
+
+: t_lfa>hash ( addr -- addr )
+	[ _#head_hash _#head_link - ] LITERAL +
+;
+</code>
+</pre>
+<h3>Target head</h3>
+<p>
+Creates a target head up to xt.
+</p>
+<pre>
+<code>
+
+\ we have the option of making headless words when cross
+\ compiling.
+ram_variable %hds
+ram_variable %hds_last \ can only set bits in head if %hds_last is true
+                       \ see <i>immediate</i> and <i>inline</i>
+TRUE %hds !
+FALSE %hds_last !
+
+: | zero %hds ! ;
+
+
+: link_target_single ( add head --)
+	2DUP t@ SWAP t! t!
+;
+
+
+: target_hash ( c-addr u target_wid -- list)
+	-rot checksum OVER
+	#thread_count + t@                     \ wid hash count(--
+	1- AND                                 \ wid list (--
+	CELLS  #thread_data + +               \ list(--
+;
+
+\ we don't need a target last as the last target xt can be extracted
+\ from %ghost_last
+: link_target_wordlist ( addr n wid link_addr )
+	>R
+	target_hash
+	\ head(--
+	R> SWAP
+	link_target_single
+;
+
+: $create_target_head  ( $--)
+	%hds @ IF
+	    #$buffer get_buffer
+		COUNT              \ addr u(--
+		TUCK buffer SWAP MOVE
+		\ all heads are lowercase
+		buffer SWAP 2DUP Slowercase
+		\ addr1 n(-
+		2DUP
+		\ the string is to end on an aligned boundary
+		\ gap does that so we GAP first and build the
+		\ string back from here.
+
+		\ addr n addr n (--
+		DUP 1+ CHARS ALLOT       \ remember we have host as first vocabulary
+		DUP HERE 1 CHARS - tc!   \ a target version of HERE, ALLOT and CHARS is being used.
+		\ xt addr n(--
+		HERE OVER 1+ CHARS -
+		\ xt addr n addr_from n addr_to
+		SWAP to_target_cmove
+		\ xt addr n(--
+
+		\ link back to head
+		2DUP
+		current_target_wordlist DUP not ABORT" No target wordlist"
+		HERE
+		\ the contents of this cell has to be translated when image is moved.
+		\ I don't care what anyone says, an absolute runtime that can be translated
+		\ is bloody neat.
+		DUP add_reference
+		0 t,
+		\ xt addr n addr n link_addr wid(--
+		link_target_wordlist
+		checksum
+		t,
+	    kill_buffer
+	ELSE
+		DROP
+	THEN
+	%hds @ %hds_last !
+	TRUE %hds !
+;
+
+
+</code>
+</pre>
+</body>
+</html>

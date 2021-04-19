@@ -1,0 +1,422 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN">
+<HTML>
+<HEAD>
+<TITLE>COLDFORTH chapter 8</TITLE>
+        <META NAME="AUTHOR" CONTENT="Charles Esson">
+        <META NAME="keywords" CONTENT="COLDFORTH">
+        <LINK REL=stylesheet HREF="forth.css" TYPE="text/css">
+
+</HEAD>
+<BODY bgcolor=#ffffff>
+<h1>COLDFORTH MANUAL CHAPTER 8 Input/Output</h1>
+<h3>Introduction</h3>
+<p>
+To input data,  a program uses <a HREF="./source/input_output.html#ACCEPT">ACCEPT</a>, to output data
+a program uses <a HREF="./source/input_output.html#TYPE">TYPE</a>. Behind these two simple words is an
+I/O sub system that allows you to talk to a serial device, a file, a TCP connection or a pipe to another task.
+This chapter tries to walk you through the maze.
+</p>
+<p>
+If you look at the code for <a HREF="./source/input_output.html#ACCEPT">ACCEPT</a> you will note that an object address is obtained from the user variable 'input_file
+and one of two methods  are called, <samp>:read_line</samp> or <samp>:read</samp>. Default actions for these two methods
+are defined in the class <samp>io_common</samp>. All io classes are derived from io_common. If you can read data
+from the io device, <samp>:read_line</samp> and <samp>:read</samp> will be overridden when the class is defined,
+with a method that will get the data from the device.
+</p>
+<p>
+<samp>TYPE</samp> obtains the object address from the user variable 'output_file, <samp>TYPE</samp> then calls the objects
+<samp>:type</samp> method.
+</p>
+<p>
+<samp>TYPE</samp> and <samp>EXPECT</samp> are used as ansi standard words that call I/O object methods using
+objects stored in predefined locations. The ansi standard file words such as
+<a HREF="./source/input_output.html#READ-FILE">READ-FILE</a> and
+<a HREF="./source/input_output.html#WRITE-FILE">WRITE-FILE</a> take a file-id.
+The file-id is an i/o object address, and just
+like <samp>TYPE</samp>, <samp>FILE-WRITE</samp> calls an io object method .
+The the method called by <samp>TYPE</samp> (<samp>:type</samp>) maintains a character position,
+the method called by <samp>WRITE-FILE</samp> (<samp>:write</samp>) doesn't.
+</p>
+<p>
+In other words the use of object has unified the FORTH I/O word set. The set specified for terminal I/O use an object
+whose address is stored in a user variable, the file word set use an object address supplied on the stack. Both word sets
+can operate against the same set of objects.
+</P>
+<p>
+You can use the methods directly, use of the ANSI standard words is recommended. There use will now be covered.
+</p>
+<a name="files"><h2>Files</h2></a>
+<p>
+The file word set deals with i/o objects. When you open a file you get a handle, the handle is the address of
+an object created on the heap. When you close a file you destroy an object. A file can be a TCP/IP port, a pipe,
+a NFS file or a file stored in flash. In all cases the file words call method in the object created with open.
+Some of the file words have no meaning for some types of I/O devises, for instance you can't reposition the file
+pointer if your using
+the object to write data to a TCP/IP connection. Generally if the file word has no meaning when used against
+a particular I/O device the stack is tidied up and no
+action is taken.
+<a name="file_creation"><h3>Creating a file</h3></a>
+<p>
+First you need to create a file. The ansi standard word is <a HREF="./source/input_output.html#CREATE-FILE">CREATE-FILE</a>,
+unfortunately this requires on the stack the address and count of a string that describes
+the file to be made, not that easy to give in interpreting mode.
+<b>COLDFORTH</b> supplies the word <samp>mkfile</samp> used in the form <samp>mkfile ( "name" --)</samp>.
+</p>
+<h5>EXAMPLE</h5>
+<pre><samp>
+R/W mkfile flash/test.html
+</samp></pre>
+<p>
+<samp>mkfile</samp> is followed by a string that is used to create the new file. The first "/" divides the string into
+two parts, the first part specifies the driver to be used, the second is a string that is passed to the driver.
+A driver is nothing more than a class name stored in the vocabulary <samp>&drivers</samp>. The open word uses
+the class to create an I/O object.  This is an important point, <b><samp>open</samp> creates objects,
+<samp>close</samp> destroys objects</b>.
+</p>
+<p>
+As is common with the <b>COLDFORTH</b> file word set <samp>mkfile</samp> comes in three flavors.
+</p>
+<table>
+<tr><th>word</th><th>stack</th><th>Description</th></tr>
+<tr><td><a HREF="./source/input_output.html#$mkfile"><samp>$mkfile</samp></a></td><td>$ --</td><td>Create a file
+         using the top stack item as the address of a counted string that gives the file name.
+         If an error occurs abort.</td></tr>
+<tr><td><a HREF="./source/input_output.html#CREATE-FILE"><samp>CREATE-FILE</samp></a></td><td>addr n fam--handle ior</td><td>Create and open a file,
+         on input the top two stack items describe a string that gives the files name.
+         If all is ok <samp>ior</samp> is zero and <samp>handle</samp> is the base address of an object giving access to
+         the file.
+         If an error occurs <samp>handle</samp> is undefined and <samp>ior</samp> is the address of an error string.</td></tr>
+
+<tr><td><a HREF="./source/input_output.html#Smkfile"><samp>Smkfile</samp></a></td><td>addr n--</td><td>Create a file,
+         on input the top two stack items describe a string that gives the files name.
+         If an error occurs abort.</td></tr>
+
+<tr><td><a HREF="./source/input_output.html#mkfile"><samp>mkfile</samp></a></td><td>"name"--</td><td>Create a file using
+         the next input token as the file name. If an error occurs abort.</td></tr>
+</table>
+<p>
+The <samp>mkfile</samp> word set creates the file but does not leave the file in an open state.
+</p>
+<a name="file_opening"><h3>Opening a file</h3></a>
+<p>
+Once created the file has to be opened, once again there is an ANSI standard word and
+a set of three <b>COLDFORTH</b> words.
+</p>
+<p>
+The ansi word set provides an error code if failure occurs, the <b>COLDFORTH</b> word set
+about.
+</P>
+<table>
+<tr><th>word</th><th>stack</th><th>Description</th></tr>
+<tr><td><a HREF="./source/input_output.html#$open"><samp>$open</samp></a></td><td>$ fam--handle</td><td>Open a file
+         using the top stack item as the address of a counted string that gives the file name.
+         If an error occurs abort.</td></tr>
+<tr><td><a HREF="./source/input_output.html#OPEN-FILE"><samp>OPEN-FILE</samp></a></td><td>addr n fam--handle ior</td><td>Open a file,
+         on input the top two stack items describe a string that gives the files name.
+         If all is ok <samp>ior</samp> is zero and <samp>handle</samp> is the base address of an object giving access to
+         the file.
+         If an error occurs <samp>handle</samp> is undefined and <samp>ior</samp> is the address of an error string.</td></tr>
+
+<tr><td><a HREF="./source/input_output.html#Sopen"><samp>Sopen</samp></a></td><td>addr n fam--handle</td><td>Open a file,
+         on input the top two stack items describe a string that gives the files name.
+         If an error occurs abort.</td></tr>
+
+<tr><td><a HREF="./source/input_output.html#open"><samp>open</samp></a></td><td>fam "name"--handle</td><td>Open a file using
+         the next input token as the file name. If an error occurs abort.</td></tr>
+</table>
+<h5>EXAMPLE</h5>
+<pre><samp>
+VARIABLE %file_handle
+R/W open flash/test.html %file_handle !
+</samp></pre>
+<P>
+On opening the file position pointer points to the first byte ( position zero).
+</p>
+<p>
+The file handle is still valid even if you abort. In this case we have stored it in a variable for later use.
+</p>
+<a name="file_writing"><h3>File Writing</h3></a>
+<p>
+Now we have a handle we can write to a file.
+ You can use the object method
+<a href="./source/io_common.html#:write">:write</a>, or the ansi standard word
+, <a HREF="./source/input_output.html#WRITE-FILE">WRITE-FILE</a>.
+</p>
+<table>
+<tr><th>word</th><th>stack</th><th>Description</th></tr>
+<tr><td><a HREF="./source/io_common.html#:write"><samp>:write</samp></a></td><td>add n handle--</td><td>
+         Write a string to a file at the current file position, if an error occurs abort.</td></tr>
+<tr><td><a HREF="./source/input_output.html#WRITE-FILE"><samp>WRITE-FILE</samp></a></td><td>addr n handle--ior</td><td>
+        Write a string to a file at the current file position, if an error occurs return the address of an error string</td></tr>
+</table>
+<h5>EXAMPLE</h5>
+<pre><samp>
+CREATE $fred ,"a string"
+$fred COUNT %file_handle @ WRITE-FILE $ABORT
+</samp></pre>
+<a name="file_position"><h3>File position</h3></a>
+<p>
+In this section we will discuss three ansi standard words, they all call methods within the io object. All the methods
+will abort on error. In all cases the abort is converted to an ior as required by the ansi standard.
+</p>
+<p>
+When you open a file the file position is at the start of the file. When you read or write to a file the
+file position is after the read or write data. You can get the current file position with the word
+<a href="./source/input_output.html#FILE-POSITION"><samp>FILE-POSITION</samp></a>.
+<h5>EXAMPLE</h5>
+<pre><samp>
+%file_handle @ FILE-POSITION
+\ consume ior
+$ABORT
+\ consume file position
+D.
+</samp></pre>
+<p>
+When you read and write to a file you do so from the current file position. When you open a file
+the file has been positioned to the start of the file.
+</p>
+<p>
+<a href="./source/input_output.html#REPOSITION-FILE"><samp>REPOSITION-FILE</samp></a> is the ansi word used to move the
+position pointer. <a href="./source/input_output.html#FILE-SIZE"><samp>FILE-SIZE</samp></a> can be used to get the size
+of a file. The following code can be used to position the file pointer to the end of a file, for a file
+append.
+</p>
+<h5>EXAMPLE</h5>
+<pre><samp>
+%file_handle @ FILE-SIZE
+$ABORT  \ abort if we fail
+\ file_size(--
+%file_handle @ REPOSITION-FILE
+$ABORT \ abort if we fail
+</samp></pre>
+<table>
+<tr><th>word</th><th>stack</th><th>Description</th></tr>
+<tr><td><a HREF="./source/input_output.html#FILE-POSITION"><samp>FILE-POSITION</samp></a></td><td>handle--double ior</td>
+        <td>If ior is zero double is the current file position,if ior is non zero ior is a string describing the
+        problem and double is undefined.</td></tr>
+<tr><td><a HREF="./source/input_output.html#FILE-SIZE"><samp>FILE-SIZE</samp></a></td><td>handle--double ior</td>
+         <td>If ior is zero, handle gives the file size in characters, if the file is none zero ior is
+         the address of a string that describes the error, and double is undefined.</td></tr>
+<tr><td><a HREF="./source/input_output.html#REPOSITION-FILE"><samp>REPOSITION-FILE</samp></a></td><td>double handle--ior</td>
+        <td>If ior is zero the file position is set to the double value. If ior is non zero, ior is the address
+        of a string describing the problem.</td></tr>
+</table>
+<a name="file_read"><h3>File read</h3></a>
+<p>
+If you have followed the example so far, you have the file <i>test.html</i> on flash, the file is open with the
+handle stored in %file_handle, we have written a string, and the file is positioned at the end.
+We are now going to read the written data.
+</p>
+<h5>EXAMPLE</h5>
+<pre><samp>
+\ somewhere to put the read data
+ram_create %buffer 20 ram_allot
+\ position back to start
+0 S>D %file_handle @ REPOSTION-FILE
+\ get rid of ior
+$ABORT
+\ read some data from the file
+%buffer 8 %file_handle @ READ-FILE
+\ get rid of ior
+$ABORT
+\ look at the read count
+.
+\ look at the buffer
+%buffer 10 DUMP
+</samp></pre>
+<p>
+In the buffer you should find the data written to file above, that is "a string"
+</p>
+<p>
+You can also read a line of data from a file with <a href="./source/input_output.html#READ-LINE"><samp>READ-LINE</samp></a>.
+</p>
+<a name="file_append"><h3>Append to a file</h3>
+<p>
+We have already covered all the words needed to do this.
+</p>
+<pre><samp>
+%file_handle @ FILE-SIZE
+$ABORT  \ abort if we fail
+\ file_size(--
+%file_handle @ REPOSITION-FILE
+$ABORT \ abort if we fail
+\ add a second copy of the string
+$fred COUNT %file_handle @ WRITE-FILE $ABORT
+\ reposition back to start
+\ position back to start
+0 S>D %file_handle @ REPOSTION-FILE
+\ get rid of ior
+$ABORT
+\ read some data from the file
+%buffer $10 %file_handle @ READ-FILE
+\ get rid of ior
+$ABORT
+\ look at the read count
+.
+\ look at the buffer
+%buffer $10 DUMP
+</samp></pre>
+<p>
+The buffer should now contain the string, twice.
+</p>
+<a name="file_shrink"><h3>Shrinking the file.</h3>
+<p>
+You can reduce the file length with the word <a href="./source/input_output.html#RESIZE-FILE"><samp>RESIZE-FILE</samp></a>.
+The following example removes the data appended above.
+</p>
+<pre><samp>
+8 S>D %file_handle @ RESIZE-FILE
+$ABORT
+%file_handle @ FILE-SIZE
+$ABORT
+D.
+</samp></pre>
+<a name="file_using"><h3>Using the file for standard I/O words</h3>
+<p>
+We mentioned in the introduction that the I/O system has been unified under <b>COLDFORTH</b>, this allows us to
+open a file and send standard output to the file for printing.
+</p>
+<pre><samp>
+%file_handle @
+\ write data using standard word.
+'output_file ! 1234 . 'abort_file @ 'output_file !
+
+0 S>D %file_handle @  REPOSITION-FILE $ABORT
+%buffer $10 READ-FILE $ABORT
+.
+%buffer $10 DUMP
+</samp></pre>
+<p>
+You should see our original string and the data written above now stored in <samp>%buffer</samp>.
+</p>
+<p>
+We will now get a little bit more adventurious. <samp>.tasks</samp> prints a list of running tasks
+lets write that data to a file.
+</p>
+<pre><samp>
+\ clean out the file
+0 S>D %file_handle @ RESIZE-FILE
+%file_handle @
+\ write data using standard word.
+'output_file ! .tasks  'abort_file @ 'output_file !
+
+0 S>D %file_handle @  REPOSITION-FILE $ABORT
+HERE $100 %file_handle @ READ-FILE $ABORT
+.
+HERE $100 DUMP
+</samp></pre>
+<p>
+This small code segment demonstates the advantages of unifying the I/O system. <samp>.tasks</samp> was written
+to work against files, it's just another word to print system info. But because of what <b>COLDFORTH</b> is
+<samp>.task</samp> can be used to write the state of the current running tasks to a file, or for that matter
+to a TCP/IP connection, or to a pipe.
+</p>
+<p>
+Our little test file now contains data. Lets write a word to display it and display it.  Note
+that we still have the file open when we use the display word. You can have multiple
+objects pointing to one file.
+</p>
+<pre><samp>
+: display {  ( "name" --) }{ variable %handle }
+        open  %handle !
+        #$buffer get_buffer
+        BEGIN
+           buffer #$buffer %handle @ READ-LINE ?DUP IF
+                \ we had an error reading
+                kill_buffer
+                %handle @ close
+                $ABORT
+           THEN
+        WHILE
+                buffer SWAP TYPE CR
+        REPEAT
+        kill_buffer
+        %handle @ close
+;
+
+display flash/test.html
+</samp></pre>
+<p>
+<a href="./source/input_output.html#display"><samp>display</samp></a> is almost usefull enough to be a
+kernel word, it is.
+</p>
+</samp></pre>
+<a name="file_delete"><h3>Removing a file</h3>
+<p>
+Lets now close our file and <a href="./source/input_output.html#remove"><samp>remove</samp></a> it.
+</p>
+<h5>EXAMPLE</h5>
+<pre><samp>
+%file_handle @ close
+remove flash/test.html
+</samp></pre>
+<p>
+remove comes in a few flavors.
+</p>
+<table>
+<tr><th>word</th><th>stack</th><th>Description</th></tr>
+<tr><td><a HREF="./source/input_output.html#$remove"><samp>$remove</samp></a></td><td>$--</td><td>Remove a file
+         using the top stack item as the address of a counted string that gives the file name.
+         If an error occurs abort.</td></tr>
+<tr><td><a HREF="./source/input_output.html#DELETE-FILE"><samp>DELETE-FILE</samp></a></td><td>addr n--ior</td><td>
+         Remove a file, on input the top two stack items describe a string that gives the files name.
+         If all is ok <samp>ior</samp> is zero.
+         If an error occurs  <samp>ior</samp> is the address of an error string.</td></tr>
+
+<tr><td><a HREF="./source/input_output.html#Sremove"><samp>Sremove</samp></a></td><td>addr n--</td><td>Remove a file,
+         on input the top two stack items describe a string that gives the files name.
+         If an error occurs abort.</td></tr>
+
+<tr><td><a HREF="./source/input_output.html#remove"><samp>remove</samp></a></td><td>"name"--</td>
+        <td>Remove a file using
+         the next input token as the file name. If an error occurs abort.</td></tr>
+</table>
+<a name="nfs"><h3>Using nfs</h3></a>
+<p>
+MFS is the distributed file protocol used by UNIX. UNIX expects devices to be mounted before use. Each <b>COLDFORTH</b>
+task can have a remove nfs drive mounted.
+</p>
+<h5>EXAMPLE</h5>
+<pre><samp>
+\ mount a remote nfs drive
+mount 192.168.0.112/home/charlese/bcm550/version081
+\ make a file on the device
+mkfile nfs/test.html
+\ open the file
+R/W  open nfs/test.html
+%file_handle !
+
+%file_handle @
+\ write data using standard word.
+'output_file ! context @ null (words)
+'output_file @ close
+'abort_file @ 'output_file !
+</samp></pre>
+<p>
+The above code writes the words list to a NFS file.
+</p>
+<p>
+The mount string can be embedded inteh file specification. The above example can be rewritten.
+</p>
+<pre><samp>
+mkfile nfs/192.168.0.112/home/charlese/bcm550/version081:test.html
+R/W open nfs/192.168.0.112/home/charlese/bcm550/version081:test.html
+%file_handle !
+etc.
+</samp></pre>
+<p>
+You could also write this:
+</p>
+<pre><samp>
+swd nfs/192.168.0.112/home/charlese/bcm559/version081:
+mkfile ./test.html
+R/W open ./test.html
+%file_handle !
+etc.
+</samp></pre>
+</body>
+</html>
+
+
+
+

@@ -1,0 +1,92 @@
+<html>
+<head>
+<title>word_head.html</title>
+<META NAME="Author" CONTENT="Charles Esson">
+<META NAME="keywords" CONTENT="forth">
+<META NAME="description" CONTENT=" Use to generate uCforth">
+<LINK REL=stylesheet HREF="forth.css" TYPE="text/css">
+</head>
+<body>
+<a HREF="./license.html">license</a>
+<p>
+Words to describe a words head. These are already present in the host,
+redefinition will not be a problem.
+</p>
+<pre>
+<code>
+
+	$20 CONSTANT _#smudge_bit
+		\ set true if code can be copied to a new
+		\ : word
+	$40 CONSTANT _#pure_bit
+		\ set true if word is to be executed when compiling
+	$80 CONSTANT _#immediate_bit
+		\ Bits used to set the name count
+	$1F CONSTANT _#name_count_bits
+
+	zero
+	DUP CONSTANT _#head_count 1+
+	DUP CONSTANT _#head_link CELL+
+	DUP CONSTANT _#head_hash CELL+
+
+	DUP CONSTANT _#head_xt
+	DROP
+
+	\ the offset to the data field is processor dependent.
+	include_card word_head.html
+
+
+
+	: lfa>hash  ( lfa --hash) [ _#head_hash _#head_link - ]T LITERAL + ; inline
+
+	: lfa>nfa ( lfa -- nfa) [ _#head_count _#head_link - ]T LITERAL + ; inline
+
+	: xt>dfa ( xt -- dfa ) [ _#head_dfa _#head_xt - ]T LITERAL + ; inline
+
+	: xt>nfa ( xt -- nfa ) [ _#head_count _#head_xt - ]T LITERAL + ;  inline
+
+	: lfa>xt [ _#head_xt _#head_link - ]T LITERAL +  ;  inline
+
+
+</code>
+</pre>
+<a name=">BODY"></a>
+<h5>ANS 6.1.0550 >BODY</h5>
+<p>CORE</p>
+<p>( xt -- a-addr )</p>
+<p>
+a-addr is the data-field address corresponding to xt. An ambiguous condition
+exists if xt is not for a word defined via CREATE.
+</p>
+<p>
+a-addr is the address that HERE would have returned had it been executed
+immediately after the execution of the CREATE that defined xt.
+</p>
+<pre> 
+<code>
+	: >BODY  ( xt -- pfa)
+		xt>dfa 
+	; inline
+</code> 
+</pre>
+<a name="name_count"></a>
+<h5>name+count</h5>
+<p>( c-addr1 -- c-addr2 u )</p>
+<p>
+The name count is stored with the count high in memory and the characters below
+it. This word turns this arrangement into stack values as required by a S type string.
+</p>
+<pre>
+<code>
+	: name_count ( nfa -- c-addr2 n )
+		DUP C@   \ addr n+flags (--
+		_#name_count_bits AND  \ n+flags addr n(--
+		TUCK     \ n+flags addr n+flags(--
+		-        \ n+flags addr2(--
+		SWAP     \ addr3 n+flags(--
+	;
+
+</code>
+</pre>
+</body>
+</html>

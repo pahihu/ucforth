@@ -1,0 +1,67 @@
+<html>
+<head>
+<title>prompt.html</title>
+<META NAME="Author" CONTENT="Charles Esson">
+<META NAME="keywords" CONTENT="forth">
+<META NAME="description" CONTENT=" uCforth uses this file to generate uCforth">
+<LINK REL=stylesheet HREF="forth.css" TYPE="text/css">
+</head>
+<body>
+<a HREF="./license.html">license</a>
+	<a name=".context"></a>
+	<h5>.context ( --)</h5>
+	<p>
+	Print the search order.
+	</p>
+	<pre> <code>
+
+	: .context ( --)
+		GET-ORDER zero ?DO
+			i' I - 1- ROLL   \ print the lowest first
+			_#wid_name + @ ?DUP IF
+				\ .S send
+				name_count
+			ELSE
+				S" --"
+			THEN
+			\ .S send
+			TYPE
+			SPACE
+		LOOP
+	;
+
+
+
+	: cvs_prompt  ( --)
+			.context
+			BASE @ DUP u>d
+			DECIMAL
+			#picture_min get_buffer
+			buffer #picture_min [# # # #] TYPE
+			kill_buffer
+			BASE !
+			." >"
+	;
+
+	: ansi_prompt ( --)
+		." ok "
+	;
+
+	\ set the cross compile prompt value.
+	\ make_app will then use whatever is set.
+	%prompt add_reference
+	' cvs_prompt %prompt t!
+
+
+
+	: ok ['] ansi_prompt %prompt ! ;
+
+
+	: .prompt
+		%prompt @execute
+	;
+
+</code>
+</pre>
+</body>
+</html>
